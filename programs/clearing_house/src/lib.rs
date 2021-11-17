@@ -487,10 +487,10 @@ pub mod clearing_house {
                 last_cumulative_funding_rate: 0,
                 last_cumulative_repeg_rebate: 0,
                 last_funding_rate_ts: 0,
-                stop_profit_price: 0,
-                stop_profit_amount: 0,
-                stop_loss_price: 0,
-                stop_loss_amount: 0,
+                short_order_price: 0,
+                short_order_amount: 0,
+                long_order_price: 0,
+                long_order_amount: 0,
                 transfer_to: Pubkey::default(),
                 padding0: 0,
                 padding1: 0,
@@ -936,6 +936,110 @@ pub mod clearing_house {
             &ctx.accounts.state.oracle_guard_rails,
             ctx.accounts.state.funding_paused,
         )?;
+
+        Ok(())
+    }
+
+    #[access_control(
+        market_initialized(&ctx.accounts.markets, market_index) &&
+        exchange_not_paused(&ctx.accounts.state) &&
+        valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
+    )]
+    pub fn update_order<'info>(
+        ctx: Context<UpdateOrder>,
+        direction: PositionDirection,
+        amount: u128,
+        price: u128,
+        market_index: u64,
+    ) -> ProgramResult {
+        let user = &mut ctx.accounts.user;
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+        let clock_slot = clock.slot;
+
+        // Settle user's funding payments so that collateral is up to date
+        let user_positions = &mut ctx.accounts.user_positions.load_mut()?;
+        let funding_payment_history = &mut ctx.accounts.funding_payment_history.load_mut()?;
+        controller::funding::settle_funding_payment(
+            user,
+            user_positions,
+            &ctx.accounts.markets.load()?,
+            funding_payment_history,
+            now,
+        )?;
+
+        // Check if the user has an existing position for the market
+        let mut market_position = user_positions
+            .positions
+            .iter_mut()
+            .find(|market_position| market_position.market_index == market_index);
+
+        // If they don't have an existing position, look into the positions account for a spot for space
+        // for a new position
+        if market_position.is_none() {
+            let available_position_index = user_positions
+                .positions
+                .iter()
+                .position(|market_position| market_position.base_asset_amount == 0);
+
+            if available_position_index.is_none() {
+                return Err(ErrorCode::MaxNumberOfPositions.into());
+            }
+
+            let new_market_position = MarketPosition {
+                market_index,
+                base_asset_amount: 0,
+                quote_asset_amount: 0,
+                last_cumulative_funding_rate: 0,
+                last_cumulative_repeg_rebate: 0,
+                last_funding_rate_ts: 0,
+                short_order_price: 0,
+                short_order_amount: 0,
+                long_order_price: 0,
+                long_order_amount: 0,
+                transfer_to: Pubkey::default(),
+                padding0: 0,
+                padding1: 0,
+            };
+
+            user_positions.positions[available_position_index.unwrap()] = new_market_position;
+
+            market_position =
+                Some(&mut user_positions.positions[available_position_index.unwrap()]);
+        }
+
+        let market_position = market_position.unwrap();
+
+        match direction {
+            PositionDirection::Long => {
+                market_position.long_order_amount = amount;
+                market_position.long_order_price = price;
+            },
+            PositionDirection::Short => {
+                market_position.short_order_amount = amount;
+                market_position.short_order_price = price;
+            },
+        }
+
+        // todo: if user cancels order (sets price/amount to 0) and base_asset_amount is 0, set market_index to 0
+
+        // Try to update the funding rate
+        {
+            let market = &mut ctx.accounts.markets.load_mut()?.markets
+                [Markets::index_from_u64(market_index)];
+            let price_oracle = &ctx.accounts.oracle;
+            let funding_rate_history = &mut ctx.accounts.funding_rate_history.load_mut()?;
+            controller::funding::update_funding_rate(
+                market_index,
+                market,
+                &price_oracle,
+                now,
+                clock_slot,
+                funding_rate_history,
+                &ctx.accounts.state.oracle_guard_rails,
+                ctx.accounts.state.funding_paused,
+            )?;
+        }
 
         Ok(())
     }

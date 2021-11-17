@@ -449,6 +449,71 @@
       ]
     },
     {
+      "name": "updateOrder",
+      "accounts": [
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "markets",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fundingPaymentHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fundingRateHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracle",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "direction",
+          "type": {
+            "defined": "PositionDirection"
+          }
+        },
+        {
+          "name": "amount",
+          "type": "u128"
+        },
+        {
+          "name": "price",
+          "type": "u128"
+        },
+        {
+          "name": "marketIndex",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "liquidate",
       "accounts": [
         {
@@ -2466,19 +2531,19 @@
             "type": "i64"
           },
           {
-            "name": "stopLossPrice",
+            "name": "longOrderPrice",
             "type": "u128"
           },
           {
-            "name": "stopLossAmount",
+            "name": "longOrderAmount",
             "type": "u128"
           },
           {
-            "name": "stopProfitPrice",
+            "name": "shortOrderPrice",
             "type": "u128"
           },
           {
-            "name": "stopProfitAmount",
+            "name": "shortOrderAmount",
             "type": "u128"
           },
           {

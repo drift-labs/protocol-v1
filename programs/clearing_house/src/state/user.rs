@@ -43,10 +43,10 @@ pub struct MarketPosition {
     pub last_cumulative_funding_rate: i128,
     pub last_cumulative_repeg_rebate: u128,
     pub last_funding_rate_ts: i64,
-    pub stop_loss_price: u128,
-    pub stop_loss_amount: u128,
-    pub stop_profit_price: u128,
-    pub stop_profit_amount: u128,
+    pub long_order_price: u128,
+    pub long_order_amount: u128,
+    pub short_order_price: u128,
+    pub short_order_amount: u128,
     pub transfer_to: Pubkey,
 
     // upgrade-ability
