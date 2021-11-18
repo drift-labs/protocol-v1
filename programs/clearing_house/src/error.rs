@@ -82,6 +82,8 @@ pub enum ErrorCode {
     InvalidFundingProfitability,
     #[msg("Casting Failure")]
     CastingFailure,
+    #[msg("Invalid Order")]
+    InvalidOrder,
 }
 
 #[macro_export]
