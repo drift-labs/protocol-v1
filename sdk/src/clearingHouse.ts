@@ -619,6 +619,51 @@ export class ClearingHouse {
 		);
 	}
 
+	public async cancelOrder(
+		direction: PositionDirection,
+		marketIndex: BN,
+	): Promise<TransactionSignature> {
+		return await this.txSender.send(
+			wrapInTx(
+				await this.getCancelOrderIx(
+					direction,
+					marketIndex,
+				)
+			),
+			[],
+			this.opts
+		);
+	}
+
+	public async getCancelOrderIx(
+		direction: PositionDirection,
+		marketIndex: BN,
+	): Promise<TransactionInstruction> {
+		const userAccountPublicKey = await this.getUserAccountPublicKey();
+		const userAccount = await this.getUserAccount();
+
+		const priceOracle =
+			this.getMarketsAccount().markets[marketIndex.toNumber()].amm.oracle;
+
+		const state = this.getStateAccount();
+		return await this.program.instruction.cancelOrder(
+			direction,
+			marketIndex,
+			{
+				accounts: {
+					state: await this.getStatePublicKey(),
+					user: userAccountPublicKey,
+					authority: this.wallet.publicKey,
+					markets: state.markets,
+					userPositions: userAccount.positions,
+					fundingPaymentHistory: state.fundingPaymentHistory,
+					fundingRateHistory: state.fundingRateHistory,
+					oracle: priceOracle,
+				},
+			}
+		);
+	}
+
 	/**
 	 * Close an entire position. If you want to reduce a position, use the {@link openPosition} method in the opposite direction of the current position.
 	 * @param marketIndex

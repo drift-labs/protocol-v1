@@ -46,6 +46,8 @@ describe('orders', () => {
     let discountMint: Token;
     let discountTokenAccount: AccountInfo;
 
+    const marketIndex = new BN(1);
+
     before(async () => {
         usdcMint = await mockUSDCMint(provider);
         userUSDCAccount = await mockUserUSDCAccount(usdcMint, usdcAmount, provider);
@@ -62,7 +64,7 @@ describe('orders', () => {
         const periodicity = new BN(60 * 60); // 1 HOUR
 
         await clearingHouse.initializeMarket(
-            Markets[0].marketIndex,
+            marketIndex,
             solUsd,
             ammInitialBaseAssetReserve,
             ammInitialQuoteAssetReserve,
@@ -99,7 +101,6 @@ describe('orders', () => {
     it('Open long order', async () => {
         const amount = new BN(1);
         const price = new BN(1);
-        const marketIndex = new BN(0);
         await clearingHouse.updateOrder(PositionDirection.LONG, amount, price, marketIndex);
         const user: any = await clearingHouse.program.account.user.fetch(
             userAccountPublicKey
@@ -107,7 +108,49 @@ describe('orders', () => {
         const userPositionsAccount: UserPositionsAccount =
             await clearingHouse.program.account.userPositions.fetch(user.positions);
         const firstPosition = userPositionsAccount.positions[0];
+        assert(firstPosition.marketIndex.eq(marketIndex));
         assert(firstPosition.longOrderAmount.eq(amount));
         assert(firstPosition.longOrderPrice.eq(price));
+    });
+
+    it('Cancel long order', async () => {
+        await clearingHouse.cancelOrder(PositionDirection.LONG, marketIndex);
+        const user: any = await clearingHouse.program.account.user.fetch(
+            userAccountPublicKey
+        );
+        const userPositionsAccount: UserPositionsAccount =
+            await clearingHouse.program.account.userPositions.fetch(user.positions);
+        const firstPosition = userPositionsAccount.positions[0];
+        assert(firstPosition.marketIndex.eq(new BN(0)));
+        assert(firstPosition.longOrderAmount.eq(new BN(0)));
+        assert(firstPosition.longOrderPrice.eq(new BN(0)));
+    });
+
+    it('Open short order', async () => {
+        const amount = new BN(1);
+        const price = new BN(1);
+        await clearingHouse.updateOrder(PositionDirection.SHORT, amount, price, marketIndex);
+        const user: any = await clearingHouse.program.account.user.fetch(
+            userAccountPublicKey
+        );
+        const userPositionsAccount: UserPositionsAccount =
+            await clearingHouse.program.account.userPositions.fetch(user.positions);
+        const firstPosition = userPositionsAccount.positions[0];
+        assert(firstPosition.marketIndex.eq(marketIndex));
+        assert(firstPosition.shortOrderAmount.eq(amount));
+        assert(firstPosition.shortOrderPrice.eq(price));
+    });
+
+    it('Cancel short order', async () => {
+        await clearingHouse.cancelOrder(PositionDirection.SHORT, marketIndex);
+        const user: any = await clearingHouse.program.account.user.fetch(
+            userAccountPublicKey
+        );
+        const userPositionsAccount: UserPositionsAccount =
+            await clearingHouse.program.account.userPositions.fetch(user.positions);
+        const firstPosition = userPositionsAccount.positions[0];
+        assert(firstPosition.marketIndex.eq(new BN(0)));
+        assert(firstPosition.shortOrderAmount.eq(new BN(0)));
+        assert(firstPosition.shortOrderPrice.eq(new BN(0)));
     });
 });

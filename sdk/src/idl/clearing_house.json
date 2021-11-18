@@ -514,6 +514,63 @@
       ]
     },
     {
+      "name": "cancelOrder",
+      "accounts": [
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "markets",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fundingPaymentHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fundingRateHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracle",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "direction",
+          "type": {
+            "defined": "PositionDirection"
+          }
+        },
+        {
+          "name": "marketIndex",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "liquidate",
       "accounts": [
         {
@@ -2827,6 +2884,11 @@
       "code": 338,
       "name": "CastingFailure",
       "msg": "Casting Failure"
+    },
+    {
+      "code": 339,
+      "name": "InvalidOrder",
+      "msg": "Invalid Order"
     }
   ]
 }
