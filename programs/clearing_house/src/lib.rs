@@ -11,6 +11,8 @@ use state::{
     state::*,
     user::{MarketPosition, User},
 };
+use std::cell::RefMut;
+use crate::state::user::UserPositions;
 
 mod context;
 mod controller;
@@ -462,47 +464,10 @@ pub mod clearing_house {
             now,
         )?;
 
-        // Check if the user has an existing position for the market
-        let mut market_position = user_positions
-            .positions
-            .iter_mut()
-            .find(|market_position| market_position.market_index == market_index);
-
-        // If they don't have an existing position, look into the positions account for a spot for space
-        // for a new position
-        if market_position.is_none() {
-            let available_position_index = user_positions
-                .positions
-                .iter()
-                .position(|market_position| market_position.base_asset_amount == 0);
-
-            if available_position_index.is_none() {
-                return Err(ErrorCode::MaxNumberOfPositions.into());
-            }
-
-            let new_market_position = MarketPosition {
-                market_index,
-                base_asset_amount: 0,
-                quote_asset_amount: 0,
-                last_cumulative_funding_rate: 0,
-                last_cumulative_repeg_rebate: 0,
-                last_funding_rate_ts: 0,
-                short_order_price: 0,
-                short_order_amount: 0,
-                long_order_price: 0,
-                long_order_amount: 0,
-                transfer_to: Pubkey::default(),
-                padding0: 0,
-                padding1: 0,
-            };
-
-            user_positions.positions[available_position_index.unwrap()] = new_market_position;
-
-            market_position =
-                Some(&mut user_positions.positions[available_position_index.unwrap()]);
-        }
-
-        let market_position = market_position.unwrap();
+        // Get existing position or add a new position for market
+        let position_index = get_position_index(user_positions, market_index)
+            .or_else(|_| add_new_position(user_positions, market_index))?;
+        let market_position = &mut user_positions.positions[position_index];
 
         // A trade is risk increasing if it increases the users leverage
         // If a trade is risk increasing and brings the user's margin ratio below initial requirement
@@ -812,15 +777,8 @@ pub mod clearing_house {
             now,
         )?;
 
-        // Try to find user's position for specified market. Return Err if there is none
-        let market_position = user_positions
-            .positions
-            .iter_mut()
-            .find(|market_position| market_position.market_index == market_index);
-        if market_position.is_none() {
-            return Err(ErrorCode::UserHasNoPositionInMarket.into());
-        }
-        let market_position = market_position.unwrap();
+        let position_index = get_position_index(user_positions, market_index)?;
+        let market_position = &mut user_positions.positions[position_index];
 
         let market =
             &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
@@ -968,47 +926,9 @@ pub mod clearing_house {
             now,
         )?;
 
-        // Check if the user has an existing position for the market
-        let mut market_position = user_positions
-            .positions
-            .iter_mut()
-            .find(|market_position| market_position.market_index == market_index);
-
-        // If they don't have an existing position, look into the positions account for a spot for space
-        // for a new position
-        if market_position.is_none() {
-            let available_position_index = user_positions
-                .positions
-                .iter()
-                .position(|market_position| market_position.base_asset_amount == 0);
-
-            if available_position_index.is_none() {
-                return Err(ErrorCode::MaxNumberOfPositions.into());
-            }
-
-            let new_market_position = MarketPosition {
-                market_index,
-                base_asset_amount: 0,
-                quote_asset_amount: 0,
-                last_cumulative_funding_rate: 0,
-                last_cumulative_repeg_rebate: 0,
-                last_funding_rate_ts: 0,
-                short_order_price: 0,
-                short_order_amount: 0,
-                long_order_price: 0,
-                long_order_amount: 0,
-                transfer_to: Pubkey::default(),
-                padding0: 0,
-                padding1: 0,
-            };
-
-            user_positions.positions[available_position_index.unwrap()] = new_market_position;
-
-            market_position =
-                Some(&mut user_positions.positions[available_position_index.unwrap()]);
-        }
-
-        let market_position = market_position.unwrap();
+        let position_index = get_position_index(user_positions, market_index)
+            .or_else(|_| add_new_position(user_positions, market_index))?;
+        let market_position = &mut user_positions.positions[position_index];
 
         match direction {
             PositionDirection::Long => {
@@ -1851,6 +1771,46 @@ pub mod clearing_house {
         ctx.accounts.state.funding_paused = funding_paused;
         Ok(())
     }
+}
+
+fn get_position_index(user_positions: &mut RefMut<UserPositions>, market_index: u64) -> ClearingHouseResult<usize> {
+    let position_index = user_positions
+        .positions
+        .iter_mut()
+        .position(|market_position| market_position.market_index == market_index);
+
+    match position_index {
+        Some(position_index) => Ok(position_index),
+        None => Err(ErrorCode::UserHasNoPositionInMarket.into())
+    }
+}
+
+fn add_new_position(user_positions: &mut RefMut<UserPositions>, market_index: u64) -> ClearingHouseResult<usize> {
+    let new_position_index = user_positions
+        .positions
+        .iter()
+        .position(|market_position| market_position.base_asset_amount == 0)
+        .ok_or(ErrorCode::MaxNumberOfPositions)?;
+
+    let new_market_position = MarketPosition {
+        market_index,
+        base_asset_amount: 0,
+        quote_asset_amount: 0,
+        last_cumulative_funding_rate: 0,
+        last_cumulative_repeg_rebate: 0,
+        last_funding_rate_ts: 0,
+        short_order_price: 0,
+        short_order_amount: 0,
+        long_order_price: 0,
+        long_order_amount: 0,
+        transfer_to: Pubkey::default(),
+        padding0: 0,
+        padding1: 0,
+    };
+
+    user_positions.positions[new_position_index] = new_market_position;
+
+    return Ok(new_position_index);
 }
 
 fn market_initialized(markets: &Loader<Markets>, market_index: u64) -> Result<()> {
