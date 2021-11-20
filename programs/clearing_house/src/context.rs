@@ -350,6 +350,49 @@ pub struct OpenPosition<'info> {
 }
 
 #[derive(Accounts)]
+pub struct ExecuteOrder<'info> {
+    #[account(mut)]
+    pub state: Box<Account<'info, State>>,
+    pub authority: Signer<'info>,
+    #[account(
+        mut,
+        has_one = authority
+    )]
+    pub executor: Box<Account<'info, User>>,
+    #[account(
+        mut,
+        constraint = &user.positions.eq(&user_positions.key())
+    )]
+    pub user: Box<Account<'info, User>>,
+    #[account(
+        mut,
+        constraint = &state.markets.eq(&markets.key())
+    )]
+    pub markets: Loader<'info, Markets>,
+    #[account(
+        mut,
+        has_one = user
+    )]
+    pub user_positions: Loader<'info, UserPositions>,
+    #[account(
+        mut,
+        constraint = &state.trade_history.eq(&trade_history.key())
+    )]
+    pub trade_history: Loader<'info, TradeHistory>,
+    #[account(
+        mut,
+        constraint = &state.funding_payment_history.eq(&funding_payment_history.key())
+    )]
+    pub funding_payment_history: Loader<'info, FundingPaymentHistory>,
+    #[account(
+        mut,
+        constraint = &state.funding_rate_history.eq(&funding_rate_history.key())
+    )]
+    pub funding_rate_history: Loader<'info, FundingRateHistory>,
+    pub oracle: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
 pub struct UpdateOrder<'info> {
     pub state: Box<Account<'info, State>>,
     #[account(

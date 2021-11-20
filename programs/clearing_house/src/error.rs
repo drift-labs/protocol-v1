@@ -84,6 +84,8 @@ pub enum ErrorCode {
     CastingFailure,
     #[msg("Invalid Order")]
     InvalidOrder,
+    #[msg("User has no order")]
+    UserHasNoOrder,
 }
 
 #[macro_export]

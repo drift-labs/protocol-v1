@@ -1,4 +1,6 @@
 use anchor_lang::prelude::*;
+use crate::error::{ClearingHouseResult, ErrorCode};
+use crate::controller::position::PositionDirection;
 
 #[account]
 #[derive(Default)]
@@ -70,5 +72,15 @@ impl MarketPosition {
     pub fn has_open_order(&self) -> bool {
         return (self.long_order_amount != 0 && self.long_order_price != 0)
             || (self.short_order_amount != 0 && self.short_order_price != 0);
+    }
+
+    pub fn get_order(&self) -> ClearingHouseResult<(PositionDirection, u128, u128)> {
+        if self.long_order_amount > 0 && self.long_order_price > 0 {
+            Ok((PositionDirection::Long, self.long_order_amount, self.long_order_price))
+        } else if self.short_order_amount > 0 && self.short_order_price > 0 {
+            Ok((PositionDirection::Short, self.short_order_amount, self.short_order_price))
+        } else {
+            Err(ErrorCode::UserHasNoOrder.into())
+        }
     }
 }
