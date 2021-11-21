@@ -1,5 +1,9 @@
+use crate::controller;
 use crate::error::*;
 use crate::math;
+use crate::math::{amm, bn, quote_asset::*};
+
+use crate::controller::amm::SwapDirection;
 
 use crate::math::constants::{
     PRICE_TO_PEG_PRECISION_RATIO, PRICE_TO_PEG_QUOTE_PRECISION_RATIO,
@@ -9,9 +13,33 @@ use crate::math::constants::{
 use crate::math_error;
 use crate::state::market::Market;
 
-use crate::math::casting::{cast, cast_to_i128};
+use crate::math::position::_calculate_base_asset_value_and_pnl;
+
+use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
 use anchor_lang::prelude::AccountInfo;
 use solana_program::msg;
+
+pub fn terminal_price(market: &mut Market) -> ClearingHouseResult<u128> {
+    let swap_direction = if market.base_asset_amount > 0 {
+        SwapDirection::Add
+    } else {
+        SwapDirection::Remove
+    };
+    let (new_quote_asset_amount, new_base_asset_amount) = amm::calculate_swap_output(
+        market.base_asset_amount.unsigned_abs(),
+        market.amm.base_asset_reserve,
+        swap_direction,
+        market.amm.sqrt_k,
+    )?;
+
+    let terminal_price = amm::calculate_price(
+        new_quote_asset_amount,
+        new_base_asset_amount,
+        market.amm.peg_multiplier,
+    )?;
+
+    Ok(terminal_price)
+}
 
 pub fn repeg(
     market: &mut Market,
@@ -19,78 +47,70 @@ pub fn repeg(
     new_peg_candidate: u128,
     clock_slot: u64,
 ) -> ClearingHouseResult<i128> {
-    let amm = market.amm;
-    if new_peg_candidate == amm.peg_multiplier {
+    if new_peg_candidate == market.amm.peg_multiplier {
         return Err(ErrorCode::InvalidRepegRedundant.into());
     }
 
-    let mut new_peg_candidate = new_peg_candidate;
+    // Find the net market value before adjusting k
+    let (current_net_market_value, _) =
+        _calculate_base_asset_value_and_pnl(market.base_asset_amount, 0, &market.amm)?;
+    let terminal_price_before = terminal_price(market)?;
+
+    market.amm.peg_multiplier = new_peg_candidate;
+
+    let terminal_price_after = terminal_price(market)?;
+    let (_new_net_market_value, adjustment_cost) = _calculate_base_asset_value_and_pnl(
+        market.base_asset_amount,
+        current_net_market_value,
+        &market.amm,
+    )?;
 
     let (oracle_price, _oracle_twap, oracle_conf, _oracle_twac, _oracle_delay) =
-        amm.get_oracle_price(price_oracle, clock_slot)?;
-    let current_peg = amm.peg_multiplier;
+        market.amm.get_oracle_price(price_oracle, clock_slot)?;
 
-    // If client passes 0 as the new_peg_candidate, try to find new peg on-chain
-    if new_peg_candidate == 0 {
-        // try to find semi-opt solution
-        new_peg_candidate = math::repeg::find_peg_candidate(&market, oracle_price, oracle_conf)?;
-        if new_peg_candidate == amm.peg_multiplier {
-            return Err(ErrorCode::InvalidRepegRedundant.into());
+    let oracle_is_valid = false; //todo
+
+    // amm::is_oracle_valid(amm, oracle_account_info, clock_slot, &guard_rails.validity)?;
+    // if oracle is valid: check on size/direction of repeg
+    if oracle_is_valid {
+        // only repeg up to bottom of oracle confidence band
+        if cast_to_u128(oracle_price)? > terminal_price_after {
+            if !(terminal_price_after > terminal_price_before
+                && cast_to_u128(oracle_price)?
+                    .checked_sub(oracle_conf)
+                    .ok_or_else(math_error!())?
+                    > terminal_price_after)
+            {
+                return Err(ErrorCode::InvalidRepegDirection.into());
+            }
+        }
+        // only repeg down to top of oracle confidence band
+        if cast_to_u128(oracle_price)? < terminal_price_after {
+            if !(terminal_price_after < terminal_price_before
+                && cast_to_u128(oracle_price)?
+                    .checked_add(oracle_conf)
+                    .ok_or_else(math_error!())?
+                    < terminal_price_after)
+            {
+                return Err(ErrorCode::InvalidRepegDirection.into());
+            }
         }
     }
 
-    let price_spread_before = cast_to_i128(current_peg)?
-        .checked_mul(cast(PRICE_TO_PEG_PRECISION_RATIO)?)
-        .ok_or_else(math_error!())?
-        .checked_sub(oracle_price)
-        .ok_or_else(math_error!())?;
-    let price_spread_after = cast_to_i128(new_peg_candidate)?
-        .checked_mul(cast(PRICE_TO_PEG_PRECISION_RATIO)?)
-        .ok_or_else(math_error!())?
-        .checked_sub(oracle_price)
-        .ok_or_else(math_error!())?;
-
-    // If the new spread is bigger than the current spread, fail
-    // The new peg can only move toward the oracle price
-    if price_spread_after.abs() > price_spread_before.abs() {
-        return Err(ErrorCode::InvalidRepegDirection.into());
-    }
-
-    let mut total_fee_minus_distributions = amm.total_fee_minus_distributions;
-    let net_market_position = market.base_asset_amount;
-
-    let repeg_pnl = math::repeg::calculate_repeg_pnl(market, new_peg_candidate)?;
     // Reduce pnl to quote asset precision and take the absolute value
-    let repeg_pnl_quote_precision = repeg_pnl
-        .unsigned_abs()
-        .checked_div(PRICE_TO_PEG_QUOTE_PRECISION_RATIO)
-        .ok_or_else(math_error!())?;
-
-    // The there is a net market position, there should be a non-zero pnl
-    // If pnl is zero, fail
-    if net_market_position != 0 && repeg_pnl == 0 {
-        return Err(ErrorCode::InvalidRepegProfitability.into());
-    }
-
-    // If reducing precision to quote asset leads to zero pnl, fail
-    if repeg_pnl < 0 && repeg_pnl_quote_precision == 0 {
-        return Err(ErrorCode::InvalidRepegProfitability.into());
-    }
-
-    if repeg_pnl >= 0 {
-        total_fee_minus_distributions = total_fee_minus_distributions
-            .checked_add(repeg_pnl_quote_precision)
-            .ok_or_else(math_error!())?;
-    } else {
-        total_fee_minus_distributions = (total_fee_minus_distributions)
-            .checked_sub(repeg_pnl_quote_precision)
+    if adjustment_cost > 0 {
+        market.amm.total_fee_minus_distributions = market
+            .amm
+            .total_fee_minus_distributions
+            .checked_sub(adjustment_cost.unsigned_abs())
             .or(Some(0))
-            .unwrap();
+            .ok_or_else(math_error!())?;
 
         // Only a portion of the protocol fees are allocated to repegging
         // This checks that the total_fee_minus_distributions does not decrease too much after repeg
-        if total_fee_minus_distributions
-            < amm
+        if market.amm.total_fee_minus_distributions
+            < market
+                .amm
                 .total_fee
                 .checked_mul(SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR)
                 .ok_or_else(math_error!())?
@@ -99,18 +119,13 @@ pub fn repeg(
         {
             return Err(ErrorCode::InvalidRepegProfitability.into());
         }
+    } else {
+        market.amm.total_fee_minus_distributions = market
+            .amm
+            .total_fee_minus_distributions
+            .checked_add(adjustment_cost.unsigned_abs())
+            .ok_or_else(math_error!())?;
     }
 
-    market.amm.total_fee_minus_distributions = total_fee_minus_distributions;
-    market.amm.peg_multiplier = new_peg_candidate;
-
-    let repeg_pnl_quote_precision_signed = if repeg_pnl > 0 {
-        cast_to_i128(repeg_pnl_quote_precision)?
-    } else {
-        cast_to_i128(repeg_pnl_quote_precision)?
-            .checked_mul(-1)
-            .ok_or_else(math_error!())?
-    };
-
-    Ok(repeg_pnl_quote_precision_signed)
+    Ok(adjustment_cost)
 }
