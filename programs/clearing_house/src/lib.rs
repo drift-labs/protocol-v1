@@ -1346,9 +1346,13 @@ pub mod clearing_house {
 
         let oracle_validity_rails = &ctx.accounts.state.oracle_guard_rails;
 
-        let adjustment_cost =
-            controller::repeg::repeg(market, price_oracle, new_peg_candidate, clock_slot,
-                oracle_validity_rails)?;
+        let adjustment_cost = controller::repeg::repeg(
+            market,
+            price_oracle,
+            new_peg_candidate,
+            clock_slot,
+            oracle_validity_rails,
+        )?;
 
         let peg_multiplier_after = market.amm.peg_multiplier;
         let base_asset_reserve_after = market.amm.base_asset_reserve;
