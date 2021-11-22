@@ -1,98 +1,90 @@
-use crate::controller;
 use crate::error::*;
-use crate::math;
-use crate::math::{amm, bn, quote_asset::*};
-
-use crate::controller::amm::SwapDirection;
+use crate::math::{amm, repeg};
 
 use crate::math::constants::{
-    PRICE_TO_PEG_PRECISION_RATIO, PRICE_TO_PEG_QUOTE_PRECISION_RATIO,
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR,
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR,
 };
 use crate::math_error;
 use crate::state::market::Market;
 
-use crate::math::position::_calculate_base_asset_value_and_pnl;
+use crate::state::state::{OracleGuardRails};
 
-use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
+use crate::math::casting::{cast_to_u128};
 use anchor_lang::prelude::AccountInfo;
 use solana_program::msg;
-
-pub fn terminal_price(market: &mut Market) -> ClearingHouseResult<u128> {
-    let swap_direction = if market.base_asset_amount > 0 {
-        SwapDirection::Add
-    } else {
-        SwapDirection::Remove
-    };
-    let (new_quote_asset_amount, new_base_asset_amount) = amm::calculate_swap_output(
-        market.base_asset_amount.unsigned_abs(),
-        market.amm.base_asset_reserve,
-        swap_direction,
-        market.amm.sqrt_k,
-    )?;
-
-    let terminal_price = amm::calculate_price(
-        new_quote_asset_amount,
-        new_base_asset_amount,
-        market.amm.peg_multiplier,
-    )?;
-
-    Ok(terminal_price)
-}
 
 pub fn repeg(
     market: &mut Market,
     price_oracle: &AccountInfo,
     new_peg_candidate: u128,
     clock_slot: u64,
+    oracle_guard_rails: &OracleGuardRails,
 ) -> ClearingHouseResult<i128> {
     if new_peg_candidate == market.amm.peg_multiplier {
         return Err(ErrorCode::InvalidRepegRedundant.into());
     }
 
-    // Find the net market value before adjusting k
-    let (current_net_market_value, _) =
-        _calculate_base_asset_value_and_pnl(market.base_asset_amount, 0, &market.amm)?;
-    let terminal_price_before = terminal_price(market)?;
+    let terminal_price_before = amm::calculate_terminal_price(market)?;
 
-    market.amm.peg_multiplier = new_peg_candidate;
-
-    let terminal_price_after = terminal_price(market)?;
-    let (_new_net_market_value, adjustment_cost) = _calculate_base_asset_value_and_pnl(
-        market.base_asset_amount,
-        current_net_market_value,
-        &market.amm,
-    )?;
+    let adjustment_cost = repeg::adjust_peg_cost(market, new_peg_candidate)?;
 
     let (oracle_price, _oracle_twap, oracle_conf, _oracle_twac, _oracle_delay) =
         market.amm.get_oracle_price(price_oracle, clock_slot)?;
 
-    let oracle_is_valid = false; //todo
+    let oracle_is_valid = amm::is_oracle_valid(&market.amm, price_oracle, clock_slot, &oracle_guard_rails.validity)?;
 
-    // amm::is_oracle_valid(amm, oracle_account_info, clock_slot, &guard_rails.validity)?;
     // if oracle is valid: check on size/direction of repeg
     if oracle_is_valid {
-        // only repeg up to bottom of oracle confidence band
+        let terminal_price_after = amm::calculate_terminal_price(market)?;
+
+        let mark_price_after = amm::calculate_price(
+            market.amm.quote_asset_reserve,
+            market.amm.base_asset_reserve,
+            market.amm.peg_multiplier,
+        )?;
+
+        let oracle_conf_band_top = cast_to_u128(oracle_price)?
+            .checked_add(oracle_conf)
+            .ok_or_else(math_error!())?;
+
+        let oracle_conf_band_bottom = cast_to_u128(oracle_price)?
+            .checked_sub(oracle_conf)
+            .ok_or_else(math_error!())?;
+
         if cast_to_u128(oracle_price)? > terminal_price_after {
-            if !(terminal_price_after > terminal_price_before
-                && cast_to_u128(oracle_price)?
-                    .checked_sub(oracle_conf)
-                    .ok_or_else(math_error!())?
-                    > terminal_price_after)
-            {
+            // only allow terminal up when oracle is higher
+            if terminal_price_after < terminal_price_before {
                 return Err(ErrorCode::InvalidRepegDirection.into());
             }
-        }
-        // only repeg down to top of oracle confidence band
-        if cast_to_u128(oracle_price)? < terminal_price_after {
-            if !(terminal_price_after < terminal_price_before
-                && cast_to_u128(oracle_price)?
-                    .checked_add(oracle_conf)
-                    .ok_or_else(math_error!())?
-                    < terminal_price_after)
+
+            // only push terminal up to top of oracle confidence band
+            if oracle_conf_band_bottom < terminal_price_after
             {
+                return Err(ErrorCode::InvalidRepegProfitability.into());
+            }
+
+            // only push mark up to top of oracle confidence band
+            if mark_price_after > oracle_conf_band_top {
+                return Err(ErrorCode::InvalidRepegProfitability.into());
+            }
+        }
+
+        if cast_to_u128(oracle_price)? < terminal_price_after {
+
+            // only allow terminal down when oracle is lower
+            if terminal_price_after > terminal_price_before {
                 return Err(ErrorCode::InvalidRepegDirection.into());
+            }
+
+            // only push terminal down to top of oracle confidence band
+            if oracle_conf_band_top > terminal_price_after {
+                return Err(ErrorCode::InvalidRepegProfitability.into());
+            }
+
+            // only push mark down to bottom of oracle confidence band
+            if mark_price_after < oracle_conf_band_bottom {
+                return Err(ErrorCode::InvalidRepegProfitability.into());
             }
         }
     }
