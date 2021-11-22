@@ -8,9 +8,9 @@ use crate::math::constants::{
 use crate::math_error;
 use crate::state::market::Market;
 
-use crate::state::state::{OracleGuardRails};
+use crate::state::state::OracleGuardRails;
 
-use crate::math::casting::{cast_to_u128};
+use crate::math::casting::cast_to_u128;
 use anchor_lang::prelude::AccountInfo;
 use solana_program::msg;
 
@@ -32,7 +32,12 @@ pub fn repeg(
     let (oracle_price, _oracle_twap, oracle_conf, _oracle_twac, _oracle_delay) =
         market.amm.get_oracle_price(price_oracle, clock_slot)?;
 
-    let oracle_is_valid = amm::is_oracle_valid(&market.amm, price_oracle, clock_slot, &oracle_guard_rails.validity)?;
+    let oracle_is_valid = amm::is_oracle_valid(
+        &market.amm,
+        price_oracle,
+        clock_slot,
+        &oracle_guard_rails.validity,
+    )?;
 
     // if oracle is valid: check on size/direction of repeg
     if oracle_is_valid {
@@ -59,8 +64,7 @@ pub fn repeg(
             }
 
             // only push terminal up to top of oracle confidence band
-            if oracle_conf_band_bottom < terminal_price_after
-            {
+            if oracle_conf_band_bottom < terminal_price_after {
                 return Err(ErrorCode::InvalidRepegProfitability.into());
             }
 
@@ -71,7 +75,6 @@ pub fn repeg(
         }
 
         if cast_to_u128(oracle_price)? < terminal_price_after {
-
             // only allow terminal down when oracle is lower
             if terminal_price_after > terminal_price_before {
                 return Err(ErrorCode::InvalidRepegDirection.into());

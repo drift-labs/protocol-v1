@@ -4,7 +4,8 @@ use crate::state::market::Market;
 
 pub fn adjust_peg_cost(market: &mut Market, new_peg: u128) -> ClearingHouseResult<i128> {
     // Find the net market value before adjusting peg
-    let (current_net_market_value, _) = _calculate_base_asset_value_and_pnl(market.base_asset_amount, 0, &market.amm)?;
+    let (current_net_market_value, _) =
+        _calculate_base_asset_value_and_pnl(market.base_asset_amount, 0, &market.amm)?;
 
     market.amm.peg_multiplier = new_peg;
 
@@ -16,4 +17,3 @@ pub fn adjust_peg_cost(market: &mut Market, new_peg: u128) -> ClearingHouseResul
 
     Ok(cost)
 }
-
