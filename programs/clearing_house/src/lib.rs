@@ -618,6 +618,7 @@ pub mod clearing_house {
                     clock_slot,
                     Some(mark_price_after),
                 )?;
+            amm::update_oracle_mark_spread_twap(&mut market.amm, now, _oracle_mark_spread_after)?;
             oracle_price_after = _oracle_price_after;
             oracle_mark_spread_pct_after = _oracle_mark_spread_pct_after;
         }
@@ -901,6 +902,8 @@ pub mod clearing_house {
             clock_slot,
             Some(mark_price_after),
         )?;
+
+        amm::update_oracle_mark_spread_twap(&mut market.amm, now, _oracle_mark_spread_after)?;
 
         // Add to the trade history account
         let trade_history_account = &mut ctx.accounts.trade_history.load_mut()?;
@@ -1351,6 +1354,7 @@ pub mod clearing_house {
             price_oracle,
             new_peg_candidate,
             clock_slot,
+            now,
             oracle_validity_rails,
         )?;
 

@@ -19,6 +19,7 @@ pub fn repeg(
     price_oracle: &AccountInfo,
     new_peg_candidate: u128,
     clock_slot: u64,
+    now: i64,
     oracle_guard_rails: &OracleGuardRails,
 ) -> ClearingHouseResult<i128> {
     if new_peg_candidate == market.amm.peg_multiplier {
@@ -90,6 +91,17 @@ pub fn repeg(
                 return Err(ErrorCode::InvalidRepegProfitability.into());
             }
         }
+
+        let (_oracle_price_after, _oracle_mark_spread_after) = amm::calculate_oracle_mark_spread(
+            &market.amm,
+            price_oracle,
+            0,
+            clock_slot,
+            Some(mark_price_after),
+        )?;
+        
+        amm::update_oracle_mark_spread_twap(&mut market.amm, now, _oracle_mark_spread_after)?;
+
     }
 
     // Reduce pnl to quote asset precision and take the absolute value
