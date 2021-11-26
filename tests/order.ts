@@ -18,6 +18,7 @@ import { Markets } from '../sdk/src/constants/markets';
 
 import { mockOracle, mockUSDCMint, mockUserUSDCAccount } from './testHelpers';
 import { AccountInfo, Token, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import {AMM_RESERVE_PRECISION} from "../sdk";
 
 describe('orders', () => {
     const provider = anchor.Provider.local();
@@ -43,8 +44,10 @@ describe('orders', () => {
 
     const usdcAmount = new BN(10 * 10 ** 6);
 
-    let discountMint: Token;
-    let discountTokenAccount: AccountInfo;
+    const executorKeyPair = new Keypair();
+    let executorUSDCAccount: Keypair;
+    let executorUserAccountPublicKey: PublicKey;
+    let executorClearingHouse: ClearingHouse;
 
     const marketIndex = new BN(1);
 
@@ -62,6 +65,7 @@ describe('orders', () => {
 
         const solUsd = await mockOracle(1);
         const periodicity = new BN(60 * 60); // 1 HOUR
+        const peg = new BN(1000);
 
         await clearingHouse.initializeMarket(
             marketIndex,
@@ -77,21 +81,25 @@ describe('orders', () => {
                 userUSDCAccount.publicKey
             );
 
-        discountMint = await Token.createMint(
+        provider.connection.requestAirdrop(executorKeyPair.publicKey, 10 ** 9);
+        executorUSDCAccount = await mockUserUSDCAccount(
+            usdcMint,
+            usdcAmount,
+            provider,
+            executorKeyPair.publicKey
+        );
+        executorClearingHouse = ClearingHouse.from(
             connection,
-            // @ts-ignore
-            provider.wallet.payer,
-            provider.wallet.publicKey,
-            provider.wallet.publicKey,
-            6,
-            TOKEN_PROGRAM_ID
+            new Wallet(executorKeyPair),
+            chProgram.programId
         );
+        await executorClearingHouse.subscribe();
 
-        await clearingHouse.updateDiscountMint(discountMint.publicKey);
-
-        discountTokenAccount = await discountMint.getOrCreateAssociatedAccountInfo(
-            provider.wallet.publicKey
-        );
+        [, executorUserAccountPublicKey] =
+            await executorClearingHouse.initializeUserAccountAndDepositCollateral(
+                usdcAmount,
+                executorUSDCAccount.publicKey
+            );
     });
 
     after(async () => {
@@ -152,5 +160,20 @@ describe('orders', () => {
         assert(firstPosition.marketIndex.eq(new BN(0)));
         assert(firstPosition.shortOrderAmount.eq(new BN(0)));
         assert(firstPosition.shortOrderPrice.eq(new BN(0)));
+    });
+
+    it('Fill long order', async () => {
+        const amount = new BN(AMM_RESERVE_PRECISION);
+        const price = MARK_PRICE_PRECISION.mul(new BN(2));
+        await clearingHouse.updateOrder(PositionDirection.LONG, amount, price, marketIndex);
+        await executorClearingHouse.executeOrder(userAccountPublicKey, marketIndex);
+
+        const user: any = await clearingHouse.program.account.user.fetch(
+            userAccountPublicKey
+        );
+        const userPositionsAccount: UserPositionsAccount =
+            await clearingHouse.program.account.userPositions.fetch(user.positions);
+        const firstPosition = userPositionsAccount.positions[0];
+        assert(firstPosition.baseAssetAmount.eq(amount));
     });
 });

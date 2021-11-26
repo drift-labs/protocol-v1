@@ -24,7 +24,7 @@ mod state;
 #[cfg(feature = "mainnet-beta")]
 declare_id!("dammHkt7jmytvbS3nHTxQNEcP59aE57nxwV21YdqEDN");
 #[cfg(not(feature = "mainnet-beta"))]
-declare_id!("tCyWBVHtN4iGtZWs2dkefWk38SyN4RGtED14KzUopK9");
+declare_id!("AsW7LnXB9UA1uec9wi9MctYTgTz7YH9snhxd16GsFaGX");
 
 #[program]
 pub mod clearing_house {
@@ -1065,7 +1065,7 @@ pub mod clearing_house {
         let position_index = get_position_index(user_positions, market_index)?;
         let market_position = &mut user_positions.positions[position_index];
 
-        let (direction, quote_asset_amount, limit_price) = market_position.get_order()?;
+        let (direction, base_asset_amount, limit_price) = market_position.get_order()?;
 
         // A trade is risk increasing if it increases the users leverage
         // If a trade is risk increasing and brings the user's margin ratio below initial requirement
@@ -1075,7 +1075,7 @@ pub mod clearing_house {
         let mut potentially_risk_increasing = true;
 
         // Collect data about position/market before trade is executed so that it can be stored in trade history
-        let base_asset_amount_before = market_position.base_asset_amount;
+        let quote_asset_amount_before = market_position.quote_asset_amount;
         let mark_price_before: u128;
         let oracle_mark_spread_pct_before: i128;
         let is_oracle_valid: bool;
@@ -1109,9 +1109,9 @@ pub mod clearing_house {
             let market = &mut ctx.accounts.markets.load_mut()?.markets
                 [Markets::index_from_u64(market_index)];
 
-            controller::position::increase(
+            controller::position::increase_with_base_asset_amount(
                 direction,
-                quote_asset_amount,
+                base_asset_amount,
                 market,
                 market_position,
                 now,
@@ -1120,39 +1120,33 @@ pub mod clearing_house {
             let market = &mut ctx.accounts.markets.load_mut()?.markets
                 [Markets::index_from_u64(market_index)];
 
-            let (base_asset_value, _unrealized_pnl) =
-                calculate_base_asset_value_and_pnl(market_position, &market.amm)?;
-
-            // we calculate what the user's position is worth if they closed to determine
-            // if they are reducing or closing and reversing their position
-            if base_asset_value > quote_asset_amount {
-                controller::position::reduce(
+            if market_position.base_asset_amount.unsigned_abs() > base_asset_amount {
+                controller::position::reduce_with_base_asset_amount(
                     direction,
-                    quote_asset_amount,
+                    base_asset_amount,
                     user,
                     market,
                     market_position,
                     now,
-                    None,
                 )?;
 
                 potentially_risk_increasing = false;
             } else {
                 // after closing existing position, how large should trade be in opposite direction
-                let quote_asset_amount_after_close = quote_asset_amount
-                    .checked_sub(base_asset_value)
+                let base_asset_amount_after_close = base_asset_amount
+                    .checked_sub(market_position.base_asset_amount.unsigned_abs())
                     .ok_or_else(math_error!())?;
 
                 // If the value of the new position is less than value of the old position, consider it risk decreasing
-                if quote_asset_amount_after_close < base_asset_value {
+                if base_asset_amount_after_close < market_position.base_asset_amount.unsigned_abs() {
                     potentially_risk_increasing = false;
                 }
 
                 controller::position::close(user, market, market_position, now)?;
 
-                controller::position::increase(
+                controller::position::increase_with_base_asset_amount(
                     direction,
-                    quote_asset_amount_after_close,
+                    base_asset_amount_after_close,
                     market,
                     market_position,
                     now,
@@ -1161,9 +1155,8 @@ pub mod clearing_house {
         }
 
         // Collect data about position/market after trade is executed so that it can be stored in trade history
-        let base_asset_amount_change = market_position
-            .base_asset_amount
-            .checked_sub(base_asset_amount_before)
+        let quote_asset_amount_change = cast_to_i128(market_position.quote_asset_amount)?
+            .checked_sub(cast(quote_asset_amount_before)?)
             .ok_or_else(math_error!())?
             .unsigned_abs();
         let mark_price_after: u128;
@@ -1200,7 +1193,7 @@ pub mod clearing_house {
 
         // Don't account for referrer/discount token for now
         let (fee, token_discount, referrer_reward, referee_discount) = fees::calculate(
-            quote_asset_amount,
+            quote_asset_amount_change,
             &ctx.accounts.state.fee_structure,
             None,
             &None,
@@ -1266,8 +1259,8 @@ pub mod clearing_house {
             user_authority: *ctx.accounts.authority.to_account_info().key,
             user: *user.to_account_info().key,
             direction,
-            base_asset_amount: base_asset_amount_change,
-            quote_asset_amount,
+            base_asset_amount,
+            quote_asset_amount: quote_asset_amount_change,
             mark_price_before,
             mark_price_after,
             fee,
@@ -1285,7 +1278,7 @@ pub mod clearing_house {
                 &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
 
             let scaled_quote_asset_amount =
-                math::quote_asset::scale_to_amm_precision(quote_asset_amount)?;
+                math::quote_asset::scale_to_amm_precision(quote_asset_amount_change)?;
 
             let round_up = direction == PositionDirection::Short;
             let unpegged_scaled_quote_asset_amount = math::quote_asset::unpeg_quote_asset_amount(
@@ -1296,7 +1289,7 @@ pub mod clearing_house {
 
             let entry_price = amm::calculate_price(
                 unpegged_scaled_quote_asset_amount,
-                base_asset_amount_change,
+                base_asset_amount,
                 market.amm.peg_multiplier,
             )?;
 

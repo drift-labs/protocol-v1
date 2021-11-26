@@ -10,6 +10,7 @@ use crate::math::position::calculate_base_asset_value_and_pnl;
 use crate::math_error;
 use crate::{Market, MarketPosition, User};
 use solana_program::msg;
+use crate::math::quote_asset::{peg_quote_asset_amount, scale_from_amm_precision};
 
 #[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq)]
 pub enum PositionDirection {
@@ -26,12 +27,12 @@ impl Default for PositionDirection {
 
 pub fn increase(
     direction: PositionDirection,
-    new_quote_asset_notional_amount: u128,
+    quote_asset_amount: u128,
     market: &mut Market,
     market_position: &mut MarketPosition,
     now: i64,
 ) -> ClearingHouseResult {
-    if new_quote_asset_notional_amount == 0 {
+    if quote_asset_amount == 0 {
         return Ok(());
     }
 
@@ -50,7 +51,7 @@ pub fn increase(
 
     market_position.quote_asset_amount = market_position
         .quote_asset_amount
-        .checked_add(new_quote_asset_notional_amount)
+        .checked_add(quote_asset_amount)
         .ok_or_else(math_error!())?;
 
     let swap_direction = match direction {
@@ -60,7 +61,7 @@ pub fn increase(
 
     let base_asset_acquired = controller::amm::swap_quote_asset(
         &mut market.amm,
-        new_quote_asset_notional_amount,
+        quote_asset_amount,
         swap_direction,
         now,
         None,
@@ -85,6 +86,92 @@ pub fn increase(
         market.base_asset_amount_short = market
             .base_asset_amount_short
             .checked_add(base_asset_acquired)
+            .ok_or_else(math_error!())?;
+    }
+
+    Ok(())
+}
+
+pub fn increase_with_base_asset_amount(
+    direction: PositionDirection,
+    base_asset_amount: u128,
+    market: &mut Market,
+    market_position: &mut MarketPosition,
+    now: i64,
+) -> ClearingHouseResult {
+    if base_asset_amount == 0 {
+        return Ok(());
+    }
+
+    // Update funding rate if this is a new position
+    if market_position.base_asset_amount == 0 {
+        market_position.last_cumulative_funding_rate = match direction {
+            PositionDirection::Long => market.amm.cumulative_funding_rate_long,
+            PositionDirection::Short => market.amm.cumulative_funding_rate_short,
+        };
+
+        market.open_interest = market
+            .open_interest
+            .checked_add(1)
+            .ok_or_else(math_error!())?;
+    }
+
+    let swap_direction = match direction {
+        PositionDirection::Long => SwapDirection::Remove,
+        PositionDirection::Short => SwapDirection::Add,
+    };
+
+    let quote_asset_reserve_before = market.amm.quote_asset_reserve;
+    controller::amm::swap_base_asset(
+        &mut market.amm,
+        base_asset_amount,
+        swap_direction,
+        now,
+    )?;
+
+    let quote_asset_swapper_amm_precision = match swap_direction {
+        SwapDirection::Remove => market.amm.quote_asset_reserve
+            .checked_sub(quote_asset_reserve_before)
+            .ok_or_else(math_error!())?,
+        SwapDirection::Add => quote_asset_reserve_before
+            .checked_sub(market.amm.quote_asset_reserve)
+            .ok_or_else(math_error!())?,
+    };
+
+    let round_up = direction == PositionDirection::Long;
+    let quote_asset_swapped = peg_quote_asset_amount(
+        scale_from_amm_precision(quote_asset_swapper_amm_precision, round_up)?,
+        market.amm.peg_multiplier
+    )?;
+
+    market_position.quote_asset_amount = market_position
+        .quote_asset_amount
+        .checked_add(quote_asset_swapped)
+        .ok_or_else(math_error!())?;
+
+    let base_asset_amount = match direction {
+        PositionDirection::Long => cast_to_i128(base_asset_amount)?,
+        PositionDirection::Short => -cast_to_i128(base_asset_amount)?,
+    };
+
+    market_position.base_asset_amount = market_position
+        .base_asset_amount
+        .checked_add(base_asset_amount)
+        .ok_or_else(math_error!())?;
+    market.base_asset_amount = market
+        .base_asset_amount
+        .checked_add(base_asset_amount)
+        .ok_or_else(math_error!())?;
+
+    if market_position.base_asset_amount > 0 {
+        market.base_asset_amount_long = market
+            .base_asset_amount_long
+            .checked_add(base_asset_amount)
+            .ok_or_else(math_error!())?;
+    } else {
+        market.base_asset_amount_short = market
+            .base_asset_amount_short
+            .checked_add(base_asset_amount)
             .ok_or_else(math_error!())?;
     }
 
@@ -164,6 +251,106 @@ pub fn reduce<'info>(
     } else {
         cast_to_i128(initial_quote_asset_amount_closed)?
             .checked_sub(cast(quote_asset_swap_amount)?)
+            .ok_or_else(math_error!())?
+    };
+
+    user.collateral = calculate_updated_collateral(user.collateral, pnl)?;
+
+    Ok(())
+}
+
+pub fn reduce_with_base_asset_amount<'info>(
+    direction: PositionDirection,
+    base_asset_amount: u128,
+    user: &mut Account<'info, User>,
+    market: &mut Market,
+    market_position: &mut MarketPosition,
+    now: i64,
+) -> ClearingHouseResult {
+    let swap_direction = match direction {
+        PositionDirection::Long => SwapDirection::Remove,
+        PositionDirection::Short => SwapDirection::Add,
+    };
+
+    let quote_asset_reserve_before = market.amm.quote_asset_reserve;
+    controller::amm::swap_base_asset(
+        &mut market.amm,
+        base_asset_amount,
+        swap_direction,
+        now,
+    )?;
+
+    let quote_asset_swapper_amm_precision = match swap_direction {
+        SwapDirection::Remove => market.amm.quote_asset_reserve
+            .checked_sub(quote_asset_reserve_before)
+            .ok_or_else(math_error!())?,
+        SwapDirection::Add => quote_asset_reserve_before
+            .checked_sub(market.amm.quote_asset_reserve)
+            .ok_or_else(math_error!())?,
+    };
+
+    let round_up = direction == PositionDirection::Short;
+    let quote_asset_swapped = peg_quote_asset_amount(
+        scale_from_amm_precision(quote_asset_swapper_amm_precision, round_up)?,
+        market.amm.peg_multiplier
+    )?;
+
+    let base_asset_amount = match direction {
+        PositionDirection::Long => cast_to_i128(base_asset_amount)?,
+        PositionDirection::Short => -cast_to_i128(base_asset_amount)?,
+    };
+
+    let base_asset_amount_before = market_position.base_asset_amount;
+    market_position.base_asset_amount = market_position
+        .base_asset_amount
+        .checked_add(base_asset_amount)
+        .ok_or_else(math_error!())?;
+
+    market.open_interest = market
+        .open_interest
+        .checked_sub(cast(market_position.base_asset_amount == 0)?)
+        .ok_or_else(math_error!())?;
+    market.base_asset_amount = market
+        .base_asset_amount
+        .checked_add(base_asset_amount)
+        .ok_or_else(math_error!())?;
+
+    if market_position.base_asset_amount > 0 {
+        market.base_asset_amount_long = market
+            .base_asset_amount_long
+            .checked_add(base_asset_amount)
+            .ok_or_else(math_error!())?;
+    } else {
+        market.base_asset_amount_short = market
+            .base_asset_amount_short
+            .checked_add(base_asset_amount)
+            .ok_or_else(math_error!())?;
+    }
+
+    let base_asset_amount_change = base_asset_amount_before
+        .checked_sub(market_position.base_asset_amount)
+        .ok_or_else(math_error!())?
+        .abs();
+
+    let initial_quote_asset_amount_closed = market_position
+        .quote_asset_amount
+        .checked_mul(base_asset_amount_change.unsigned_abs())
+        .ok_or_else(math_error!())?
+        .checked_div(base_asset_amount_before.unsigned_abs())
+        .ok_or_else(math_error!())?;
+
+    market_position.quote_asset_amount = market_position
+        .quote_asset_amount
+        .checked_sub(initial_quote_asset_amount_closed)
+        .ok_or_else(math_error!())?;
+
+    let pnl = if market_position.base_asset_amount > 0 {
+        cast_to_i128(quote_asset_swapped)?
+            .checked_sub(cast(initial_quote_asset_amount_closed)?)
+            .ok_or_else(math_error!())?
+    } else {
+        cast_to_i128(initial_quote_asset_amount_closed)?
+            .checked_sub(cast(quote_asset_swapped)?)
             .ok_or_else(math_error!())?
     };
 

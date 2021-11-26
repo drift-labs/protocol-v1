@@ -571,6 +571,67 @@
       ]
     },
     {
+      "name": "executeOrder",
+      "accounts": [
+        {
+          "name": "state",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "executor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "markets",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tradeHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fundingPaymentHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fundingRateHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracle",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "marketIndex",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "liquidate",
       "accounts": [
         {
@@ -2889,6 +2950,11 @@
       "code": 339,
       "name": "InvalidOrder",
       "msg": "Invalid Order"
+    },
+    {
+      "code": 340,
+      "name": "UserHasNoOrder",
+      "msg": "User has no order"
     }
   ]
 }
