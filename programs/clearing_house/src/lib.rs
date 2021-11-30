@@ -1026,10 +1026,6 @@ pub mod clearing_house {
             },
         }
 
-        if market_position.is_available() {
-            market_position.market_index = 0;
-        }
-
         // Try to update the funding rate
         {
             let market = &mut ctx.accounts.markets.load_mut()?.markets
