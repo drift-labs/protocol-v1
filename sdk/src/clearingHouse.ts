@@ -566,7 +566,7 @@ export class ClearingHouse {
 		);
 	}
 
-	public async updateOrder(
+	public async placeOrder(
 		direction: PositionDirection,
 		amount: BN,
 		price: BN,
@@ -574,7 +574,7 @@ export class ClearingHouse {
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
 			wrapInTx(
-				await this.getUpdateOrderIx(
+				await this.getPlaceOrderIx(
 					direction,
 					amount,
 					price,
@@ -586,7 +586,7 @@ export class ClearingHouse {
 		);
 	}
 
-	public async getUpdateOrderIx(
+	public async getPlaceOrderIx(
 		direction: PositionDirection,
 		amount: BN,
 		price: BN,
@@ -599,7 +599,7 @@ export class ClearingHouse {
 			this.getMarketsAccount().markets[marketIndex.toNumber()].amm.oracle;
 
 		const state = this.getStateAccount();
-		return await this.program.instruction.updateOrder(
+		return await this.program.instruction.placeOrder(
 			direction,
 			amount,
 			price,

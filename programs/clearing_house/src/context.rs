@@ -393,7 +393,7 @@ pub struct ExecuteOrder<'info> {
 }
 
 #[derive(Accounts)]
-pub struct UpdateOrder<'info> {
+pub struct PlaceOrder<'info> {
     pub state: Box<Account<'info, State>>,
     #[account(
         has_one = authority,

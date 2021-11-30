@@ -449,7 +449,7 @@
       ]
     },
     {
-      "name": "updateOrder",
+      "name": "placeOrder",
       "accounts": [
         {
           "name": "state",

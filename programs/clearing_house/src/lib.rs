@@ -922,8 +922,8 @@ pub mod clearing_house {
         exchange_not_paused(&ctx.accounts.state) &&
         valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
     )]
-    pub fn update_order<'info>(
-        ctx: Context<UpdateOrder>,
+    pub fn place_order<'info>(
+        ctx: Context<PlaceOrder>,
         direction: PositionDirection,
         amount: u128,
         price: u128,
@@ -991,7 +991,7 @@ pub mod clearing_house {
         valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
     )]
     pub fn cancel_order<'info>(
-        ctx: Context<UpdateOrder>,
+        ctx: Context<PlaceOrder>,
         direction: PositionDirection,
         market_index: u64,
     ) -> ProgramResult {

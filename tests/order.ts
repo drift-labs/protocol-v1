@@ -109,7 +109,7 @@ describe('orders', () => {
     it('Open long order', async () => {
         const amount = new BN(1);
         const price = new BN(1);
-        await clearingHouse.updateOrder(PositionDirection.LONG, amount, price, marketIndex);
+        await clearingHouse.placeOrder(PositionDirection.LONG, amount, price, marketIndex);
         const user: any = await clearingHouse.program.account.user.fetch(
             userAccountPublicKey
         );
@@ -137,7 +137,7 @@ describe('orders', () => {
     it('Open short order', async () => {
         const amount = new BN(1);
         const price = new BN(1);
-        await clearingHouse.updateOrder(PositionDirection.SHORT, amount, price, marketIndex);
+        await clearingHouse.placeOrder(PositionDirection.SHORT, amount, price, marketIndex);
         const user: any = await clearingHouse.program.account.user.fetch(
             userAccountPublicKey
         );
@@ -165,7 +165,7 @@ describe('orders', () => {
     it('Fill long order', async () => {
         const amount = new BN(AMM_RESERVE_PRECISION);
         const price = MARK_PRICE_PRECISION.mul(new BN(2));
-        await clearingHouse.updateOrder(PositionDirection.LONG, amount, price, marketIndex);
+        await clearingHouse.placeOrder(PositionDirection.LONG, amount, price, marketIndex);
         await executorClearingHouse.executeOrder(userAccountPublicKey, marketIndex);
 
         const user: any = await clearingHouse.program.account.user.fetch(
