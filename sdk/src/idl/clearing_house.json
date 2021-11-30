@@ -2323,7 +2323,7 @@
             "type": "i64"
           },
           {
-            "name": "lastOracleMarkSpreadTwap",
+            "name": "lastOraclePriceTwap",
             "type": "i128"
           },
           {
@@ -2359,8 +2359,12 @@
             "type": "u128"
           },
           {
+            "name": "lastOraclePriceTwapTs",
+            "type": "i64"
+          },
+          {
             "name": "padding0",
-            "type": "u128"
+            "type": "u64"
           },
           {
             "name": "padding1",

@@ -184,7 +184,6 @@ async function cappedSymFundingScenario(
 	);
 	await clearingHouse.updateFundingPaused(true);
 
-	console.log("market index", marketIndex.toNumber());
 	if (longShortSizes[0] !== 0) {
 		await clearingHouse.openPosition(
 			PositionDirection.LONG,
@@ -195,7 +194,6 @@ async function cappedSymFundingScenario(
 
 	console.log('clearingHouse2.openPosition');
 	// try{
-	console.log("market index", marketIndex.toNumber());
 	if (longShortSizes[1] !== 0) {
 		await clearingHouse2.openPosition(
 			PositionDirection.SHORT,

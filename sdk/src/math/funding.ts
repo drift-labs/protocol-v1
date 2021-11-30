@@ -1,6 +1,6 @@
 import { BN } from '@project-serum/anchor';
 import {
-	AMM_RESERVE_PRECISION, MARK_PRICE_PRECISION, QUOTE_PRECISION
+	AMM_RESERVE_PRECISION, MARK_PRICE_PRECISION, QUOTE_PRECISION, ZERO
 } from '../constants/numericConstants';
 import { PythClient } from '../pythClient';
 import { Market } from '../types';
@@ -75,25 +75,49 @@ import { calculateMarkPrice } from './market';
 	
 	const interpRateQuote = twapSpreadPct.mul(periodAdjustment).div(hoursInDay)
 	.div(MARK_PRICE_PRECISION.div(QUOTE_PRECISION));
-	const feePoolSize = calculateFundingPool(market);
+	let feePoolSize = calculateFundingPool(market);
+	if(interpRateQuote.lt(new BN(0))){
+		feePoolSize = feePoolSize.mul(new BN(-1));
+	}
 
 	let cappedAltEst: BN;
+	let largerSide: BN;
+	let smallerSide: BN;
 
 	if(market.baseAssetAmountLong.gt(market.baseAssetAmountShort)){
-		const largerSide = market.baseAssetAmountLong;
-		const smallerSide = market.baseAssetAmountShort;
-		cappedAltEst =feePoolSize.add(
-			smallerSide.mul(interpRateQuote).div(AMM_RESERVE_PRECISION))
-		.div(largerSide);
+		largerSide = market.baseAssetAmountLong.abs();
+		smallerSide = market.baseAssetAmountShort.abs();
+		if(twapSpread.gt(new BN(0))){
+			return [lowerboundEst, interpEst, interpEst];
+		}
 	} else if(market.baseAssetAmountLong.lt(market.baseAssetAmountShort)){
-		const largerSide = market.baseAssetAmountShort;
-		const smallerSide = market.baseAssetAmountLong;
-		cappedAltEst = feePoolSize.add(
-			smallerSide.mul(interpRateQuote).div(AMM_RESERVE_PRECISION))
-		.div(largerSide);
+		largerSide = market.baseAssetAmountShort.abs();
+		smallerSide = market.baseAssetAmountLong.abs();
+		if(twapSpread.lt(new BN(0))){
+			return [lowerboundEst, interpEst, interpEst];
+		}
+	} else{
+		return [lowerboundEst, interpEst, interpEst];
+	}
+
+	if(largerSide.gt(ZERO)){
+		cappedAltEst = smallerSide.mul(twapSpread).div(largerSide);
+		const feePoolTopOff = feePoolSize.mul(MARK_PRICE_PRECISION.div(QUOTE_PRECISION))
+		.mul(AMM_RESERVE_PRECISION).div(largerSide);
+		cappedAltEst = cappedAltEst.add(feePoolTopOff);
+	
+		cappedAltEst = cappedAltEst.mul(MARK_PRICE_PRECISION)
+		.mul(new BN(100))
+		.div(oracleTwapWithMantissa)
+		.mul(periodAdjustment).div(hoursInDay);
+	
+		if(cappedAltEst.abs().gt(interpEst.abs())){
+			cappedAltEst = interpEst;
+		}
 	} else{
 		cappedAltEst = interpEst;
 	}
+
 
 	return [lowerboundEst, cappedAltEst, interpEst];
 }
@@ -160,5 +184,6 @@ export async function calculateEstimatedFundingRate(
 export function calculateFundingPool(market: Market): BN {
 	const totalFeeLB = market.amm.totalFee.div(new BN(2));
 	const feePool = market.amm.totalFeeMinusDistributions.sub(totalFeeLB);
+	// return new BN(QUOTE_PRECISION.mul(new BN(2400)));
 	return feePool;
 }

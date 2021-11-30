@@ -14,12 +14,12 @@ use state::{
 use std::cell::RefMut;
 use crate::state::user::UserPositions;
 
-mod context;
-mod controller;
-mod error;
-mod math;
-mod optional_accounts;
-mod state;
+pub mod context;
+pub mod controller;
+pub mod error;
+pub mod math;
+pub mod optional_accounts;
+pub mod state;
 
 #[cfg(feature = "mainnet-beta")]
 declare_id!("dammHkt7jmytvbS3nHTxQNEcP59aE57nxwV21YdqEDN");
@@ -229,6 +229,12 @@ pub mod clearing_house {
             .checked_mul(bn::U192::from(amm_quote_asset_amount))
             .ok_or_else(math_error!())?;
 
+        // Verify oracle is readable
+        let (_, oracle_price_twap, _, _, _) = market
+            .amm
+            .get_oracle_price(&ctx.accounts.oracle, clock_slot)
+            .unwrap();
+
         let market = Market {
             initialized: true,
             base_asset_amount_long: 0,
@@ -252,7 +258,7 @@ pub mod clearing_house {
                 last_funding_rate: 0,
                 last_funding_rate_ts: now,
                 funding_period: amm_periodicity,
-                last_oracle_mark_spread_twap: 0,
+                last_oracle_price_twap: oracle_price_twap,
                 last_mark_price_twap: init_mark_price,
                 last_mark_price_twap_ts: now,
                 sqrt_k: amm_base_asset_amount,
@@ -261,6 +267,7 @@ pub mod clearing_house {
                 total_fee_withdrawn: 0,
                 total_fee_minus_distributions: 0,
                 minimum_trade_size: 10000000,
+                last_oracle_price_twap_ts: now,
                 padding0: 0,
                 padding1: 0,
                 padding2: 0,
@@ -268,12 +275,6 @@ pub mod clearing_house {
                 padding4: 0,
             },
         };
-
-        // Verify oracle is readable
-        market
-            .amm
-            .get_oracle_price(&ctx.accounts.oracle, clock_slot)
-            .unwrap();
 
         markets.markets[Markets::index_from_u64(market_index)] = market;
 
@@ -489,7 +490,7 @@ pub mod clearing_house {
             let market = &mut ctx.accounts.markets.load_mut()?.markets
                 [Markets::index_from_u64(market_index)];
             mark_price_before = market.amm.mark_price()?;
-            let (_, _, _oracle_mark_spread_pct_before) = amm::calculate_oracle_mark_spread_pct(
+            let (oracle_price, _, _oracle_mark_spread_pct_before) = amm::calculate_oracle_mark_spread_pct(
                 &market.amm,
                 &ctx.accounts.oracle,
                 0,
@@ -503,6 +504,10 @@ pub mod clearing_house {
                 clock_slot,
                 &ctx.accounts.state.oracle_guard_rails.validity,
             )?;
+
+            if is_oracle_valid {
+                amm::update_oracle_price_twap(&mut market.amm, now, oracle_price)?;
+            }
         }
 
         // The trade increases the the user position if
@@ -612,7 +617,7 @@ pub mod clearing_house {
             &user.key(),
             &ctx.accounts.authority.key(),
         )?;
-        let (fee, token_discount, referrer_reward, referee_discount) = fees::calculate(
+        let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) = fees::calculate(
             quote_asset_amount,
             &ctx.accounts.state.fee_structure,
             discount_token,
@@ -626,22 +631,22 @@ pub mod clearing_house {
             market.amm.total_fee = market
                 .amm
                 .total_fee
-                .checked_add(fee)
+                .checked_add(fee_to_market)
                 .ok_or_else(math_error!())?;
             market.amm.total_fee_minus_distributions = market
                 .amm
                 .total_fee_minus_distributions
-                .checked_add(fee)
+                .checked_add(fee_to_market)
                 .ok_or_else(math_error!())?;
         }
 
         // Subtract the fee from user's collateral
-        user.collateral = user.collateral.checked_sub(fee).or(Some(0)).unwrap();
+        user.collateral = user.collateral.checked_sub(user_fee).or(Some(0)).unwrap();
 
         // Increment the user's total fee variables
         user.total_fee_paid = user
             .total_fee_paid
-            .checked_add(fee)
+            .checked_add(user_fee)
             .ok_or_else(math_error!())?;
         user.total_token_discount = user
             .total_token_discount
@@ -690,7 +695,7 @@ pub mod clearing_house {
             quote_asset_amount,
             mark_price_before,
             mark_price_after,
-            fee,
+            fee: user_fee,
             token_discount,
             referrer_reward,
             referee_discount,
@@ -807,7 +812,7 @@ pub mod clearing_house {
             &user.key(),
             &ctx.accounts.authority.key(),
         )?;
-        let (fee, token_discount, referrer_reward, referee_discount) = fees::calculate(
+        let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) = fees::calculate(
             quote_asset_amount,
             &ctx.accounts.state.fee_structure,
             discount_token,
@@ -818,21 +823,21 @@ pub mod clearing_house {
         market.amm.total_fee = market
             .amm
             .total_fee
-            .checked_add(fee)
+            .checked_add(fee_to_market)
             .ok_or_else(math_error!())?;
         market.amm.total_fee_minus_distributions = market
             .amm
             .total_fee_minus_distributions
-            .checked_add(fee)
+            .checked_add(fee_to_market)
             .ok_or_else(math_error!())?;
 
         // Subtract the fee from user's collateral
-        user.collateral = user.collateral.checked_sub(fee).or(Some(0)).unwrap();
+        user.collateral = user.collateral.checked_sub(user_fee).or(Some(0)).unwrap();
 
         // Increment the user's total fee variables
         user.total_fee_paid = user
             .total_fee_paid
-            .checked_add(fee)
+            .checked_add(user_fee)
             .ok_or_else(math_error!())?;
         user.total_token_discount = user
             .total_token_discount
@@ -864,6 +869,16 @@ pub mod clearing_house {
             Some(mark_price_after),
         )?;
 
+        let is_oracle_valid = amm::is_oracle_valid(
+            &market.amm,
+            &ctx.accounts.oracle,
+            clock_slot,
+            &ctx.accounts.state.oracle_guard_rails.validity,
+        )?;
+        if is_oracle_valid {
+            amm::update_oracle_price_twap(&mut market.amm, now, oracle_price_after)?;
+        }
+
         // Add to the trade history account
         let trade_history_account = &mut ctx.accounts.trade_history.load_mut()?;
         let record_id = trade_history_account.next_record_id();
@@ -878,7 +893,7 @@ pub mod clearing_house {
             mark_price_before,
             mark_price_after,
             liquidation: false,
-            fee,
+            fee: user_fee,
             token_discount,
             referrer_reward,
             referee_discount,
@@ -1192,7 +1207,7 @@ pub mod clearing_house {
         }
 
         // Don't account for referrer/discount token for now
-        let (fee, token_discount, referrer_reward, referee_discount) = fees::calculate(
+        let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) = fees::calculate(
             quote_asset_amount_change,
             &ctx.accounts.state.fee_structure,
             None,
@@ -1200,7 +1215,7 @@ pub mod clearing_house {
         )?;
 
         // half of fee to exchange, half to executor
-        let split_fee = fee
+        let split_fee = user_fee
             .checked_div(2)
             .ok_or_else(math_error!())?;
 
@@ -1221,12 +1236,12 @@ pub mod clearing_house {
         }
 
         // Subtract the fee from user's collateral
-        user.collateral = user.collateral.checked_sub(fee).or(Some(0)).unwrap();
+        user.collateral = user.collateral.checked_sub(user_fee).or(Some(0)).unwrap();
 
         // Increment the user's total fee variables
         user.total_fee_paid = user
             .total_fee_paid
-            .checked_add(fee)
+            .checked_add(user_fee)
             .ok_or_else(math_error!())?;
 
         let executor = &mut ctx.accounts.executor;
@@ -1263,7 +1278,7 @@ pub mod clearing_house {
             quote_asset_amount: quote_asset_amount_change,
             mark_price_before,
             mark_price_after,
-            fee,
+            fee: user_fee,
             token_discount,
             referrer_reward,
             referee_discount,
@@ -1732,8 +1747,15 @@ pub mod clearing_house {
         let quote_asset_reserve_before = market.amm.quote_asset_reserve;
         let sqrt_k_before = market.amm.sqrt_k;
 
-        let adjustment_cost =
-            controller::repeg::repeg(market, price_oracle, new_peg_candidate, clock_slot)?;
+        let oracle_validity_rails = &ctx.accounts.state.oracle_guard_rails;
+
+        let adjustment_cost = controller::repeg::repeg(
+            market,
+            price_oracle,
+            new_peg_candidate,
+            clock_slot,
+            oracle_validity_rails,
+        )?;
 
         let peg_multiplier_after = market.amm.peg_multiplier;
         let base_asset_reserve_after = market.amm.base_asset_reserve;
