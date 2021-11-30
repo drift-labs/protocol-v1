@@ -86,6 +86,8 @@ pub enum ErrorCode {
     InvalidOrder,
     #[msg("User has no order")]
     UserHasNoOrder,
+    #[msg("Order Amount Too Small")]
+    OrderAmountTooSmall,
 }
 
 #[macro_export]

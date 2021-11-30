@@ -235,7 +235,8 @@ export type AMM = {
 	totalFeeMinusDistributions: BN;
 	totalFeeWithdrawn: BN;
 	totalFee: BN;
-	minimumTradeSize: BN;
+	minimumQuoteAssetTradeSize: BN;
+	minimumBaseAssetTradeSize: BN;
 };
 
 // # User Account Types

@@ -251,10 +251,10 @@ describe('admin', () => {
 		);
 	});
 
-	it('Update market minimum trade size', async () => {
+	it('Update market minimum quote asset trade size', async () => {
 		const minimumTradeSize = new BN(1);
 
-		await clearingHouse.updateMarketMinimumTradeSize(
+		await clearingHouse.updateMarketMinimumQuoteAssetTradeSize(
 			Markets[0].marketIndex,
 			minimumTradeSize
 		);
@@ -263,7 +263,22 @@ describe('admin', () => {
 			clearingHouse.getMarketsAccount().markets[
 				Markets[0].marketIndex.toNumber()
 			];
-		assert(market.amm.minimumTradeSize.eq(minimumTradeSize));
+		assert(market.amm.minimumQuoteAssetTradeSize.eq(minimumTradeSize));
+	});
+
+	it('Update market minimum base asset trade size', async () => {
+		const minimumTradeSize = new BN(2);
+
+		await clearingHouse.updateMarketMinimumBaseAssetTradeSize(
+			Markets[0].marketIndex,
+			minimumTradeSize
+		);
+
+		const market =
+			clearingHouse.getMarketsAccount().markets[
+				Markets[0].marketIndex.toNumber()
+				];
+		assert(market.amm.minimumBaseAssetTradeSize.eq(minimumTradeSize));
 	});
 
 	it('Pause funding', async () => {

@@ -266,13 +266,13 @@ pub mod clearing_house {
                 total_fee: 0,
                 total_fee_withdrawn: 0,
                 total_fee_minus_distributions: 0,
-                minimum_trade_size: 10000000,
+                minimum_quote_asset_trade_size: 10000000,
                 last_oracle_price_twap_ts: now,
+                minimum_base_asset_trade_size: 10000000,
                 padding0: 0,
                 padding1: 0,
                 padding2: 0,
                 padding3: 0,
-                padding4: 0,
             },
         };
 
@@ -951,6 +951,14 @@ pub mod clearing_house {
 
         if amount == 0 || price == 0 {
             return Err(ErrorCode::InvalidOrder.into());
+        }
+
+        {
+            let market = &ctx.accounts.markets.load()?.markets
+                [Markets::index_from_u64(market_index)];
+            if amount < market.amm.minimum_base_asset_trade_size {
+                return Err(ErrorCode::OrderAmountTooSmall.into());
+            }
         }
 
         match direction {
@@ -2096,14 +2104,28 @@ pub mod clearing_house {
     #[access_control(
         market_initialized(&ctx.accounts.markets, market_index)
     )]
-    pub fn update_market_minimum_trade_size(
+    pub fn update_market_minimum_quote_asset_trade_size(
         ctx: Context<AdminUpdateMarket>,
         market_index: u64,
         minimum_trade_size: u128,
     ) -> ProgramResult {
         let market =
             &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
-        market.amm.minimum_trade_size = minimum_trade_size;
+        market.amm.minimum_quote_asset_trade_size = minimum_trade_size;
+        Ok(())
+    }
+
+    #[access_control(
+        market_initialized(&ctx.accounts.markets, market_index)
+    )]
+    pub fn update_market_minimum_base_asset_trade_size(
+        ctx: Context<AdminUpdateMarket>,
+        market_index: u64,
+        minimum_trade_size: u128,
+    ) -> ProgramResult {
+        let market =
+            &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
+        market.amm.minimum_base_asset_trade_size = minimum_trade_size;
         Ok(())
     }
 

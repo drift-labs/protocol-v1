@@ -107,7 +107,7 @@ describe('orders', () => {
     });
 
     it('Open long order', async () => {
-        const amount = new BN(1);
+        const amount = new BN(10000000);
         const price = new BN(1);
         await clearingHouse.placeOrder(PositionDirection.LONG, amount, price, marketIndex);
         const user: any = await clearingHouse.program.account.user.fetch(
@@ -129,13 +129,23 @@ describe('orders', () => {
         const userPositionsAccount: UserPositionsAccount =
             await clearingHouse.program.account.userPositions.fetch(user.positions);
         const firstPosition = userPositionsAccount.positions[0];
-        assert(firstPosition.marketIndex.eq(new BN(0)));
         assert(firstPosition.longOrderAmount.eq(new BN(0)));
         assert(firstPosition.longOrderPrice.eq(new BN(0)));
     });
 
-    it('Open short order', async () => {
+    it('Open order with amount that is too small', async () => {
         const amount = new BN(1);
+        const price = new BN(1);
+        try {
+            await clearingHouse.placeOrder(PositionDirection.LONG, amount, price, marketIndex);
+        } catch (e) {
+            return;
+        }
+        assert(false);
+    });
+
+    it('Open short order', async () => {
+        const amount = new BN(10000000);
         const price = new BN(1);
         await clearingHouse.placeOrder(PositionDirection.SHORT, amount, price, marketIndex);
         const user: any = await clearingHouse.program.account.user.fetch(
@@ -144,7 +154,6 @@ describe('orders', () => {
         const userPositionsAccount: UserPositionsAccount =
             await clearingHouse.program.account.userPositions.fetch(user.positions);
         const firstPosition = userPositionsAccount.positions[0];
-        assert(firstPosition.marketIndex.eq(marketIndex));
         assert(firstPosition.shortOrderAmount.eq(amount));
         assert(firstPosition.shortOrderPrice.eq(price));
     });
@@ -157,7 +166,6 @@ describe('orders', () => {
         const userPositionsAccount: UserPositionsAccount =
             await clearingHouse.program.account.userPositions.fetch(user.positions);
         const firstPosition = userPositionsAccount.positions[0];
-        assert(firstPosition.marketIndex.eq(new BN(0)));
         assert(firstPosition.shortOrderAmount.eq(new BN(0)));
         assert(firstPosition.shortOrderPrice.eq(new BN(0)));
     });

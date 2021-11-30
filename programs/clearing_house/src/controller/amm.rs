@@ -27,7 +27,7 @@ pub fn swap_quote_asset(
     let unpegged_scaled_quote_asset_amount =
         unpeg_quote_asset_amount(scaled_quote_asset_amount, amm.peg_multiplier, round_up)?;
 
-    if unpegged_scaled_quote_asset_amount < amm.minimum_trade_size {
+    if unpegged_scaled_quote_asset_amount < amm.minimum_quote_asset_trade_size {
         return Err(ErrorCode::TradeSizeTooSmall);
     }
 

@@ -1316,7 +1316,37 @@
       ]
     },
     {
-      "name": "updateMarketMinimumTradeSize",
+      "name": "updateMarketMinimumQuoteAssetTradeSize",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "markets",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "marketIndex",
+          "type": "u64"
+        },
+        {
+          "name": "minimumTradeSize",
+          "type": "u128"
+        }
+      ]
+    },
+    {
+      "name": "updateMarketMinimumBaseAssetTradeSize",
       "accounts": [
         {
           "name": "admin",
@@ -2355,12 +2385,16 @@
             "type": "u128"
           },
           {
-            "name": "minimumTradeSize",
+            "name": "minimumQuoteAssetTradeSize",
             "type": "u128"
           },
           {
             "name": "lastOraclePriceTwapTs",
             "type": "i64"
+          },
+          {
+            "name": "minimumBaseAssetTradeSize",
+            "type": "u128"
           },
           {
             "name": "padding0",
@@ -2376,10 +2410,6 @@
           },
           {
             "name": "padding3",
-            "type": "u128"
-          },
-          {
-            "name": "padding4",
             "type": "u128"
           }
         ]
@@ -2959,6 +2989,11 @@
       "code": 340,
       "name": "UserHasNoOrder",
       "msg": "User has no order"
+    },
+    {
+      "code": 341,
+      "name": "OrderAmountTooSmall",
+      "msg": "Order Amount Too Small"
     }
   ]
 }
