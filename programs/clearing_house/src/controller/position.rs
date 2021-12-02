@@ -129,7 +129,7 @@ pub fn increase_with_base_asset_amount(
         now,
     )?;
 
-    let quote_asset_swapper_amm_precision = match swap_direction {
+    let quote_asset_swapped_amm_precision = match swap_direction {
         SwapDirection::Remove => market.amm.quote_asset_reserve
             .checked_sub(quote_asset_reserve_before)
             .ok_or_else(math_error!())?,
@@ -140,7 +140,7 @@ pub fn increase_with_base_asset_amount(
 
     let round_up = direction == PositionDirection::Long;
     let quote_asset_swapped = peg_quote_asset_amount(
-        scale_from_amm_precision(quote_asset_swapper_amm_precision, round_up)?,
+        scale_from_amm_precision(quote_asset_swapped_amm_precision, round_up)?,
         market.amm.peg_multiplier
     )?;
 
@@ -289,7 +289,7 @@ pub fn reduce_with_base_asset_amount<'info>(
             .ok_or_else(math_error!())?,
     };
 
-    let round_up = direction == PositionDirection::Short;
+    let round_up = direction == PositionDirection::Long;
     let quote_asset_swapped = peg_quote_asset_amount(
         scale_from_amm_precision(quote_asset_swapper_amm_precision, round_up)?,
         market.amm.peg_multiplier
@@ -344,7 +344,7 @@ pub fn reduce_with_base_asset_amount<'info>(
         .checked_sub(initial_quote_asset_amount_closed)
         .ok_or_else(math_error!())?;
 
-    let pnl = if market_position.base_asset_amount > 0 {
+    let pnl = if PositionDirection::Short == direction {
         cast_to_i128(quote_asset_swapped)?
             .checked_sub(cast(initial_quote_asset_amount_closed)?)
             .ok_or_else(math_error!())?

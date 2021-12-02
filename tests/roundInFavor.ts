@@ -147,7 +147,7 @@ describe('round in favor', () => {
 		user = await primaryClearingHouse.program.account.user.fetch(
 			userAccountPublicKey
 		);
-
+		console.log(user.collateral.toString());
 		assert(user.collateral.eq(new BN(9974025)));
 	});
 
@@ -192,7 +192,7 @@ describe('round in favor', () => {
 		user = await primaryClearingHouse.program.account.user.fetch(
 			userAccountPublicKey
 		);
-
+		console.log(user.collateral.toString());
 		assert(user.collateral.eq(new BN(9960975)));
 	});
 });

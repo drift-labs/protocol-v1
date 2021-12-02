@@ -566,6 +566,94 @@ export class ClearingHouse {
 		);
 	}
 
+	public async openPositionWithBaseAsset(
+		direction: PositionDirection,
+		amount: BN,
+		marketIndex: BN,
+		limitPrice?: BN,
+		discountToken?: PublicKey,
+		referrer?: PublicKey
+	): Promise<TransactionSignature> {
+		return await this.txSender.send(
+			wrapInTx(
+				await this.getOpenPositionWithBaseAssetIx(
+					direction,
+					amount,
+					marketIndex,
+					limitPrice,
+					discountToken,
+					referrer
+				)
+			),
+			[],
+			this.opts
+		);
+	}
+
+	public async getOpenPositionWithBaseAssetIx(
+		direction: PositionDirection,
+		amount: BN,
+		marketIndex: BN,
+		limitPrice?: BN,
+		discountToken?: PublicKey,
+		referrer?: PublicKey
+	): Promise<TransactionInstruction> {
+		const userAccountPublicKey = await this.getUserAccountPublicKey();
+		const userAccount = await this.getUserAccount();
+
+		if (limitPrice == undefined) {
+			limitPrice = new BN(0); // no limit
+		}
+
+		const optionalAccounts = {
+			discountToken: false,
+			referrer: false,
+		};
+		const remainingAccounts = [];
+		if (discountToken) {
+			optionalAccounts.discountToken = true;
+			remainingAccounts.push({
+				pubkey: discountToken,
+				isWritable: false,
+				isSigner: false,
+			});
+		}
+		if (referrer) {
+			optionalAccounts.referrer = true;
+			remainingAccounts.push({
+				pubkey: referrer,
+				isWritable: true,
+				isSigner: false,
+			});
+		}
+
+		const priceOracle =
+			this.getMarketsAccount().markets[marketIndex.toNumber()].amm.oracle;
+
+		const state = this.getStateAccount();
+		return await this.program.instruction.openPositionWithBaseAsset(
+			direction,
+			amount,
+			marketIndex,
+			limitPrice,
+			optionalAccounts,
+			{
+				accounts: {
+					state: await this.getStatePublicKey(),
+					user: userAccountPublicKey,
+					authority: this.wallet.publicKey,
+					markets: state.markets,
+					userPositions: userAccount.positions,
+					tradeHistory: state.tradeHistory,
+					fundingPaymentHistory: state.fundingPaymentHistory,
+					fundingRateHistory: state.fundingRateHistory,
+					oracle: priceOracle,
+				},
+				remainingAccounts: remainingAccounts,
+			}
+		);
+	}
+
 	public async placeOrder(
 		direction: PositionDirection,
 		amount: BN,

@@ -11,8 +11,7 @@ pub fn scale_to_amm_precision(quote_asset_amount: u128) -> ClearingHouseResult<u
     return Ok(scaled_quote_asset_amount);
 }
 
-/// If the user goes short, the exchange needs to round up after integer division. Otherwise the user
-/// is assigned extra PnL
+/// In some cases the exchange needs to round up after integer division to avoid assigning user extra pnl
 pub fn unpeg_quote_asset_amount(
     quote_asset_amount: u128,
     peg_multiplier: u128,
@@ -39,8 +38,7 @@ pub fn unpeg_quote_asset_amount(
     return Ok(unpegged_quote_asset_amount);
 }
 
-/// If the user goes short, the exchange needs to round up after integer division. Otherwise the user
-/// is assigned extra PnL
+/// In some cases the exchange needs to round up after integer division to avoid assigning user extra pnl
 pub fn scale_from_amm_precision(
     quote_asset_amount: u128,
     round_up: bool,
