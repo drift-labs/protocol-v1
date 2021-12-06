@@ -261,6 +261,8 @@ export type UserAccount = {
 
 export type UserSnapshot = {
 	ts: BN;
+	userAuthority: PublicKey;
+	user: PublicKey;
 	position0MarketIndex?: BN;
 	position0BaseAssetAmount?: BN;
 	position0QuoteAssetAmount?: BN;
