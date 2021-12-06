@@ -259,7 +259,7 @@ export type UserAccount = {
 	totalFeePaid: BN;
 };
 
-export type UserSnapshot = {
+export type UserSnapshotRecord = {
 	ts: BN;
 	userAuthority: PublicKey;
 	user: PublicKey;
@@ -344,6 +344,39 @@ export interface FundingPayment {
 	userLastCumulativeFunding: string;
 	userLastFundingRateTs: string;
 	rate: number;
+}
+
+export type UserSnapshot = {
+	ts: BN;
+	userAuthority: PublicKey;
+	user: PublicKey;
+	position0MarketIndex?: number;
+	position0BaseAssetAmount?: number;
+	position0QuoteAssetAmount?: number;
+	position0UnrealizedPnl?: number;
+	position0UnrealizedFundingPnl?: number;
+	position1MarketIndex?: number;
+	position1BaseAssetAmount?: number;
+	position1QuoteAssetAmount?: number;
+	position1UnrealizedPnl?: number;
+	position1UnrealizedFundingPnl?: number;
+	position2MarketIndex?: number;
+	position2BaseAssetAmount?: BN;
+	position2QuoteAssetAmount?: number;
+	position2UnrealizedPnl?: number;
+	position2UnrealizedFundingPnl?: number;
+	position3MarketIndex?: number;
+	position3BaseAssetAmount?: number;
+	position3QuoteAssetAmount?: number;
+	position3UnrealizedPnl?: number;
+	position3UnrealizedFundingPnl?: number;
+	position4MarketIndex?: number;
+	position4BaseAssetAmount?: number;
+	position4QuoteAssetAmount?: number;
+	position4UnrealizedPnl?: number;
+	position4UnrealizedFundingPnl?: number;
+	userTotalRealizedPnl: number;
+	userTotalUnrealizedPnl: number;
 }
 
 // # Misc Types
