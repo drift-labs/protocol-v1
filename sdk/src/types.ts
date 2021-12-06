@@ -259,6 +259,37 @@ export type UserAccount = {
 	totalFeePaid: BN;
 };
 
+export type UserSnapshot = {
+	ts: BN;
+	position0MarketIndex?: BN;
+	position0BaseAssetAmount?: BN;
+	position0QuoteAssetAmount?: BN;
+	position0UnrealizedPnl?: BN;
+	position0UnrealizedFundingPnl?: BN;
+	position1MarketIndex?: BN;
+	position1BaseAssetAmount?: BN;
+	position1QuoteAssetAmount?: BN;
+	position1UnrealizedPnl?: BN;
+	position1UnrealizedFundingPnl?: BN;
+	position2MarketIndex?: BN;
+	position2BaseAssetAmount?: BN;
+	position2QuoteAssetAmount?: BN;
+	position2UnrealizedPnl?: BN;
+	position2UnrealizedFundingPnl?: BN;
+	position3MarketIndex?: BN;
+	position3BaseAssetAmount?: BN;
+	position3QuoteAssetAmount?: BN;
+	position3UnrealizedPnl?: BN;
+	position3UnrealizedFundingPnl?: BN;
+	position4MarketIndex?: BN;
+	position4BaseAssetAmount?: BN;
+	position4QuoteAssetAmount?: BN;
+	position4UnrealizedPnl?: BN;
+	position4UnrealizedFundingPnl?: BN;
+	userTotalRealizedPnl: BN;
+	userTotalUnrealizedPnl: BN;
+};
+
 // # UI ↔ History Server Data Types
 export interface Trade {
 	price: number;

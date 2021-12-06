@@ -145,30 +145,34 @@ export class ClearingHouseUser {
 	 * calculates unrealized position price pnl
 	 * @returns : Precision QUOTE_PRECISION
 	 */
-	public getUnrealizedPNL(withFunding?: boolean): BN {
-		return this.getUserPositionsAccount().positions.reduce(
-			(pnl, marketPosition) => {
-				const market = this.clearingHouse.getMarket(marketPosition.marketIndex);
-				return pnl.add(
-					calculatePositionPNL(market, marketPosition, withFunding)
-				);
-			},
-			ZERO
-		);
+	public getUnrealizedPNL(withFunding?: boolean, marketIndex?: BN): BN {
+		return this.getUserPositionsAccount().positions
+			.filter((pos) => marketIndex ? pos.marketIndex === marketIndex : true)
+			.reduce(
+				(pnl, marketPosition) => {
+					const market = this.clearingHouse.getMarket(marketPosition.marketIndex);
+					return pnl.add(
+						calculatePositionPNL(market, marketPosition, withFunding)
+					);
+				},
+				ZERO
+			);
 	}
 
 	/**
 	 * calculates unrealized funding payment pnl
 	 * @returns : Precision QUOTE_PRECISION
 	 */
-	public getUnrealizedFundingPNL(): BN {
-		return this.getUserPositionsAccount().positions.reduce(
-			(pnl, marketPosition) => {
-				const market = this.clearingHouse.getMarket(marketPosition.marketIndex);
-				return pnl.add(calculatePositionFundingPNL(market, marketPosition));
-			},
-			ZERO
-		);
+	public getUnrealizedFundingPNL(marketIndex?: BN): BN {
+		return this.getUserPositionsAccount().positions
+			.filter((pos) => marketIndex ? pos.marketIndex === marketIndex : true)
+			.reduce(
+				(pnl, marketPosition) => {
+					const market = this.clearingHouse.getMarket(marketPosition.marketIndex);
+					return pnl.add(calculatePositionFundingPNL(market, marketPosition));
+				},
+				ZERO
+			);
 	}
 
 	/**
