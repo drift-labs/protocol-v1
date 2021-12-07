@@ -329,11 +329,20 @@ export type UserSnapshot = {
 	ts: number;
 	userAuthority: PublicKey;
 	user: PublicKey;
-	userPositions: UserPosition[];
-	userTotalRealizedPnl: BN;
-	userTotalUnrealizedPnl: BN;
-	userTotalUnrealizedFundingPnl: BN;
+	userPositions: UserPositionUI[];
+	userTotalRealizedPnl: number;
+	userTotalUnrealizedPnl: number;
+	userTotalUnrealizedFundingPnl: number;
 }
+
+export type UserPositionUI = {
+	baseAssetAmount: number;
+	lastCumulativeFundingRate: number;
+	marketIndex: number;
+	quoteAssetAmount: number;
+	unrealizedPnl: number;
+	unrealizedFundingPnl: number;
+};
 
 // # Misc Types
 export interface IWallet {
