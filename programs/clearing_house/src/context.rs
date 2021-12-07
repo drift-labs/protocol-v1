@@ -9,6 +9,7 @@ use crate::state::history::{funding_payment::FundingPaymentHistory, trade::Trade
 use crate::state::market::Markets;
 use crate::state::state::State;
 use crate::state::user::{User, UserPositions};
+use crate::state::orders::UserOrders;
 
 #[derive(Accounts)]
 #[instruction(
@@ -91,6 +92,26 @@ pub struct InitializeUser<'info> {
         payer = authority,
     )]
     pub user_positions: Loader<'info, UserPositions>,
+    pub authority: Signer<'info>,
+    pub rent: Sysvar<'info, Rent>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(user_orders_nonce: u8)]
+pub struct InitializeUserOrders<'info> {
+    #[account(
+        has_one = authority,
+    )]
+    pub user: Box<Account<'info, User>>,
+    #[account(
+        init,
+        seeds = [b"user_orders", authority.key.as_ref()],
+        bump = user_orders_nonce,
+        payer = authority
+    )]
+    pub user_orders: Loader<'info, UserOrders>,
+    pub state: Box<Account<'info, State>>,
     pub authority: Signer<'info>,
     pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,

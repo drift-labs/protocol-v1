@@ -8,6 +8,7 @@ use math::{amm, bn, constants::*, fees, margin::*, position::*, withdrawal::*};
 use state::{
     history::trade::TradeRecord,
     market::{Market, Markets, OracleSource, AMM},
+    orders::*,
     state::*,
     user::{MarketPosition, User},
 };
@@ -2152,6 +2153,15 @@ pub mod clearing_house {
         let user_positions = &mut ctx.accounts.user_positions.load_init()?;
         user_positions.user = *ctx.accounts.user.to_account_info().key;
 
+        Ok(())
+    }
+
+    pub fn initialize_user_orders(
+        ctx: Context<InitializeUserOrders>,
+        _user_orders_nonce: u8,
+    ) -> ProgramResult {
+        let orders = &mut ctx.accounts.user_orders.load_init()?;
+        orders.user = ctx.accounts.user.key();
         Ok(())
     }
 

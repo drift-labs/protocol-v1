@@ -38,7 +38,7 @@ import StrictEventEmitter from 'strict-event-emitter-types';
 import {
 	getClearingHouseStateAccountPublicKey,
 	getUserAccountPublicKey,
-	getUserAccountPublicKeyAndNonce,
+	getUserAccountPublicKeyAndNonce, getUserOrdersAccountPublicKeyAndNonce,
 } from './addresses';
 import {
 	ClearingHouseAccountSubscriber,
@@ -226,9 +226,10 @@ export class ClearingHouse {
 			userPositionsAccount,
 			userAccountPublicKey,
 			initializeUserAccountIx,
+			initializeUserOrdersAccountIx,
 		] = await this.getInitializeUserInstructions();
 
-		const tx = new Transaction().add(initializeUserAccountIx);
+		const tx = new Transaction().add(initializeUserAccountIx).add(initializeUserOrdersAccountIx);
 		const txSig = await this.txSender.send(
 			tx,
 			[userPositionsAccount],
@@ -238,9 +239,9 @@ export class ClearingHouse {
 	}
 
 	async getInitializeUserInstructions(): Promise<
-		[Keypair, PublicKey, TransactionInstruction]
+		[Keypair, PublicKey, TransactionInstruction, TransactionInstruction]
 	> {
-		const [userPublicKey, userAccountNonce] =
+		const [userAccountPublicKey, userAccountNonce] =
 			await getUserAccountPublicKeyAndNonce(
 				this.program.programId,
 				this.wallet.publicKey
@@ -274,7 +275,7 @@ export class ClearingHouse {
 				optionalAccounts,
 				{
 					accounts: {
-						user: userPublicKey,
+						user: userAccountPublicKey,
 						authority: this.wallet.publicKey,
 						rent: anchor.web3.SYSVAR_RENT_PUBKEY,
 						systemProgram: anchor.web3.SystemProgram.programId,
@@ -284,7 +285,37 @@ export class ClearingHouse {
 					remainingAccounts: remainingAccounts,
 				}
 			);
-		return [userPositions, userPublicKey, initializeUserAccountIx];
+
+		const initializeUserOrdersAccountIx = await this.getInitializeUserOrdersInstruction(userAccountPublicKey);
+
+		return [userPositions, userAccountPublicKey, initializeUserAccountIx, initializeUserOrdersAccountIx];
+	}
+
+	async getInitializeUserOrdersInstruction(userAccountPublicKey?: PublicKey): Promise<TransactionInstruction> {
+		const [userOrdersAccountPublicKey, userOrdersAccountNonce] =
+			await getUserOrdersAccountPublicKeyAndNonce(
+				this.program.programId,
+				this.wallet.publicKey
+			);
+
+		if (!userAccountPublicKey) {
+			userAccountPublicKey = await this.getUserAccountPublicKey();
+		}
+		console.log(userAccountPublicKey);
+
+		return await this.program.instruction.initializeUserOrders(
+				userOrdersAccountNonce,
+				{
+					accounts: {
+						user: userAccountPublicKey,
+						authority: this.wallet.publicKey,
+						rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+						systemProgram: anchor.web3.SystemProgram.programId,
+						userOrders: userOrdersAccountPublicKey,
+						state: await this.getStatePublicKey(),
+					},
+				}
+			);
 	}
 
 	userAccountPublicKey?: PublicKey;
@@ -373,6 +404,7 @@ export class ClearingHouse {
 			userPositionsAccount,
 			userAccountPublicKey,
 			initializeUserAccountIx,
+			initializeUserOrdersAccountIx,
 		] = await this.getInitializeUserInstructions();
 
 		const depositCollateralIx = await this.getDepositCollateralInstruction(
@@ -383,6 +415,7 @@ export class ClearingHouse {
 
 		const tx = new Transaction()
 			.add(initializeUserAccountIx)
+			.add(initializeUserOrdersAccountIx)
 			.add(depositCollateralIx);
 
 		const txSig = await this.program.provider.send(tx, [userPositionsAccount]);
@@ -404,6 +437,7 @@ export class ClearingHouse {
 			userPositionsAccount,
 			userAccountPublicKey,
 			initializeUserAccountIx,
+			initializeUserOrdersAccountIx,
 		] = await this.getInitializeUserInstructions();
 
 		const depositCollateralIx = await this.getDepositCollateralInstruction(
@@ -416,6 +450,7 @@ export class ClearingHouse {
 			.add(createAssociatedAccountIx)
 			.add(mintToIx)
 			.add(initializeUserAccountIx)
+			.add(initializeUserOrdersAccountIx)
 			.add(depositCollateralIx);
 
 		const txSig = await this.program.provider.send(tx, [userPositionsAccount]);

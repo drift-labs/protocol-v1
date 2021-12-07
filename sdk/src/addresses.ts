@@ -32,3 +32,20 @@ export async function getUserAccountPublicKey(
 ): Promise<PublicKey> {
 	return (await getUserAccountPublicKeyAndNonce(programId, authority))[0];
 }
+
+export async function getUserOrdersAccountPublicKeyAndNonce(
+	programId: PublicKey,
+	authority: PublicKey
+): Promise<[PublicKey, number]> {
+	return anchor.web3.PublicKey.findProgramAddress(
+		[Buffer.from(anchor.utils.bytes.utf8.encode('user_orders')), authority.toBuffer()],
+		programId
+	);
+}
+
+export async function getUserOrdersAccountPublicKey(
+	programId: PublicKey,
+	authority: PublicKey
+): Promise<PublicKey> {
+	return (await getUserOrdersAccountPublicKeyAndNonce(programId, authority))[0];
+}
