@@ -244,6 +244,8 @@ export type UserPosition = {
 	lastCumulativeFundingRate: BN;
 	marketIndex: BN;
 	quoteAssetAmount: BN;
+	unrealizedPnl?: BN;
+	unrealizedFundingPnl?: BN;
 };
 
 export type UserPositionsAccount = {
@@ -263,33 +265,10 @@ export type UserSnapshotRecord = {
 	ts: BN;
 	userAuthority: PublicKey;
 	user: PublicKey;
-	position0MarketIndex?: BN;
-	position0BaseAssetAmount?: BN;
-	position0QuoteAssetAmount?: BN;
-	position0UnrealizedPnl?: BN;
-	position0UnrealizedFundingPnl?: BN;
-	position1MarketIndex?: BN;
-	position1BaseAssetAmount?: BN;
-	position1QuoteAssetAmount?: BN;
-	position1UnrealizedPnl?: BN;
-	position1UnrealizedFundingPnl?: BN;
-	position2MarketIndex?: BN;
-	position2BaseAssetAmount?: BN;
-	position2QuoteAssetAmount?: BN;
-	position2UnrealizedPnl?: BN;
-	position2UnrealizedFundingPnl?: BN;
-	position3MarketIndex?: BN;
-	position3BaseAssetAmount?: BN;
-	position3QuoteAssetAmount?: BN;
-	position3UnrealizedPnl?: BN;
-	position3UnrealizedFundingPnl?: BN;
-	position4MarketIndex?: BN;
-	position4BaseAssetAmount?: BN;
-	position4QuoteAssetAmount?: BN;
-	position4UnrealizedPnl?: BN;
-	position4UnrealizedFundingPnl?: BN;
+	userPositions: UserPosition[];
 	userTotalRealizedPnl: BN;
 	userTotalUnrealizedPnl: BN;
+	userTotalUnrealizedFundingPnl: BN;
 };
 
 // # UI ↔ History Server Data Types
@@ -347,36 +326,13 @@ export interface FundingPayment {
 }
 
 export type UserSnapshot = {
-	ts: BN;
+	ts: number;
 	userAuthority: PublicKey;
 	user: PublicKey;
-	position0MarketIndex?: number;
-	position0BaseAssetAmount?: number;
-	position0QuoteAssetAmount?: number;
-	position0UnrealizedPnl?: number;
-	position0UnrealizedFundingPnl?: number;
-	position1MarketIndex?: number;
-	position1BaseAssetAmount?: number;
-	position1QuoteAssetAmount?: number;
-	position1UnrealizedPnl?: number;
-	position1UnrealizedFundingPnl?: number;
-	position2MarketIndex?: number;
-	position2BaseAssetAmount?: BN;
-	position2QuoteAssetAmount?: number;
-	position2UnrealizedPnl?: number;
-	position2UnrealizedFundingPnl?: number;
-	position3MarketIndex?: number;
-	position3BaseAssetAmount?: number;
-	position3QuoteAssetAmount?: number;
-	position3UnrealizedPnl?: number;
-	position3UnrealizedFundingPnl?: number;
-	position4MarketIndex?: number;
-	position4BaseAssetAmount?: number;
-	position4QuoteAssetAmount?: number;
-	position4UnrealizedPnl?: number;
-	position4UnrealizedFundingPnl?: number;
-	userTotalRealizedPnl: number;
-	userTotalUnrealizedPnl: number;
+	userPositions: UserPosition[];
+	userTotalRealizedPnl: BN;
+	userTotalUnrealizedPnl: BN;
+	userTotalUnrealizedFundingPnl: BN;
 }
 
 // # Misc Types
