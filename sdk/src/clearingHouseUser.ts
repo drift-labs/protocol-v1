@@ -146,17 +146,16 @@ export class ClearingHouseUser {
 	 * @returns : Precision QUOTE_PRECISION
 	 */
 	public getUnrealizedPNL(withFunding?: boolean, marketIndex?: BN): BN {
-		return this.getUserPositionsAccount().positions
-			.filter((pos) => marketIndex ? pos.marketIndex === marketIndex : true)
-			.reduce(
-				(pnl, marketPosition) => {
-					const market = this.clearingHouse.getMarket(marketPosition.marketIndex);
-					return pnl.add(
-						calculatePositionPNL(market, marketPosition, withFunding)
-					);
-				},
-				ZERO
-			);
+		return this.getUserPositionsAccount()
+			.positions.filter((pos) =>
+				marketIndex ? pos.marketIndex === marketIndex : true
+			)
+			.reduce((pnl, marketPosition) => {
+				const market = this.clearingHouse.getMarket(marketPosition.marketIndex);
+				return pnl.add(
+					calculatePositionPNL(market, marketPosition, withFunding)
+				);
+			}, ZERO);
 	}
 
 	/**
@@ -164,15 +163,14 @@ export class ClearingHouseUser {
 	 * @returns : Precision QUOTE_PRECISION
 	 */
 	public getUnrealizedFundingPNL(marketIndex?: BN): BN {
-		return this.getUserPositionsAccount().positions
-			.filter((pos) => marketIndex ? pos.marketIndex === marketIndex : true)
-			.reduce(
-				(pnl, marketPosition) => {
-					const market = this.clearingHouse.getMarket(marketPosition.marketIndex);
-					return pnl.add(calculatePositionFundingPNL(market, marketPosition));
-				},
-				ZERO
-			);
+		return this.getUserPositionsAccount()
+			.positions.filter((pos) =>
+				marketIndex ? pos.marketIndex === marketIndex : true
+			)
+			.reduce((pnl, marketPosition) => {
+				const market = this.clearingHouse.getMarket(marketPosition.marketIndex);
+				return pnl.add(calculatePositionFundingPNL(market, marketPosition));
+			}, ZERO);
 	}
 
 	/**
@@ -415,7 +413,10 @@ export class ClearingHouseUser {
 			);
 
 		// if the position value after the trade is less than total collateral, there is no liq price
-		if (targetTotalPositionValueUSDC.lte(totalCollateralUSDC) && proposedMarketPosition.baseAssetAmount.gt(ZERO)) {
+		if (
+			targetTotalPositionValueUSDC.lte(totalCollateralUSDC) &&
+			proposedMarketPosition.baseAssetAmount.gt(ZERO)
+		) {
 			return new BN(-1);
 		}
 
