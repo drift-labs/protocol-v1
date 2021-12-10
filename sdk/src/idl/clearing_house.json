@@ -637,27 +637,11 @@
           "name": "fundingPaymentHistory",
           "isMut": true,
           "isSigner": false
-        },
-        {
-          "name": "fundingRateHistory",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "oracle",
-          "isMut": false,
-          "isSigner": false
         }
       ],
       "args": [
         {
-          "name": "direction",
-          "type": {
-            "defined": "PositionDirection"
-          }
-        },
-        {
-          "name": "marketIndex",
+          "name": "orderIndex",
           "type": "u64"
         }
       ]
@@ -3212,6 +3196,11 @@
       "code": 342,
       "name": "MaxNumberOfOrders",
       "msg": "Max number of orders taken"
+    },
+    {
+      "code": 343,
+      "name": "OrderDoesNotExist",
+      "msg": "Order does not exist"
     }
   ]
 }

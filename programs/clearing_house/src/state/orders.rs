@@ -17,6 +17,12 @@ impl Default for UserOrders {
     }
 }
 
+impl UserOrders {
+    pub fn index_from_u64(index: u64) -> usize {
+        return std::convert::TryInto::try_into(index).unwrap();
+    }
+}
+
 #[zero_copy]
 pub struct Order {
     pub status: OrderStatus,

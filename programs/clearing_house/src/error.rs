@@ -90,6 +90,8 @@ pub enum ErrorCode {
     OrderAmountTooSmall,
     #[msg("Max number of orders taken")]
     MaxNumberOfOrders,
+    #[msg("Order does not exist")]
+    OrderDoesNotExist,
 }
 
 #[macro_export]

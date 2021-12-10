@@ -451,6 +451,37 @@ pub struct PlaceOrder<'info> {
 }
 
 #[derive(Accounts)]
+pub struct CancelOrder<'info> {
+    pub state: Box<Account<'info, State>>,
+    #[account(
+        has_one = authority,
+        constraint = &user.positions.eq(&user_positions.key())
+    )]
+    pub user: Box<Account<'info, User>>,
+    pub authority: Signer<'info>,
+    #[account(
+        mut,
+        constraint = &state.markets.eq(&markets.key())
+    )]
+    pub markets: Loader<'info, Markets>,
+    #[account(
+        mut,
+        has_one = user
+    )]
+    pub user_positions: Loader<'info, UserPositions>,
+    #[account(
+        mut,
+        has_one = user
+    )]
+    pub user_orders: Loader<'info, UserOrders>,
+    #[account(
+        mut,
+        constraint = &state.funding_payment_history.eq(&funding_payment_history.key())
+    )]
+    pub funding_payment_history: Loader<'info, FundingPaymentHistory>,
+}
+
+#[derive(Accounts)]
 pub struct ClosePosition<'info> {
     #[account(mut)]
     pub state: Box<Account<'info, State>>,

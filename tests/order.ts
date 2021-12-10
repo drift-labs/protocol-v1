@@ -130,17 +130,19 @@ describe('orders', () => {
         assert(enumsAreEqual(order.status, OrderStatus.OPEN));
     });
 
-    // it('Cancel long order', async () => {
-    //     await clearingHouse.cancelOrder(PositionDirection.LONG, marketIndex);
-    //     const user: any = await clearingHouse.program.account.user.fetch(
-    //         userAccountPublicKey
-    //     );
-    //     const userPositionsAccount: UserPositionsAccount =
-    //         await clearingHouse.program.account.userPositions.fetch(user.positions);
-    //     const firstPosition = userPositionsAccount.positions[0];
-    //     assert(firstPosition.longOrderAmount.eq(new BN(0)));
-    //     assert(firstPosition.longOrderPrice.eq(new BN(0)));
-    // });
+    it('Cancel order', async () => {
+        const orderIndex = new BN(0);
+        await clearingHouse.cancelOrder(orderIndex);
+
+        const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
+        const order = userOrdersAccount.orders[orderIndex.toString()];
+
+        assert(order.baseAssetAmount.eq(new BN(0)));
+        assert(order.price.eq(new BN(0)));
+        assert(order.marketIndex.eq(new BN(0)));
+        assert(enumsAreEqual(order.direction, PositionDirection.LONG));
+        assert(enumsAreEqual(order.status, OrderStatus.INIT));
+    });
 
     // it('Open order with amount that is too small', async () => {
     //     const amount = new BN(1);

@@ -37,6 +37,7 @@ pub mod clearing_house {
 
     use super::*;
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
+    use crate::error::ErrorCode::InvalidOracle;
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -1316,19 +1317,15 @@ pub mod clearing_house {
     }
 
     #[access_control(
-        market_initialized(&ctx.accounts.markets, market_index) &&
-        exchange_not_paused(&ctx.accounts.state) &&
-        valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
+        exchange_not_paused(&ctx.accounts.state)
     )]
     pub fn cancel_order<'info>(
-        ctx: Context<PlaceOrder>,
-        direction: PositionDirection,
-        market_index: u64,
+        ctx: Context<CancelOrder>,
+        order_index: u64
     ) -> ProgramResult {
         let user = &mut ctx.accounts.user;
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
-        let clock_slot = clock.slot;
 
         // Settle user's funding payments so that collateral is up to date
         let user_positions = &mut ctx.accounts.user_positions.load_mut()?;
@@ -1341,38 +1338,13 @@ pub mod clearing_house {
             now,
         )?;
 
-        let position_index = get_position_index(user_positions, market_index)
-            .or_else(|_| add_new_position(user_positions, market_index))?;
-        let market_position = &mut user_positions.positions[position_index];
-
-        match direction {
-            PositionDirection::Long => {
-                market_position.long_order_amount = 0;
-                market_position.long_order_price = 0;
-            },
-            PositionDirection::Short => {
-                market_position.short_order_amount = 0;
-                market_position.short_order_price = 0;
-            },
+        let user_orders = &mut ctx.accounts.user_orders.load_mut()?;
+        let order = &user_orders.orders[UserOrders::index_from_u64(order_index)];
+        if order.status != OrderStatus::Open {
+            return Err(ErrorCode::OrderDoesNotExist.into());
         }
 
-        // Try to update the funding rate
-        {
-            let market = &mut ctx.accounts.markets.load_mut()?.markets
-                [Markets::index_from_u64(market_index)];
-            let price_oracle = &ctx.accounts.oracle;
-            let funding_rate_history = &mut ctx.accounts.funding_rate_history.load_mut()?;
-            controller::funding::update_funding_rate(
-                market_index,
-                market,
-                &price_oracle,
-                now,
-                clock_slot,
-                funding_rate_history,
-                &ctx.accounts.state.oracle_guard_rails,
-                ctx.accounts.state.funding_paused,
-            )?;
-        }
+        user_orders.orders[UserOrders::index_from_u64(order_index)] = Order::default();
 
         Ok(())
     }

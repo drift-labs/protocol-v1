@@ -764,14 +764,12 @@ export class ClearingHouse {
 	}
 
 	public async cancelOrder(
-		direction: PositionDirection,
-		marketIndex: BN,
+		orderIndex: BN,
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
 			wrapInTx(
 				await this.getCancelOrderIx(
-					direction,
-					marketIndex,
+					orderIndex
 				)
 			),
 			[],
@@ -780,29 +778,24 @@ export class ClearingHouse {
 	}
 
 	public async getCancelOrderIx(
-		direction: PositionDirection,
-		marketIndex: BN,
+		orderIndex: BN,
 	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
 		const userAccount = await this.getUserAccount();
 
-		const priceOracle =
-			this.getMarketsAccount().markets[marketIndex.toNumber()].amm.oracle;
-
 		const state = this.getStateAccount();
 		return await this.program.instruction.cancelOrder(
-			direction,
-			marketIndex,
+			orderIndex,
 			{
 				accounts: {
 					state: await this.getStatePublicKey(),
 					user: userAccountPublicKey,
 					authority: this.wallet.publicKey,
 					markets: state.markets,
+					userOrders: await this.getUserOrdersAccountPublicKey(),
 					userPositions: userAccount.positions,
 					fundingPaymentHistory: state.fundingPaymentHistory,
 					fundingRateHistory: state.fundingRateHistory,
-					oracle: priceOracle,
 				},
 			}
 		);
