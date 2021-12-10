@@ -553,6 +553,11 @@
           "isSigner": false
         },
         {
+          "name": "userOrders",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "fundingPaymentHistory",
           "isMut": true,
           "isSigner": false
@@ -570,13 +575,19 @@
       ],
       "args": [
         {
+          "name": "orderType",
+          "type": {
+            "defined": "OrderType"
+          }
+        },
+        {
           "name": "direction",
           "type": {
             "defined": "PositionDirection"
           }
         },
         {
-          "name": "amount",
+          "name": "baseAssetAmount",
           "type": "u128"
         },
         {
@@ -614,6 +625,11 @@
         },
         {
           "name": "userPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userOrders",
           "isMut": true,
           "isSigner": false
         },
@@ -2556,6 +2572,38 @@
       }
     },
     {
+      "name": "Order",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "status",
+            "type": {
+              "defined": "OrderStatus"
+            }
+          },
+          {
+            "name": "marketIndex",
+            "type": "u64"
+          },
+          {
+            "name": "price",
+            "type": "u128"
+          },
+          {
+            "name": "baseAssetAmount",
+            "type": "u128"
+          },
+          {
+            "name": "direction",
+            "type": {
+              "defined": "PositionDirection"
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "OracleGuardRails",
       "type": {
         "kind": "struct",
@@ -2910,26 +2958,26 @@
       }
     },
     {
-      "name": "Order",
+      "name": "OrderStatus",
       "type": {
         "kind": "enum",
         "variants": [
           {
-            "name": "Limit",
-            "fields": [
-              {
-                "name": "market_index",
-                "type": "u64"
-              },
-              {
-                "name": "price",
-                "type": "u128"
-              },
-              {
-                "name": "base_asset_amount",
-                "type": "u128"
-              }
-            ]
+            "name": "Init"
+          },
+          {
+            "name": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OrderType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Limit"
           }
         ]
       }
@@ -3159,6 +3207,11 @@
       "code": 341,
       "name": "OrderAmountTooSmall",
       "msg": "Order Amount Too Small"
+    },
+    {
+      "code": 342,
+      "name": "MaxNumberOfOrders",
+      "msg": "Max number of orders taken"
     }
   ]
 }

@@ -1244,8 +1244,9 @@ pub mod clearing_house {
     )]
     pub fn place_order<'info>(
         ctx: Context<PlaceOrder>,
+        order_type: OrderType,
         direction: PositionDirection,
-        amount: u128,
+        base_asset_amount: u128,
         price: u128,
         market_index: u64,
     ) -> ProgramResult {
@@ -1265,32 +1266,33 @@ pub mod clearing_house {
             now,
         )?;
 
-        let position_index = get_position_index(user_positions, market_index)
-            .or_else(|_| add_new_position(user_positions, market_index))?;
-        let market_position = &mut user_positions.positions[position_index];
-
-        if amount == 0 || price == 0 {
+        if base_asset_amount == 0 || price == 0 {
             return Err(ErrorCode::InvalidOrder.into());
         }
 
         {
             let market = &ctx.accounts.markets.load()?.markets
                 [Markets::index_from_u64(market_index)];
-            if amount < market.amm.minimum_base_asset_trade_size {
+            if base_asset_amount < market.amm.minimum_base_asset_trade_size {
                 return Err(ErrorCode::OrderAmountTooSmall.into());
             }
         }
 
-        match direction {
-            PositionDirection::Long => {
-                market_position.long_order_amount = amount;
-                market_position.long_order_price = price;
+        let user_orders = &mut ctx.accounts.user_orders.load_mut()?;
+        let new_order_idx = user_orders.orders
+            .iter()
+            .position(|order| order.status.eq(&OrderStatus::Init))
+            .ok_or(ErrorCode::MaxNumberOfOrders)?;
+        let new_order = match order_type {
+            OrderType::Limit => Order {
+                status: OrderStatus::Open,
+                market_index,
+                price,
+                base_asset_amount,
+                direction,
             },
-            PositionDirection::Short => {
-                market_position.short_order_amount = amount;
-                market_position.short_order_price = price;
-            },
-        }
+        };
+        user_orders.orders[new_order_idx] = new_order;
 
         // Try to update the funding rate
         {

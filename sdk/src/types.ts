@@ -16,6 +16,15 @@ export class OracleSource {
 	static readonly SWITCHBOARD = { switchboard: {} };
 }
 
+export class OrderType {
+	static readonly LIMIT = { limit: {} };
+}
+
+export class OrderStatus {
+	static readonly INIT = { init: {} };
+	static readonly OPEN = { open: {} };
+}
+
 export enum TradeSide {
 	None = 0,
 	Buy = 1,
@@ -262,6 +271,19 @@ export type UserAccount = {
 	cumulativeDeposits: BN;
 	positions: PublicKey;
 	totalFeePaid: BN;
+};
+
+export type UserOrdersAccount = {
+	orders: Order[];
+	user: PublicKey;
+};
+
+export type Order = {
+	status: OrderStatus,
+	marketIndex: BN,
+	price: BN,
+	baseAssetAmount: BN,
+	direction: PositionDirection,
 };
 
 // # UI ↔ History Server Data Types

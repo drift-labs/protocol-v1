@@ -434,6 +434,11 @@ pub struct PlaceOrder<'info> {
     pub user_positions: Loader<'info, UserPositions>,
     #[account(
         mut,
+        has_one = user
+    )]
+    pub user_orders: Loader<'info, UserOrders>,
+    #[account(
+        mut,
         constraint = &state.funding_payment_history.eq(&funding_payment_history.key())
     )]
     pub funding_payment_history: Loader<'info, FundingPaymentHistory>,

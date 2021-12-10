@@ -7,7 +7,7 @@ import {
 	MarketsAccount,
 	StateAccount,
 	TradeHistoryAccount,
-	UserAccount,
+	UserAccount, UserOrdersAccount,
 	UserPositionsAccount,
 } from '../types';
 import StrictEventEmitter from 'strict-event-emitter-types';
@@ -97,6 +97,7 @@ export interface HistoryAccountSubscriber {
 export interface UserAccountEvents {
 	userAccountData: (payload: UserAccount) => void;
 	userPositionsData: (payload: UserPositionsAccount) => void;
+	userOrdersData: (payload: UserOrdersAccount) => void;
 	update: void;
 }
 
@@ -109,4 +110,5 @@ export interface UserAccountSubscriber {
 
 	getUserAccount(): UserAccount;
 	getUserPositionsAccount(): UserPositionsAccount;
+	getUserOrdersAccount(): UserOrdersAccount;
 }

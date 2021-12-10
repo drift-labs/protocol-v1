@@ -7,9 +7,9 @@ import { Program } from '@project-serum/anchor';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import { EventEmitter } from 'events';
 import { PublicKey } from '@solana/web3.js';
-import { getUserAccountPublicKey } from '../addresses';
+import {getUserAccountPublicKey, getUserOrdersAccountPublicKey} from '../addresses';
 import { WebSocketAccountSubscriber } from './webSocketAccountSubscriber';
-import { UserAccount, UserPositionsAccount } from '../types';
+import {UserAccount, UserOrdersAccount, UserPositionsAccount} from '../types';
 
 export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
 	isSubscribed: boolean;
@@ -19,6 +19,7 @@ export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
 
 	userDataAccountSubscriber: AccountSubscriber<UserAccount>;
 	userPositionsAccountSubscriber: AccountSubscriber<UserPositionsAccount>;
+	userOrdersAccountSubscriber: AccountSubscriber<UserOrdersAccount>;
 
 	public constructor(program: Program, authority: PublicKey) {
 		this.isSubscribed = false;
@@ -60,6 +61,21 @@ export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
 			}
 		);
 
+		const userOrdersPublicKey = await getUserOrdersAccountPublicKey(
+			this.program.programId,
+			this.authority
+		);
+
+		this.userOrdersAccountSubscriber = new WebSocketAccountSubscriber(
+			'userOrders',
+			this.program,
+			userOrdersPublicKey
+		);
+		await this.userOrdersAccountSubscriber.subscribe((data: UserOrdersAccount) => {
+			this.eventEmitter.emit('userOrdersData', data);
+			this.eventEmitter.emit('update');
+		});
+
 		this.eventEmitter.emit('update');
 		this.isSubscribed = true;
 		return true;
@@ -82,5 +98,9 @@ export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
 
 	public getUserPositionsAccount(): UserPositionsAccount {
 		return this.userPositionsAccountSubscriber.data;
+	}
+
+	public getUserOrdersAccount(): UserOrdersAccount {
+		return this.userOrdersAccountSubscriber.data;
 	}
 }

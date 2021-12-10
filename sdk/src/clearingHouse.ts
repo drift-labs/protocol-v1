@@ -17,7 +17,7 @@ import {
 	TradeHistoryAccount,
 	UserAccount,
 	UserPositionsAccount,
-	Market,
+	Market, OrderType,
 } from './types';
 import * as anchor from '@project-serum/anchor';
 import clearingHouseIDL from './idl/clearing_house.json';
@@ -38,7 +38,7 @@ import StrictEventEmitter from 'strict-event-emitter-types';
 import {
 	getClearingHouseStateAccountPublicKey,
 	getUserAccountPublicKey,
-	getUserAccountPublicKeyAndNonce, getUserOrdersAccountPublicKeyAndNonce,
+	getUserAccountPublicKeyAndNonce, getUserOrdersAccountPublicKey, getUserOrdersAccountPublicKeyAndNonce,
 } from './addresses';
 import {
 	ClearingHouseAccountSubscriber,
@@ -301,7 +301,6 @@ export class ClearingHouse {
 		if (!userAccountPublicKey) {
 			userAccountPublicKey = await this.getUserAccountPublicKey();
 		}
-		console.log(userAccountPublicKey);
 
 		return await this.program.instruction.initializeUserOrders(
 				userOrdersAccountNonce,
@@ -345,6 +344,23 @@ export class ClearingHouse {
 			await this.getUserAccountPublicKey()
 		)) as UserAccount;
 		return this.userAccount;
+	}
+
+	userOrdersAccountPublicKey?: PublicKey;
+	/**
+	 * Get the address for the Clearing House User Order's account. NOT the user's wallet address.
+	 * @returns
+	 */
+	public async getUserOrdersAccountPublicKey(): Promise<PublicKey> {
+		if (this.userOrdersAccountPublicKey) {
+			return this.userOrdersAccountPublicKey;
+		}
+
+		this.userOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(
+			this.program.programId,
+			this.wallet.publicKey
+		);
+		return this.userOrdersAccountPublicKey;
 	}
 
 	public async depositCollateral(
@@ -690,16 +706,18 @@ export class ClearingHouse {
 	}
 
 	public async placeOrder(
+		orderType: OrderType,
 		direction: PositionDirection,
-		amount: BN,
+		baseAssetAmount: BN,
 		price: BN,
 		marketIndex: BN,
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
 			wrapInTx(
 				await this.getPlaceOrderIx(
+					orderType,
 					direction,
-					amount,
+					baseAssetAmount,
 					price,
 					marketIndex,
 				)
@@ -710,8 +728,9 @@ export class ClearingHouse {
 	}
 
 	public async getPlaceOrderIx(
+		orderType: OrderType,
 		direction: PositionDirection,
-		amount: BN,
+		baseAssetAmount: BN,
 		price: BN,
 		marketIndex: BN,
 	): Promise<TransactionInstruction> {
@@ -723,8 +742,9 @@ export class ClearingHouse {
 
 		const state = this.getStateAccount();
 		return await this.program.instruction.placeOrder(
+			orderType,
 			direction,
-			amount,
+			baseAssetAmount,
 			price,
 			marketIndex,
 			{
@@ -733,6 +753,7 @@ export class ClearingHouse {
 					user: userAccountPublicKey,
 					authority: this.wallet.publicKey,
 					markets: state.markets,
+					userOrders: await this.getUserOrdersAccountPublicKey(),
 					userPositions: userAccount.positions,
 					fundingPaymentHistory: state.fundingPaymentHistory,
 					fundingRateHistory: state.fundingRateHistory,

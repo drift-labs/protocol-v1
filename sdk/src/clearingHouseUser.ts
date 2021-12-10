@@ -3,7 +3,7 @@ import BN from 'bn.js';
 import { EventEmitter } from 'events';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import { ClearingHouse } from './clearingHouse';
-import { UserAccount, UserPosition, UserPositionsAccount } from './types';
+import {UserAccount, UserOrdersAccount, UserPosition, UserPositionsAccount} from './types';
 import {
 	MARK_PRICE_PRECISION,
 	AMM_TO_QUOTE_PRECISION_RATIO,
@@ -78,6 +78,10 @@ export class ClearingHouseUser {
 
 	public getUserPositionsAccount(): UserPositionsAccount {
 		return this.accountSubscriber.getUserPositionsAccount();
+	}
+
+	public getUserOrdersAccount(): UserOrdersAccount {
+		return this.accountSubscriber.getUserOrdersAccount();
 	}
 
 	/**
