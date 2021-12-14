@@ -146,7 +146,8 @@ export function calculateTradeAcquiredAmounts(
 export function calculateTargetPriceTrade(
 	market: Market,
 	targetPrice: BN,
-	pct: BN = MAXPCT
+	pct: BN = MAXPCT,
+	outputAssetType: AssetType = 'quote'
 ): [PositionDirection, BN, BN, BN] {
 	assert(market.amm.baseAssetReserve.gt(ZERO));
 	assert(targetPrice.gt(ZERO));
@@ -199,8 +200,8 @@ export function calculateTargetPriceTrade(
 			.mul(peg)
 			.div(PEG_PRECISION)
 			.div(AMM_TO_QUOTE_PRECISION_RATIO);
-		baseSize = baseAssetReserveBefore.sub(baseAssetReserveAfter);
-	} else if (markPriceBefore.lt(targetPrice)) {
+			baseSize = baseAssetReserveAfter.sub(baseAssetReserveBefore);
+		} else if (markPriceBefore.lt(targetPrice)) {
 		// underestimate y2
 		baseAssetReserveAfter = squareRootBN(
 			k.div(targetPrice).mul(peg).div(PEG_PRECISION).add(biasModifier)
@@ -221,7 +222,8 @@ export function calculateTargetPriceTrade(
 			.mul(peg)
 			.div(PEG_PRECISION)
 			.div(AMM_TO_QUOTE_PRECISION_RATIO);
-		baseSize = baseAssetReserveAfter.sub(baseAssetReserveBefore);
+		baseSize = baseAssetReserveBefore.sub(baseAssetReserveAfter);
+
 	} else {
 		// no trade, market is at target
 		direction = PositionDirection.LONG;
@@ -254,6 +256,9 @@ export function calculateTargetPriceTrade(
 			'err: ' +
 			tp2.sub(tp1).abs().toString()
 	);
-
-	return [direction, tradeSize, entryPrice, targetPrice];
+	if(outputAssetType=='quote'){
+		return [direction, tradeSize, entryPrice, targetPrice];
+	} else{
+		return [direction, baseSize, entryPrice, targetPrice];
+	}
 }
