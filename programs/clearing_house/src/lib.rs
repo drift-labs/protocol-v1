@@ -1352,8 +1352,8 @@ pub mod clearing_house {
     #[access_control(
         exchange_not_paused(&ctx.accounts.state)
     )]
-    pub fn execute_order<'info>(
-        ctx: Context<ExecuteOrder>,
+    pub fn fill_order<'info>(
+        ctx: Context<FillOrder>,
         order_index: u64,
     ) -> ProgramResult {
         let user = &mut ctx.accounts.user;
@@ -1536,7 +1536,7 @@ pub mod clearing_house {
             &None,
         )?;
 
-        // half of fee to exchange, half to executor
+        // half of fee to exchange, half to filler
         let split_fee = user_fee
             .checked_div(2)
             .ok_or_else(math_error!())?;
@@ -1566,8 +1566,8 @@ pub mod clearing_house {
             .checked_add(user_fee)
             .ok_or_else(math_error!())?;
 
-        let executor = &mut ctx.accounts.executor;
-        executor.collateral = executor
+        let filler = &mut ctx.accounts.filler;
+        filler.collateral = filler
             .collateral
             .checked_add(cast(split_fee)?)
             .ok_or_else(math_error!())?;

@@ -50,10 +50,10 @@ describe('orders', () => {
 
     const usdcAmount = new BN(10 * 10 ** 6);
 
-    const executorKeyPair = new Keypair();
-    let executorUSDCAccount: Keypair;
-    let executorUserAccountPublicKey: PublicKey;
-    let executorClearingHouse: ClearingHouse;
+    const fillerKeyPair = new Keypair();
+    let fillerUSDCAccount: Keypair;
+    let fillerUserAccountPublicKey: PublicKey;
+    let fillerClearingHouse: ClearingHouse;
 
     const marketIndex = new BN(1);
 
@@ -92,24 +92,24 @@ describe('orders', () => {
         clearingHouseUser = ClearingHouseUser.from(clearingHouse, provider.wallet.publicKey);
         await clearingHouseUser.subscribe();
 
-        provider.connection.requestAirdrop(executorKeyPair.publicKey, 10 ** 9);
-        executorUSDCAccount = await mockUserUSDCAccount(
+        provider.connection.requestAirdrop(fillerKeyPair.publicKey, 10 ** 9);
+        fillerUSDCAccount = await mockUserUSDCAccount(
             usdcMint,
             usdcAmount,
             provider,
-            executorKeyPair.publicKey
+            fillerKeyPair.publicKey
         );
-        executorClearingHouse = ClearingHouse.from(
+        fillerClearingHouse = ClearingHouse.from(
             connection,
-            new Wallet(executorKeyPair),
+            new Wallet(fillerKeyPair),
             chProgram.programId
         );
-        await executorClearingHouse.subscribe();
+        await fillerClearingHouse.subscribe();
 
-        [, executorUserAccountPublicKey] =
-            await executorClearingHouse.initializeUserAccountAndDepositCollateral(
+        [, fillerUserAccountPublicKey] =
+            await fillerClearingHouse.initializeUserAccountAndDepositCollateral(
                 usdcAmount,
-                executorUSDCAccount.publicKey
+                fillerUSDCAccount.publicKey
             );
     });
 
@@ -192,7 +192,7 @@ describe('orders', () => {
         const price = MARK_PRICE_PRECISION.mul(new BN(2));
         await clearingHouse.placeOrder(orderType, direction, baseAssetAmount, price, marketIndex);
         const orderIndex = new BN(0);
-        await executorClearingHouse.executeOrder(userAccountPublicKey, userOrdersAccountPublicKey, orderIndex);
+        await fillerClearingHouse.fillOrder(userAccountPublicKey, userOrdersAccountPublicKey, orderIndex);
 
         const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
         const order = userOrdersAccount.orders[orderIndex.toString()];

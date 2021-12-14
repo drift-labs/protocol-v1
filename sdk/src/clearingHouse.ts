@@ -801,14 +801,14 @@ export class ClearingHouse {
 		);
 	}
 
-	public async executeOrder(
+	public async fillOrder(
 		userAccountPublicKey: PublicKey,
 		userOrdersAccountPublicKey: PublicKey,
 		marketIndex: BN,
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
 			wrapInTx(
-				await this.getExecuteOrderIx(
+				await this.getFillOrderIx(
 					userAccountPublicKey,
 					userOrdersAccountPublicKey,
 					marketIndex,
@@ -819,12 +819,12 @@ export class ClearingHouse {
 		);
 	}
 
-	public async getExecuteOrderIx(
+	public async getFillOrderIx(
 		userAccountPublicKey: PublicKey,
 		userOrdersAccountPublicKey: PublicKey,
 		orderIndex: BN,
 	): Promise<TransactionInstruction> {
-		const executorPublicKey = await this.getUserAccountPublicKey();
+		const fillerPublicKey = await this.getUserAccountPublicKey();
 		const userAccount: UserAccount = await this.program.account.user.fetch(
 			userAccountPublicKey
 		);
@@ -837,10 +837,10 @@ export class ClearingHouse {
 		const oracle = this.getMarket(marketIndex).amm.oracle;
 
 		const state = this.getStateAccount();
-		return await this.program.instruction.executeOrder(orderIndex, {
+		return await this.program.instruction.fillOrder(orderIndex, {
 			accounts: {
 				state: await this.getStatePublicKey(),
-				executor: executorPublicKey,
+				filler: fillerPublicKey,
 				user: userAccountPublicKey,
 				authority: this.wallet.publicKey,
 				markets: state.markets,

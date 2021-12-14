@@ -371,7 +371,7 @@ pub struct OpenPosition<'info> {
 }
 
 #[derive(Accounts)]
-pub struct ExecuteOrder<'info> {
+pub struct FillOrder<'info> {
     #[account(mut)]
     pub state: Box<Account<'info, State>>,
     pub authority: Signer<'info>,
@@ -379,7 +379,7 @@ pub struct ExecuteOrder<'info> {
         mut,
         has_one = authority
     )]
-    pub executor: Box<Account<'info, User>>,
+    pub filler: Box<Account<'info, User>>,
     #[account(
         mut,
         constraint = &user.positions.eq(&user_positions.key())
