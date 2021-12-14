@@ -1350,13 +1350,11 @@ pub mod clearing_house {
     }
 
     #[access_control(
-        market_initialized(&ctx.accounts.markets, market_index) &&
-        exchange_not_paused(&ctx.accounts.state) &&
-        valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
+        exchange_not_paused(&ctx.accounts.state)
     )]
     pub fn execute_order<'info>(
         ctx: Context<ExecuteOrder>,
-        market_index: u64,
+        order_index: u64,
     ) -> ProgramResult {
         let user = &mut ctx.accounts.user;
         let clock = Clock::get()?;
@@ -1374,11 +1372,23 @@ pub mod clearing_house {
             now,
         )?;
 
-        // Get existing position
-        let position_index = get_position_index(user_positions, market_index)?;
-        let market_position = &mut user_positions.positions[position_index];
+        let user_orders = &mut ctx.accounts.user_orders.load_mut()?;
+        let order = &user_orders.orders[UserOrders::index_from_u64(order_index)];
+        if order.status != OrderStatus::Open {
+            return Err(ErrorCode::OrderDoesNotExist.into());
+        }
 
-        let (direction, base_asset_amount, limit_price) = market_position.get_order()?;
+        let market_index = order.market_index;
+        let direction = order.direction;
+        let base_asset_amount = order.base_asset_amount;
+        let limit_price = order.price;
+
+        user_orders.orders[UserOrders::index_from_u64(order_index)] = Order::default();
+
+        // Get existing position
+        let position_index = get_position_index(user_positions, market_index)
+            .or_else(|_| add_new_position(user_positions, market_index))?;
+        let market_position = &mut user_positions.positions[position_index];
 
         // A trade is risk increasing if it increases the users leverage
         // If a trade is risk increasing and brings the user's margin ratio below initial requirement
@@ -1388,13 +1398,23 @@ pub mod clearing_house {
         let mut potentially_risk_increasing = true;
 
         // Collect data about position/market before trade is executed so that it can be stored in trade history
-        let quote_asset_amount_before = market_position.quote_asset_amount;
+        let quote_asset_reserve_before;
         let mark_price_before: u128;
         let oracle_mark_spread_pct_before: i128;
         let is_oracle_valid: bool;
         {
             let market = &mut ctx.accounts.markets.load_mut()?.markets
                 [Markets::index_from_u64(market_index)];
+
+            if !market.initialized {
+                return Err(ErrorCode::MarketIndexNotInitialized.into());
+            }
+
+            if !market.amm.oracle.eq(&ctx.accounts.oracle.key) {
+                return Err(ErrorCode::InvalidOracle.into());
+            }
+
+            quote_asset_reserve_before = market.amm.quote_asset_reserve;
             mark_price_before = market.amm.mark_price()?;
             let (_, _, _oracle_mark_spread_pct_before) = amm::calculate_oracle_mark_spread_pct(
                 &market.amm,
@@ -1468,16 +1488,20 @@ pub mod clearing_house {
         }
 
         // Collect data about position/market after trade is executed so that it can be stored in trade history
-        let quote_asset_amount_change = cast_to_i128(market_position.quote_asset_amount)?
-            .checked_sub(cast(quote_asset_amount_before)?)
-            .ok_or_else(math_error!())?
-            .unsigned_abs();
+        let quote_asset_amount;
         let mark_price_after: u128;
         let oracle_price_after: i128;
         let oracle_mark_spread_pct_after: i128;
         {
             let market = &mut ctx.accounts.markets.load_mut()?.markets
                 [Markets::index_from_u64(market_index)];
+            let quote_asset_reserve_change = cast_to_i128(market.amm.quote_asset_reserve)?
+                .checked_sub(cast(quote_asset_reserve_before)?)
+                .ok_or_else(math_error!())?
+                .unsigned_abs();
+            let round_up = direction == PositionDirection::Long;
+            quote_asset_amount = math::quote_asset::reserve_to_amount(quote_asset_reserve_change, market.amm.peg_multiplier, round_up)?;
+
             mark_price_after = market.amm.mark_price()?;
             let (_oracle_price_after, _oracle_mark_spread_after, _oracle_mark_spread_pct_after) =
                 amm::calculate_oracle_mark_spread_pct(
@@ -1506,7 +1530,7 @@ pub mod clearing_house {
 
         // Don't account for referrer/discount token for now
         let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) = fees::calculate(
-            quote_asset_amount_change,
+            quote_asset_amount,
             &ctx.accounts.state.fee_structure,
             None,
             &None,
@@ -1573,7 +1597,7 @@ pub mod clearing_house {
             user: *user.to_account_info().key,
             direction,
             base_asset_amount,
-            quote_asset_amount: quote_asset_amount_change,
+            quote_asset_amount,
             mark_price_before,
             mark_price_after,
             fee: user_fee,
@@ -1591,7 +1615,7 @@ pub mod clearing_house {
                 &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
 
             let scaled_quote_asset_amount =
-                math::quote_asset::scale_to_amm_precision(quote_asset_amount_change)?;
+                math::quote_asset::scale_to_amm_precision(quote_asset_amount)?;
 
             let round_up = direction == PositionDirection::Short;
             let unpegged_scaled_quote_asset_amount = math::quote_asset::unpeg_quote_asset_amount(

@@ -397,6 +397,11 @@ pub struct ExecuteOrder<'info> {
     pub user_positions: Loader<'info, UserPositions>,
     #[account(
         mut,
+        has_one = user
+    )]
+    pub user_orders: Loader<'info, UserOrders>,
+    #[account(
+        mut,
         constraint = &state.trade_history.eq(&trade_history.key())
     )]
     pub trade_history: Loader<'info, TradeHistory>,

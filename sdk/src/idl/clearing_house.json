@@ -680,6 +680,11 @@
           "isSigner": false
         },
         {
+          "name": "userOrders",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "tradeHistory",
           "isMut": true,
           "isSigner": false
@@ -702,7 +707,7 @@
       ],
       "args": [
         {
-          "name": "marketIndex",
+          "name": "orderIndex",
           "type": "u64"
         }
       ]

@@ -17,7 +17,7 @@ import {
 	TradeHistoryAccount,
 	UserAccount,
 	UserPositionsAccount,
-	Market, OrderType,
+	Market, OrderType, UserOrdersAccount,
 } from './types';
 import * as anchor from '@project-serum/anchor';
 import clearingHouseIDL from './idl/clearing_house.json';
@@ -803,12 +803,14 @@ export class ClearingHouse {
 
 	public async executeOrder(
 		userAccountPublicKey: PublicKey,
+		userOrdersAccountPublicKey: PublicKey,
 		marketIndex: BN,
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
 			wrapInTx(
 				await this.getExecuteOrderIx(
 					userAccountPublicKey,
+					userOrdersAccountPublicKey,
 					marketIndex,
 				)
 			),
@@ -819,16 +821,23 @@ export class ClearingHouse {
 
 	public async getExecuteOrderIx(
 		userAccountPublicKey: PublicKey,
-		marketIndex: BN,
+		userOrdersAccountPublicKey: PublicKey,
+		orderIndex: BN,
 	): Promise<TransactionInstruction> {
 		const executorPublicKey = await this.getUserAccountPublicKey();
 		const userAccount: UserAccount = await this.program.account.user.fetch(
 			userAccountPublicKey
 		);
+
+		const userOrdersAccount : UserOrdersAccount = await this.program.account.userOrders.fetch(
+			userOrdersAccountPublicKey
+		);
+		const order = userOrdersAccount.orders[orderIndex.toNumber()];
+		const marketIndex = order.marketIndex;
 		const oracle = this.getMarket(marketIndex).amm.oracle;
 
 		const state = this.getStateAccount();
-		return await this.program.instruction.executeOrder(marketIndex, {
+		return await this.program.instruction.executeOrder(orderIndex, {
 			accounts: {
 				state: await this.getStatePublicKey(),
 				executor: executorPublicKey,
@@ -836,6 +845,7 @@ export class ClearingHouse {
 				authority: this.wallet.publicKey,
 				markets: state.markets,
 				userPositions: userAccount.positions,
+				userOrders: userOrdersAccountPublicKey,
 				tradeHistory: state.tradeHistory,
 				fundingPaymentHistory: state.fundingPaymentHistory,
 				fundingRateHistory: state.fundingRateHistory,

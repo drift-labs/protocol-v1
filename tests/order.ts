@@ -18,6 +18,7 @@ import {
 import { Markets } from '../sdk/src/constants/markets';
 
 import { mockOracle, mockUSDCMint, mockUserUSDCAccount } from './testHelpers';
+import {AMM_RESERVE_PRECISION} from "../sdk";
 
 const enumsAreEqual = (actual: Object, expected: Object) : boolean => {
     return JSON.stringify(actual) === JSON.stringify(expected);
@@ -33,6 +34,7 @@ describe('orders', () => {
     let clearingHouseUser: ClearingHouseUser;
 
     let userAccountPublicKey: PublicKey;
+    let userOrdersAccountPublicKey: PublicKey;
 
     let usdcMint;
     let userUSDCAccount;
@@ -65,7 +67,7 @@ describe('orders', () => {
             chProgram.programId
         );
         await clearingHouse.initialize(usdcMint.publicKey, true);
-        await clearingHouse.subscribe();
+        await clearingHouse.subscribeToAll();
 
         const solUsd = await mockOracle(1);
         const periodicity = new BN(60 * 60); // 1 HOUR
@@ -84,6 +86,8 @@ describe('orders', () => {
                 usdcAmount,
                 userUSDCAccount.publicKey
             );
+
+        userOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(clearingHouse.program.programId, provider.wallet.publicKey);
 
         clearingHouseUser = ClearingHouseUser.from(clearingHouse, provider.wallet.publicKey);
         await clearingHouseUser.subscribe();
@@ -180,19 +184,44 @@ describe('orders', () => {
     //     assert(firstPosition.shortOrderAmount.eq(new BN(0)));
     //     assert(firstPosition.shortOrderPrice.eq(new BN(0)));
     // });
-    //
-    // it('Fill long order', async () => {
-    //     const amount = new BN(AMM_RESERVE_PRECISION);
-    //     const price = MARK_PRICE_PRECISION.mul(new BN(2));
-    //     await clearingHouse.placeOrder(PositionDirection.LONG, amount, price, marketIndex);
-    //     await executorClearingHouse.executeOrder(userAccountPublicKey, marketIndex);
-    //
-    //     const user: any = await clearingHouse.program.account.user.fetch(
-    //         userAccountPublicKey
-    //     );
-    //     const userPositionsAccount: UserPositionsAccount =
-    //         await clearingHouse.program.account.userPositions.fetch(user.positions);
-    //     const firstPosition = userPositionsAccount.positions[0];
-    //     assert(firstPosition.baseAssetAmount.eq(amount));
-    // });
+
+    it('Fill long order', async () => {
+        const orderType = OrderType.LIMIT;
+        const direction = PositionDirection.LONG;
+        const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
+        const price = MARK_PRICE_PRECISION.mul(new BN(2));
+        await clearingHouse.placeOrder(orderType, direction, baseAssetAmount, price, marketIndex);
+        const orderIndex = new BN(0);
+        await executorClearingHouse.executeOrder(userAccountPublicKey, userOrdersAccountPublicKey, orderIndex);
+
+        const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
+        const order = userOrdersAccount.orders[orderIndex.toString()];
+
+        assert(order.baseAssetAmount.eq(new BN(0)));
+        assert(order.price.eq(new BN(0)));
+        assert(order.marketIndex.eq(new BN(0)));
+        assert(enumsAreEqual(order.direction, PositionDirection.LONG));
+        assert(enumsAreEqual(order.status, OrderStatus.INIT));
+
+        const user: any = await clearingHouse.program.account.user.fetch(
+            userAccountPublicKey
+        );
+
+        const userPositionsAccount: UserPositionsAccount =
+            await clearingHouse.program.account.userPositions.fetch(user.positions);
+        const firstPosition = userPositionsAccount.positions[0];
+        assert(firstPosition.baseAssetAmount.eq(baseAssetAmount));
+
+        const expectedQuoteAssetAmount = new BN(1000003);
+        assert(firstPosition.quoteAssetAmount.eq(expectedQuoteAssetAmount));
+
+        const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
+        const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[0];
+
+        assert.ok(tradeHistoryAccount.head.toNumber() === 1);
+        assert.ok(
+            tradeHistoryRecord.baseAssetAmount.eq(baseAssetAmount)
+        );
+        assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(expectedQuoteAssetAmount));
+    });
 });
