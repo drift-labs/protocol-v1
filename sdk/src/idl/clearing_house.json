@@ -2584,6 +2584,10 @@
             "type": "u128"
           },
           {
+            "name": "baseAssetAmountFilled",
+            "type": "u128"
+          },
+          {
             "name": "direction",
             "type": {
               "defined": "PositionDirection"
@@ -3206,6 +3210,11 @@
       "code": 343,
       "name": "OrderDoesNotExist",
       "msg": "Order does not exist"
+    },
+    {
+      "code": 344,
+      "name": "MarketCantFillOrder",
+      "msg": "Market cant fill order"
     }
   ]
 }

@@ -38,6 +38,7 @@ pub mod clearing_house {
     use super::*;
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
     use crate::error::ErrorCode::InvalidOracle;
+    use std::cmp::min;
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -1290,6 +1291,7 @@ pub mod clearing_house {
                 market_index,
                 price,
                 base_asset_amount,
+                base_asset_amount_filled: 0,
                 direction,
             },
         };
@@ -1373,17 +1375,46 @@ pub mod clearing_house {
         )?;
 
         let user_orders = &mut ctx.accounts.user_orders.load_mut()?;
-        let order = &user_orders.orders[UserOrders::index_from_u64(order_index)];
+        let order = &mut user_orders.orders[UserOrders::index_from_u64(order_index)];
         if order.status != OrderStatus::Open {
             return Err(ErrorCode::OrderDoesNotExist.into());
         }
 
         let market_index = order.market_index;
         let direction = order.direction;
-        let base_asset_amount = order.base_asset_amount;
+        let base_asset_amount_to_fill = order.base_asset_amount
+            .checked_sub(order.base_asset_amount_filled)
+            .ok_or_else(math_error!())?;
         let limit_price = order.price;
 
-        user_orders.orders[UserOrders::index_from_u64(order_index)] = Order::default();
+        let mut base_asset_amount = base_asset_amount_to_fill;
+        {
+            let market = &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
+
+            if !market.initialized {
+                return Err(ErrorCode::MarketIndexNotInitialized.into());
+            }
+
+            if !market.amm.oracle.eq(&ctx.accounts.oracle.key) {
+                return Err(ErrorCode::InvalidOracle.into());
+            }
+
+            let (max_trade_base_asset_amount, max_trade_direction) = math::amm::calculate_max_base_asset_amount_to_trade(&market.amm, limit_price)?;
+            if max_trade_direction != direction || max_trade_base_asset_amount == 0 {
+                return Err(ErrorCode::MarketCantFillOrder.into());
+            }
+            base_asset_amount = min(base_asset_amount, max_trade_base_asset_amount);
+        }
+
+        let is_partial_fill = base_asset_amount != base_asset_amount_to_fill;
+        if is_partial_fill {
+            order.base_asset_amount_filled = order
+                .base_asset_amount_filled
+                .checked_add(base_asset_amount)
+                .ok_or_else(math_error!())?;
+        } else {
+            user_orders.orders[UserOrders::index_from_u64(order_index)] = Order::default();
+        }
 
         // Get existing position
         let position_index = get_position_index(user_positions, market_index)
@@ -1405,14 +1436,6 @@ pub mod clearing_house {
         {
             let market = &mut ctx.accounts.markets.load_mut()?.markets
                 [Markets::index_from_u64(market_index)];
-
-            if !market.initialized {
-                return Err(ErrorCode::MarketIndexNotInitialized.into());
-            }
-
-            if !market.amm.oracle.eq(&ctx.accounts.oracle.key) {
-                return Err(ErrorCode::InvalidOracle.into());
-            }
 
             quote_asset_reserve_before = market.amm.quote_asset_reserve;
             mark_price_before = market.amm.mark_price()?;
@@ -1608,41 +1631,6 @@ pub mod clearing_house {
             market_index,
             oracle_price: oracle_price_after,
         });
-
-        // If the user adds a limit price to their trade, check that their entry price is better than the limit price
-        if limit_price != 0 {
-            let market =
-                &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
-
-            let scaled_quote_asset_amount =
-                math::quote_asset::scale_to_amm_precision(quote_asset_amount)?;
-
-            let round_up = direction == PositionDirection::Short;
-            let unpegged_scaled_quote_asset_amount = math::quote_asset::unpeg_quote_asset_amount(
-                scaled_quote_asset_amount,
-                market.amm.peg_multiplier,
-                round_up,
-            )?;
-
-            let entry_price = amm::calculate_price(
-                unpegged_scaled_quote_asset_amount,
-                base_asset_amount,
-                market.amm.peg_multiplier,
-            )?;
-
-            match direction {
-                PositionDirection::Long => {
-                    if entry_price > limit_price {
-                        return Err(ErrorCode::SlippageOutsideLimit.into());
-                    }
-                }
-                PositionDirection::Short => {
-                    if entry_price < limit_price {
-                        return Err(ErrorCode::SlippageOutsideLimit.into());
-                    }
-                }
-            }
-        }
 
         // Try to update the funding rate at the end of every trade
         {
