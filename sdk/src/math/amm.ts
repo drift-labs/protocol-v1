@@ -141,7 +141,11 @@ export function getSwapDirection(
 
 /**
  * Helper function calculating adjust k cost
- * QUOTE_ASSET_PRECISION
+ * @param market
+ * @param marketIndex
+ * @param numerator
+ * @param denomenator
+ * @returns cost : Precision QUOTE_ASSET_PRECISION
  */
  export function calculateAdjustKCost(
 	market: Market,
@@ -173,8 +177,12 @@ export function getSwapDirection(
 
 
 /**
- * Helper function calculating adjust k cost
- * QUOTE_ASSET_PRECISION
+ * Helper function calculating adjust pegMultiplier (repeg) cost
+ * 
+ * @param market
+ * @param marketIndex
+ * @param newPeg
+ * @returns cost : Precision QUOTE_ASSET_PRECISION
  */
  export function calculateRepegCost(
 	market: Market,
