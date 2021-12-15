@@ -711,6 +711,7 @@ export class ClearingHouse {
 		baseAssetAmount: BN,
 		price: BN,
 		marketIndex: BN,
+		reduceOnly: boolean,
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
 			wrapInTx(
@@ -720,6 +721,7 @@ export class ClearingHouse {
 					baseAssetAmount,
 					price,
 					marketIndex,
+					reduceOnly,
 				)
 			),
 			[],
@@ -733,6 +735,7 @@ export class ClearingHouse {
 		baseAssetAmount: BN,
 		price: BN,
 		marketIndex: BN,
+		reduceOnly: boolean,
 	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
 		const userAccount = await this.getUserAccount();
@@ -747,6 +750,7 @@ export class ClearingHouse {
 			baseAssetAmount,
 			price,
 			marketIndex,
+			reduceOnly,
 			{
 				accounts: {
 					state: await this.getStatePublicKey(),

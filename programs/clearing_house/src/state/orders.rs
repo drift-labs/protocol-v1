@@ -31,6 +31,7 @@ pub struct Order {
     pub base_asset_amount: u128,
     pub base_asset_amount_filled: u128,
     pub direction: PositionDirection,
+    pub reduce_only: bool,
 }
 
 impl Default for Order {
@@ -42,6 +43,7 @@ impl Default for Order {
             base_asset_amount: 0,
             base_asset_amount_filled: 0,
             direction: PositionDirection::Long,
+            reduce_only: false,
         };
     }
 }

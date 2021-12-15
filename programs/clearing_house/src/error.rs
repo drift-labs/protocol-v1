@@ -94,6 +94,8 @@ pub enum ErrorCode {
     OrderDoesNotExist,
     #[msg("Market cant fill order")]
     MarketCantFillOrder,
+    #[msg("Reduce only order increased risk")]
+    ReduceOnlyOrderIncreasedRisk,
 }
 
 #[macro_export]

@@ -284,6 +284,7 @@ export type Order = {
 	price: BN,
 	baseAssetAmount: BN,
 	direction: PositionDirection,
+	reduceOnly: boolean,
 };
 
 // # UI ↔ History Server Data Types

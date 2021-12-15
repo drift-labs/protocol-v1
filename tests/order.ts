@@ -120,9 +120,10 @@ describe('orders', () => {
     it('Open long order', async () => {
         const orderType = OrderType.LIMIT;
         const direction = PositionDirection.LONG;
-        const baseAssetAmount = new BN(10000000);
-        const price = new BN(1);
-        await clearingHouse.placeOrder(orderType, direction, baseAssetAmount, price, marketIndex);
+        const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
+        const price = MARK_PRICE_PRECISION.mul(new BN(2));
+        const reduceOnly = true;
+        await clearingHouse.placeOrder(orderType, direction, baseAssetAmount, price, marketIndex, reduceOnly);
 
         const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
         const order = userOrdersAccount.orders[0];
@@ -130,8 +131,19 @@ describe('orders', () => {
         assert(order.baseAssetAmount.eq(baseAssetAmount));
         assert(order.price.eq(price));
         assert(order.marketIndex.eq(marketIndex));
+        assert(order.reduceOnly === reduceOnly);
         assert(enumsAreEqual(order.direction, direction));
         assert(enumsAreEqual(order.status, OrderStatus.OPEN));
+    });
+
+    it('Fail to fill reduce only order', async () => {
+        const orderIndex = new BN(0);
+        try {
+            await fillerClearingHouse.fillOrder(userAccountPublicKey, userOrdersAccountPublicKey, orderIndex);
+        } catch (e) {
+            return;
+        }
+        assert(false);
     });
 
     it('Cancel order', async () => {
@@ -190,7 +202,7 @@ describe('orders', () => {
         const direction = PositionDirection.LONG;
         const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
         const price = MARK_PRICE_PRECISION.mul(new BN(2));
-        await clearingHouse.placeOrder(orderType, direction, baseAssetAmount, price, marketIndex);
+        await clearingHouse.placeOrder(orderType, direction, baseAssetAmount, price, marketIndex, false);
         const orderIndex = new BN(0);
         await fillerClearingHouse.fillOrder(userAccountPublicKey, userOrdersAccountPublicKey, orderIndex);
 

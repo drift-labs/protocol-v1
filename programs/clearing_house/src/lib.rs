@@ -1251,6 +1251,7 @@ pub mod clearing_house {
         base_asset_amount: u128,
         price: u128,
         market_index: u64,
+        reduce_only: bool,
     ) -> ProgramResult {
         let user = &mut ctx.accounts.user;
         let clock = Clock::get()?;
@@ -1293,6 +1294,7 @@ pub mod clearing_house {
                 base_asset_amount,
                 base_asset_amount_filled: 0,
                 direction,
+                reduce_only,
             },
         };
         user_orders.orders[new_order_idx] = new_order;
@@ -1386,6 +1388,7 @@ pub mod clearing_house {
             .checked_sub(order.base_asset_amount_filled)
             .ok_or_else(math_error!())?;
         let limit_price = order.price;
+        let reduce_only = order.reduce_only;
 
         let mut base_asset_amount = base_asset_amount_to_fill;
         {
@@ -1508,6 +1511,10 @@ pub mod clearing_house {
                     now,
                 )?;
             }
+        }
+
+        if potentially_risk_increasing && reduce_only {
+            return Err(ErrorCode::ReduceOnlyOrderIncreasedRisk.into());
         }
 
         // Collect data about position/market after trade is executed so that it can be stored in trade history

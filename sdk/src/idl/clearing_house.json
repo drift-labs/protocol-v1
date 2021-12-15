@@ -597,6 +597,10 @@
         {
           "name": "marketIndex",
           "type": "u64"
+        },
+        {
+          "name": "reduceOnly",
+          "type": "bool"
         }
       ]
     },
@@ -2592,6 +2596,10 @@
             "type": {
               "defined": "PositionDirection"
             }
+          },
+          {
+            "name": "reduceOnly",
+            "type": "bool"
           }
         ]
       }
@@ -3215,6 +3223,11 @@
       "code": 344,
       "name": "MarketCantFillOrder",
       "msg": "Market cant fill order"
+    },
+    {
+      "code": 345,
+      "name": "ReduceOnlyOrderIncreasedRisk",
+      "msg": "Reduce only order increased risk"
     }
   ]
 }
