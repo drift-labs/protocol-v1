@@ -6,6 +6,8 @@ use anchor_lang::Account;
 use solana_program::account_info::next_account_info;
 use spl_token::solana_program::program_pack::{IsInitialized, Pack};
 use spl_token::state::Account as TokenAccount;
+use std::slice::Iter;
+use solana_program::msg;
 
 pub fn get_whitelist_token(
     optional_accounts: InitializeUserOptionalAccounts,
@@ -45,11 +47,38 @@ pub fn get_discount_token_and_referrer<'a, 'b, 'c, 'd, 'e>(
     user_public_key: &'d Pubkey,
     authority_public_key: &'e Pubkey,
 ) -> ClearingHouseResult<(Option<TokenAccount>, Option<Account<'b, User>>)> {
-    let mut optional_discount_token = None;
-    let mut optional_referrer = None;
-
     let account_info_iter = &mut accounts.iter();
-    if optional_accounts.discount_token {
+    let optional_discount_token= get_discount_token(
+       optional_accounts.discount_token,
+        account_info_iter,
+        discount_mint,
+        authority_public_key
+    )?;
+
+    let mut optional_referrer = None;
+    if optional_accounts.referrer {
+        let referrer_account_info =
+            next_account_info(account_info_iter).or(Err(ErrorCode::ReferrerNotFound.into()))?;
+
+        if !referrer_account_info.key.eq(user_public_key) {
+            let user_account: Account<User> =
+                Account::try_from(referrer_account_info).or(Err(ErrorCode::InvalidReferrer))?;
+
+            optional_referrer = Some(user_account);
+        }
+    }
+
+    return Ok((optional_discount_token, optional_referrer));
+}
+
+pub fn get_discount_token<'a, 'b, 'c, 'd>(
+    expect_discount_token: bool,
+    account_info_iter: &'a mut Iter<AccountInfo<'b>>,
+    discount_mint: &'c Pubkey,
+    authority_public_key: &'d Pubkey,
+) -> ClearingHouseResult<Option<TokenAccount>> {
+    let mut optional_discount_token = None;
+    if expect_discount_token {
         let token_account_info = next_account_info(account_info_iter)
             .or(Err(ErrorCode::DiscountTokenNotFound.into()))?;
 
@@ -74,17 +103,5 @@ pub fn get_discount_token_and_referrer<'a, 'b, 'c, 'd, 'e>(
         optional_discount_token = Some(token_account);
     }
 
-    if optional_accounts.referrer {
-        let referrer_account_info =
-            next_account_info(account_info_iter).or(Err(ErrorCode::ReferrerNotFound.into()))?;
-
-        if !referrer_account_info.key.eq(user_public_key) {
-            let user_account: Account<User> =
-                Account::try_from(referrer_account_info).or(Err(ErrorCode::InvalidReferrer))?;
-
-            optional_referrer = Some(user_account);
-        }
-    }
-
-    return Ok((optional_discount_token, optional_referrer));
+    return Ok(optional_discount_token);
 }

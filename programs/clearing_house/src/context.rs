@@ -455,6 +455,11 @@ pub struct PlaceOrder<'info> {
     pub oracle: AccountInfo<'info>,
 }
 
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
+pub struct PlaceOrderOptionalAccounts {
+    pub discount_token: bool,
+}
+
 #[derive(Accounts)]
 pub struct CancelOrder<'info> {
     pub state: Box<Account<'info, State>>,

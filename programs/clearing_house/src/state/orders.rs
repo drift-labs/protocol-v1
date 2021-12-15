@@ -32,6 +32,7 @@ pub struct Order {
     pub base_asset_amount_filled: u128,
     pub direction: PositionDirection,
     pub reduce_only: bool,
+    pub discount_tier: OrderDiscountTier,
 }
 
 impl Default for Order {
@@ -44,6 +45,7 @@ impl Default for Order {
             base_asset_amount_filled: 0,
             direction: PositionDirection::Long,
             reduce_only: false,
+            discount_tier: OrderDiscountTier::None,
         };
     }
 }
@@ -59,7 +61,13 @@ pub enum  OrderType {
     Limit,
 }
 
-
-
+#[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq)]
+pub enum  OrderDiscountTier {
+    None,
+    First,
+    Second,
+    Third,
+    Fourth
+}
 
 

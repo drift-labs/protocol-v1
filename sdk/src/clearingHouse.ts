@@ -712,6 +712,7 @@ export class ClearingHouse {
 		price: BN,
 		marketIndex: BN,
 		reduceOnly: boolean,
+		discountToken?: PublicKey,
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
 			wrapInTx(
@@ -722,6 +723,7 @@ export class ClearingHouse {
 					price,
 					marketIndex,
 					reduceOnly,
+					discountToken,
 				)
 			),
 			[],
@@ -736,12 +738,26 @@ export class ClearingHouse {
 		price: BN,
 		marketIndex: BN,
 		reduceOnly: boolean,
+		discountToken?: PublicKey,
 	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
 		const userAccount = await this.getUserAccount();
 
 		const priceOracle =
 			this.getMarketsAccount().markets[marketIndex.toNumber()].amm.oracle;
+
+		const optionalAccounts = {
+			discountToken: false,
+		};
+		const remainingAccounts = [];
+		if (discountToken) {
+			optionalAccounts.discountToken = true;
+			remainingAccounts.push({
+				pubkey: discountToken,
+				isWritable: false,
+				isSigner: false,
+			});
+		}
 
 		const state = this.getStateAccount();
 		return await this.program.instruction.placeOrder(
@@ -751,6 +767,7 @@ export class ClearingHouse {
 			price,
 			marketIndex,
 			reduceOnly,
+			optionalAccounts,
 			{
 				accounts: {
 					state: await this.getStatePublicKey(),
@@ -763,6 +780,7 @@ export class ClearingHouse {
 					fundingRateHistory: state.fundingRateHistory,
 					oracle: priceOracle,
 				},
+				remainingAccounts,
 			}
 		);
 	}

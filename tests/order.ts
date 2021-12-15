@@ -12,13 +12,14 @@ import {
     ClearingHouse,
     PositionDirection,
     UserPositionsAccount, OrderType, getUserOrdersAccountPublicKey,
-    ClearingHouseUser, OrderStatus
+    ClearingHouseUser, OrderStatus, OrderDiscountTier
 } from '../sdk/src';
 
 import { Markets } from '../sdk/src/constants/markets';
 
 import { mockOracle, mockUSDCMint, mockUserUSDCAccount } from './testHelpers';
 import {AMM_RESERVE_PRECISION} from "../sdk";
+import {AccountInfo, Token, TOKEN_PROGRAM_ID} from "@solana/spl-token";
 
 const enumsAreEqual = (actual: Object, expected: Object) : boolean => {
     return JSON.stringify(actual) === JSON.stringify(expected);
@@ -49,6 +50,9 @@ describe('orders', () => {
     );
 
     const usdcAmount = new BN(10 * 10 ** 6);
+
+    let discountMint: Token;
+    let discountTokenAccount: AccountInfo;
 
     const fillerKeyPair = new Keypair();
     let fillerUSDCAccount: Keypair;
@@ -92,6 +96,30 @@ describe('orders', () => {
         clearingHouseUser = ClearingHouseUser.from(clearingHouse, provider.wallet.publicKey);
         await clearingHouseUser.subscribe();
 
+        discountMint = await Token.createMint(
+            connection,
+            // @ts-ignore
+            provider.wallet.payer,
+            provider.wallet.publicKey,
+            provider.wallet.publicKey,
+            6,
+            TOKEN_PROGRAM_ID
+        );
+
+        await clearingHouse.updateDiscountMint(discountMint.publicKey);
+
+        discountTokenAccount = await discountMint.getOrCreateAssociatedAccountInfo(
+            provider.wallet.publicKey
+        );
+
+        await discountMint.mintTo(
+            discountTokenAccount.address,
+            // @ts-ignore
+            provider.wallet.payer,
+            [],
+            1000 * 10 ** 6
+        );
+
         provider.connection.requestAirdrop(fillerKeyPair.publicKey, 10 ** 9);
         fillerUSDCAccount = await mockUserUSDCAccount(
             usdcMint,
@@ -123,7 +151,7 @@ describe('orders', () => {
         const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
         const price = MARK_PRICE_PRECISION.mul(new BN(2));
         const reduceOnly = true;
-        await clearingHouse.placeOrder(orderType, direction, baseAssetAmount, price, marketIndex, reduceOnly);
+        await clearingHouse.placeOrder(orderType, direction, baseAssetAmount, price, marketIndex, reduceOnly, discountTokenAccount.address);
 
         const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
         const order = userOrdersAccount.orders[0];
@@ -134,6 +162,7 @@ describe('orders', () => {
         assert(order.reduceOnly === reduceOnly);
         assert(enumsAreEqual(order.direction, direction));
         assert(enumsAreEqual(order.status, OrderStatus.OPEN));
+        assert(enumsAreEqual(order.discountTier, OrderDiscountTier.FOURTH));
     });
 
     it('Fail to fill reduce only order', async () => {

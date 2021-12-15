@@ -5,6 +5,7 @@ use crate::state::user::User;
 use anchor_lang::Account;
 use solana_program::msg;
 use spl_token::state::Account as TokenAccount;
+use crate::state::orders::OrderDiscountTier;
 
 pub fn calculate(
     quote_asset_amount: u128,
@@ -87,13 +88,17 @@ fn calculate_token_discount_for_tier(
     tier: &DiscountTokenTier,
     discount_token: TokenAccount,
 ) -> Option<u128> {
-    if discount_token.amount >= tier.minimum_balance {
+    if belongs_to_tier(tier, discount_token) {
         return Some(
             fee.checked_mul(tier.discount_numerator)?
                 .checked_div(tier.discount_denominator)?,
         );
     }
     return None;
+}
+
+fn belongs_to_tier(tier: &DiscountTokenTier, discount_token: TokenAccount,) -> bool {
+    return discount_token.amount >= tier.minimum_balance;
 }
 
 fn calculate_referral_reward_and_referee_discount(
@@ -118,4 +123,30 @@ fn calculate_referral_reward_and_referee_discount(
         .ok_or_else(math_error!())?;
 
     return Ok((referrer_reward, referee_discount));
+}
+
+pub fn calculate_order_fee_tier(fee_structure: &FeeStructure, discount_token: Option<TokenAccount>) -> ClearingHouseResult<OrderDiscountTier> {
+    if discount_token.is_none() {
+        return Ok(OrderDiscountTier::None);
+    }
+
+    let discount_token = discount_token.unwrap();
+
+    if belongs_to_tier(&fee_structure.discount_token_tiers.first_tier, discount_token) {
+        return Ok(OrderDiscountTier::First);
+    }
+
+    if belongs_to_tier(&fee_structure.discount_token_tiers.second_tier, discount_token) {
+        return Ok(OrderDiscountTier::Second);
+    }
+
+    if belongs_to_tier(&fee_structure.discount_token_tiers.third_tier, discount_token) {
+        return Ok(OrderDiscountTier::Third);
+    }
+
+    if belongs_to_tier(&fee_structure.discount_token_tiers.fourth_tier, discount_token) {
+        return Ok(OrderDiscountTier::Fourth);
+    }
+
+    return Ok(OrderDiscountTier::None);
 }

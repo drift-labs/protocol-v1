@@ -25,6 +25,14 @@ export class OrderStatus {
 	static readonly OPEN = { open: {} };
 }
 
+export class OrderDiscountTier {
+	static readonly NONE = { none: {} };
+	static readonly FIRST = { first: {} };
+	static readonly SECOND = { second: {} };
+	static readonly THIRD = { third: {} };
+	static readonly FOURTH = { fourth: {} };
+}
+
 export enum TradeSide {
 	None = 0,
 	Buy = 1,
@@ -285,6 +293,7 @@ export type Order = {
 	baseAssetAmount: BN,
 	direction: PositionDirection,
 	reduceOnly: boolean,
+	discountTier: DiscountTier,
 };
 
 // # UI ↔ History Server Data Types

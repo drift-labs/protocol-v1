@@ -30,7 +30,7 @@ declare_id!("AsW7LnXB9UA1uec9wi9MctYTgTz7YH9snhxd16GsFaGX");
 #[program]
 pub mod clearing_house {
     use crate::math;
-    use crate::optional_accounts::get_whitelist_token;
+    use crate::optional_accounts::{get_whitelist_token, get_discount_token};
     use crate::state::history::curve::CurveRecord;
     use crate::state::history::deposit::{DepositDirection, DepositRecord};
     use crate::state::history::liquidation::LiquidationRecord;
@@ -39,6 +39,7 @@ pub mod clearing_house {
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
     use crate::error::ErrorCode::InvalidOracle;
     use std::cmp::min;
+    use crate::math::fees::calculate_order_fee_tier;
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -1252,6 +1253,7 @@ pub mod clearing_house {
         price: u128,
         market_index: u64,
         reduce_only: bool,
+        optional_accounts: PlaceOrderOptionalAccounts,
     ) -> ProgramResult {
         let user = &mut ctx.accounts.user;
         let clock = Clock::get()?;
@@ -1286,6 +1288,13 @@ pub mod clearing_house {
             .iter()
             .position(|order| order.status.eq(&OrderStatus::Init))
             .ok_or(ErrorCode::MaxNumberOfOrders)?;
+        let discount_token = get_discount_token(
+            optional_accounts.discount_token,
+            &mut ctx.remaining_accounts.iter(),
+            &ctx.accounts.state.discount_mint,
+            &ctx.accounts.authority.key(),
+        )?;
+        let discount_tier = calculate_order_fee_tier(&ctx.accounts.state.fee_structure, discount_token)?;
         let new_order = match order_type {
             OrderType::Limit => Order {
                 status: OrderStatus::Open,
@@ -1295,6 +1304,7 @@ pub mod clearing_house {
                 base_asset_amount_filled: 0,
                 direction,
                 reduce_only,
+                discount_tier,
             },
         };
         user_orders.orders[new_order_idx] = new_order;
