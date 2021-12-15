@@ -65,15 +65,44 @@ export async function calculateAllEstimatedFundingRate(
 		secondsInHour.sub(timeSinceLastOracleTwapUpdate)
 	);
 	const oraclePriceData = await pythClient.getPriceData(market.amm.oracle);
+	
+	let oracleStablePriceNum = 0;
+	let oracleInputCount = 0;
+	if(oraclePriceData.price>=0){
+		oracleStablePriceNum+=oraclePriceData.price;
+		oracleInputCount+=1
+	}
+	if(oraclePriceData.previousPrice>=0){
+		oracleStablePriceNum+=oraclePriceData.previousPrice;
+		oracleInputCount+=1
+	}
+
+	oracleStablePriceNum = oracleStablePriceNum/oracleInputCount;
 	const oraclePriceStableWithMantissa = new BN(
-		((oraclePriceData.price + oraclePriceData.previousPrice) / 2) *
+		oracleStablePriceNum *
 			MARK_PRICE_PRECISION.toNumber()
 	);
 
-	const oracleTwapWithMantissa = oracleTwapTimeSinceLastUpdate
-		.mul(lastOracleTwapWithMantissa)
-		.add(timeSinceLastMarkChange.mul(oraclePriceStableWithMantissa))
-		.div(timeSinceLastOracleTwapUpdate.add(oracleTwapTimeSinceLastUpdate));
+	let oracleTwapWithMantissa = lastOracleTwapWithMantissa;
+
+	// verify pyth input is within reason for live update
+	const oracleLiveVsTwap = oraclePriceStableWithMantissa.sub(lastOracleTwapWithMantissa).abs()
+		.mul(MARK_PRICE_PRECISION)
+		.mul(new BN(100))
+		.div(lastOracleTwapWithMantissa)
+
+	if(oracleLiveVsTwap.gte(MARK_PRICE_PRECISION.mul(new BN(10)))){
+		// console.log(convertToNumber(lastOracleTwapWithMantissa), 
+		// convertToNumber(oraclePriceStableWithMantissa),
+
+		// )
+		// console.log('oracle data dif too large', convertToNumber(oracleLiveVsTwap), '%')
+		// console.log('oracle data invalid', convertToNumber(oraclePriceStableWithMantissa))
+		oracleTwapWithMantissa = oracleTwapTimeSinceLastUpdate
+			.mul(lastOracleTwapWithMantissa)
+			.add(timeSinceLastMarkChange.mul(oraclePriceStableWithMantissa))
+			.div(timeSinceLastOracleTwapUpdate.add(oracleTwapTimeSinceLastUpdate));
+	}
 
 	const twapSpread = markTwapWithMantissa.sub(oracleTwapWithMantissa);
 
