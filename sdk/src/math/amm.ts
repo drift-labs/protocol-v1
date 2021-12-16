@@ -147,11 +147,11 @@ export function getSwapDirection(
  * @param denomenator
  * @returns cost : Precision QUOTE_ASSET_PRECISION
  */
- export function calculateAdjustKCost(
+export function calculateAdjustKCost(
 	market: Market,
 	marketIndex: BN,
 	numerator: BN,
-	denomenator: BN,
+	denomenator: BN
 ): BN {
 	const netUserPosition = {
 		baseAssetAmount: market.baseAssetAmount,
@@ -163,9 +163,14 @@ export function getSwapDirection(
 	const currentValue = calculateBaseAssetValue(market, netUserPosition);
 
 	const marketNewK = Object.assign({}, market);
+	marketNewK.amm = Object.assign({}, market.amm);
 
-	marketNewK.amm.baseAssetReserve = market.amm.baseAssetReserve.mul(numerator).div(denomenator);
-	marketNewK.amm.quoteAssetReserve = market.amm.quoteAssetReserve.mul(numerator).div(denomenator);
+	marketNewK.amm.baseAssetReserve = market.amm.baseAssetReserve
+		.mul(numerator)
+		.div(denomenator);
+	marketNewK.amm.quoteAssetReserve = market.amm.quoteAssetReserve
+		.mul(numerator)
+		.div(denomenator);
 	marketNewK.amm.sqrtK = market.amm.sqrtK.mul(numerator).div(denomenator);
 
 	netUserPosition.quoteAssetAmount = currentValue;
@@ -175,19 +180,18 @@ export function getSwapDirection(
 	return cost;
 }
 
-
 /**
  * Helper function calculating adjust pegMultiplier (repeg) cost
- * 
+ *
  * @param market
  * @param marketIndex
  * @param newPeg
  * @returns cost : Precision QUOTE_ASSET_PRECISION
  */
- export function calculateRepegCost(
+export function calculateRepegCost(
 	market: Market,
 	marketIndex: BN,
-	newPeg: BN,
+	newPeg: BN
 ): BN {
 	const netUserPosition = {
 		baseAssetAmount: market.baseAssetAmount,
@@ -200,14 +204,17 @@ export function getSwapDirection(
 	netUserPosition.quoteAssetAmount = currentValue;
 	const prevMarketPrice = calculateMarkPrice(market);
 	const marketNewPeg = Object.assign({}, market);
+	marketNewPeg.amm = Object.assign({}, market.amm);
+
 	// const marketNewPeg = JSON.parse(JSON.stringify(market));
 	marketNewPeg.amm.pegMultiplier = newPeg;
 
-	console.log('Price moves from', 
+	console.log(
+		'Price moves from',
 		convertToNumber(prevMarketPrice),
-		'to', 
+		'to',
 		convertToNumber(calculateMarkPrice(marketNewPeg))
-	 );
+	);
 
 	const cost = calculatePositionPNL(marketNewPeg, netUserPosition);
 

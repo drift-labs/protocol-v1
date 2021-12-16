@@ -200,8 +200,8 @@ export function calculateTargetPriceTrade(
 			.mul(peg)
 			.div(PEG_PRECISION)
 			.div(AMM_TO_QUOTE_PRECISION_RATIO);
-			baseSize = baseAssetReserveAfter.sub(baseAssetReserveBefore);
-		} else if (markPriceBefore.lt(targetPrice)) {
+		baseSize = baseAssetReserveAfter.sub(baseAssetReserveBefore);
+	} else if (markPriceBefore.lt(targetPrice)) {
 		// underestimate y2
 		baseAssetReserveAfter = squareRootBN(
 			k.div(targetPrice).mul(peg).div(PEG_PRECISION).add(biasModifier)
@@ -223,7 +223,6 @@ export function calculateTargetPriceTrade(
 			.div(PEG_PRECISION)
 			.div(AMM_TO_QUOTE_PRECISION_RATIO);
 		baseSize = baseAssetReserveBefore.sub(baseAssetReserveAfter);
-
 	} else {
 		// no trade, market is at target
 		direction = PositionDirection.LONG;
@@ -256,9 +255,9 @@ export function calculateTargetPriceTrade(
 			'err: ' +
 			tp2.sub(tp1).abs().toString()
 	);
-	if(outputAssetType=='quote'){
+	if (outputAssetType == 'quote') {
 		return [direction, tradeSize, entryPrice, targetPrice];
-	} else{
+	} else {
 		return [direction, baseSize, entryPrice, targetPrice];
 	}
 }
