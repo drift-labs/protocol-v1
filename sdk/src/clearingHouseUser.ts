@@ -373,7 +373,7 @@ export class ClearingHouseUser {
 			this.clearingHouse.getMarket(targetMarket.marketIndex)
 		);
 
-		const totalCollateralUSDC = this.getTotalCollateral();
+		// const totalCollateralUSDC = this.getTotalCollateral();
 
 		// calculate the total position value ignoring any value from the target market of the trade
 		const totalCurrentPositionValueIgnoringTargetUSDC =
@@ -412,9 +412,23 @@ export class ClearingHouseUser {
 				proposedMarketPositionValueUSDC
 			);
 
+		let totalFreeCollateralUSDC = this.getTotalCollateral().sub(
+			this.getTotalPositionValue()
+				.mul(TEN_THOUSAND)
+				.div(this.getMaxLeverage('Maintenance'))
+		);
+
+		if(partial){
+			totalFreeCollateralUSDC = this.getTotalCollateral().sub(
+				this.getTotalPositionValue()
+					.mul(TEN_THOUSAND)
+					.div(this.getMaxLeverage('Partial'))
+			);
+		}
+
 		// if the position value after the trade is less than total collateral, there is no liq price
 		if (
-			targetTotalPositionValueUSDC.lte(totalCollateralUSDC) &&
+			targetTotalPositionValueUSDC.lte(totalFreeCollateralUSDC) &&
 			proposedMarketPosition.baseAssetAmount.gt(ZERO)
 		) {
 			return new BN(-1);
@@ -425,7 +439,7 @@ export class ClearingHouseUser {
 		if (proposedMarketPositionValueUSDC.eq(ZERO)) {
 			marginRatio = BN_MAX;
 		} else {
-			marginRatio = totalCollateralUSDC
+			marginRatio = totalFreeCollateralUSDC
 				.mul(TEN_THOUSAND)
 				.div(proposedMarketPositionValueUSDC);
 		}
