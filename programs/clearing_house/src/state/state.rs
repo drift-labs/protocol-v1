@@ -37,7 +37,7 @@ pub struct State {
     pub discount_mint: Pubkey,
     pub oracle_guard_rails: OracleGuardRails,
     pub max_deposit: u128,
-    pub fill_order_reward_structure: OrderFillerRewardStructure,
+    pub order_filler_reward_structure: OrderFillerRewardStructure,
 
     // upgrade-ability
     pub padding0: u128,

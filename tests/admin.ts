@@ -7,7 +7,7 @@ import {
 	Admin,
 	MARK_PRICE_PRECISION,
 	FeeStructure,
-	OracleGuardRails,
+	OracleGuardRails, OrderFillerRewardStructure,
 } from '../sdk/src';
 import { OracleSource } from '../sdk';
 
@@ -163,6 +163,21 @@ describe('admin', () => {
 
 		assert(
 			JSON.stringify(newFeeStructure) === JSON.stringify(state.feeStructure)
+		);
+	});
+
+	it('Update order filler reward structure', async () => {
+		const newStructure: OrderFillerRewardStructure = {
+			rewardNumerator: new BN(1),
+			rewardDenominator: new BN(1),
+		};
+
+		await clearingHouse.updateOrderFillerRewardStructure(newStructure);
+
+		const state = clearingHouse.getStateAccount();
+
+		assert(
+			JSON.stringify(newStructure) === JSON.stringify(state.orderFillerRewardStructure)
 		);
 	});
 

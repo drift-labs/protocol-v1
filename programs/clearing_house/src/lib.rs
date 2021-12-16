@@ -149,7 +149,7 @@ pub mod clearing_house {
                 },
                 use_for_liquidations: true,
             },
-            fill_order_reward_structure: OrderFillerRewardStructure {
+            order_filler_reward_structure: OrderFillerRewardStructure {
                 reward_numerator: 1,
                 reward_denominator: 10
             },
@@ -1575,7 +1575,7 @@ pub mod clearing_house {
         let (user_fee, fee_to_market, token_discount, filler_reward) = fees::calculate_fee_for_limit_order(
             quote_asset_amount,
             &ctx.accounts.state.fee_structure,
-            &ctx.accounts.state.fill_order_reward_structure,
+            &ctx.accounts.state.order_filler_reward_structure,
             &discount_tier,
         )?;
 
@@ -2409,6 +2409,11 @@ pub mod clearing_house {
 
     pub fn update_fee(ctx: Context<AdminUpdateState>, fees: FeeStructure) -> ProgramResult {
         ctx.accounts.state.fee_structure = fees;
+        Ok(())
+    }
+
+    pub fn update_order_filler_reward_structure(ctx: Context<AdminUpdateState>, order_filler_reward_structure: OrderFillerRewardStructure) -> ProgramResult {
+        ctx.accounts.state.order_filler_reward_structure = order_filler_reward_structure;
         Ok(())
     }
 

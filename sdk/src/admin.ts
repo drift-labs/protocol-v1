@@ -5,7 +5,7 @@ import {
 	SYSVAR_RENT_PUBKEY,
 	TransactionSignature,
 } from '@solana/web3.js';
-import { FeeStructure, IWallet, OracleGuardRails, OracleSource } from './types';
+import {FeeStructure, IWallet, OracleGuardRails, OracleSource, OrderFillerRewardStructure} from './types';
 import { BN, Idl, Program, Provider } from '@project-serum/anchor';
 import * as anchor from '@project-serum/anchor';
 import { getClearingHouseStateAccountPublicKeyAndNonce } from './addresses';
@@ -453,6 +453,15 @@ export class Admin extends ClearingHouse {
 				},
 			}
 		);
+	}
+
+	public async updateOrderFillerRewardStructure(orderFillerRewardStructure: OrderFillerRewardStructure): Promise<TransactionSignature> {
+		return await this.program.rpc.updateOrderFillerRewardStructure(orderFillerRewardStructure, {
+			accounts: {
+				admin: this.wallet.publicKey,
+				state: await this.getStatePublicKey(),
+			},
+		});
 	}
 
 	public async updateFee(fees: FeeStructure): Promise<TransactionSignature> {

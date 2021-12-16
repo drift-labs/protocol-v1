@@ -213,6 +213,7 @@ export type StateAccount = {
 	whitelistMint: PublicKey;
 	discountMint: PublicKey;
 	oracleGuardRails: OracleGuardRails;
+	orderFillerRewardStructure: OrderFillerRewardStructure;
 	maxDeposit: BN;
 };
 
@@ -396,4 +397,9 @@ export type OracleGuardRails = {
 		tooVolatileRatio: BN;
 	};
 	useForLiquidations: boolean;
+};
+
+export type OrderFillerRewardStructure = {
+	rewardNumerator: BN;
+	rewardDenominator: BN;
 };
