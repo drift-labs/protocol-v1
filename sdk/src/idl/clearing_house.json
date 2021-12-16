@@ -1954,6 +1954,12 @@
             "type": "u128"
           },
           {
+            "name": "fillOrderRewardStructure",
+            "type": {
+              "defined": "OrderFillerRewardStructure"
+            }
+          },
+          {
             "name": "padding0",
             "type": "u128"
           },
@@ -1975,14 +1981,6 @@
           },
           {
             "name": "padding5",
-            "type": "u128"
-          },
-          {
-            "name": "padding6",
-            "type": "u128"
-          },
-          {
-            "name": "padding7",
             "type": "u128"
           }
         ]
@@ -2787,6 +2785,22 @@
           },
           {
             "name": "refereeDiscountDenominator",
+            "type": "u128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OrderFillerRewardStructure",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "rewardNumerator",
+            "type": "u128"
+          },
+          {
+            "name": "rewardDenominator",
             "type": "u128"
           }
         ]

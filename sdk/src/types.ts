@@ -279,6 +279,7 @@ export type UserAccount = {
 	cumulativeDeposits: BN;
 	positions: PublicKey;
 	totalFeePaid: BN;
+	totalTokenDiscount: BN;
 };
 
 export type UserOrdersAccount = {
@@ -293,7 +294,7 @@ export type Order = {
 	baseAssetAmount: BN,
 	direction: PositionDirection,
 	reduceOnly: boolean,
-	discountTier: DiscountTier,
+	discountTier: OrderDiscountTier,
 };
 
 // # UI ↔ History Server Data Types

@@ -149,14 +149,16 @@ pub mod clearing_house {
                 },
                 use_for_liquidations: true,
             },
+            fill_order_reward_structure: OrderFillerRewardStructure {
+                reward_numerator: 1,
+                reward_denominator: 10
+            },
             padding0: 0,
             padding1: 0,
             padding2: 0,
             padding3: 0,
             padding4: 0,
             padding5: 0,
-            padding6: 0,
-            padding7: 0,
         };
 
         return Ok(());
@@ -621,7 +623,7 @@ pub mod clearing_house {
             &user.key(),
             &ctx.accounts.authority.key(),
         )?;
-        let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) = fees::calculate(
+        let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) = fees::calculate_fee_for_market_order(
             quote_asset_amount,
             &ctx.accounts.state.fee_structure,
             discount_token,
@@ -940,7 +942,7 @@ pub mod clearing_house {
             &user.key(),
             &ctx.accounts.authority.key(),
         )?;
-        let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) = fees::calculate(
+        let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) = fees::calculate_fee_for_market_order(
             quote_asset_amount_change,
             &ctx.accounts.state.fee_structure,
             discount_token,
@@ -1135,7 +1137,7 @@ pub mod clearing_house {
             &user.key(),
             &ctx.accounts.authority.key(),
         )?;
-        let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) = fees::calculate(
+        let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) = fees::calculate_fee_for_market_order(
             quote_asset_amount,
             &ctx.accounts.state.fee_structure,
             discount_token,
@@ -1399,6 +1401,7 @@ pub mod clearing_house {
             .ok_or_else(math_error!())?;
         let limit_price = order.price;
         let reduce_only = order.reduce_only;
+        let discount_tier = order.discount_tier;
 
         let mut base_asset_amount = base_asset_amount_to_fill;
         {
@@ -1569,17 +1572,12 @@ pub mod clearing_house {
         }
 
         // Don't account for referrer/discount token for now
-        let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) = fees::calculate(
+        let (user_fee, fee_to_market, token_discount, filler_reward) = fees::calculate_fee_for_limit_order(
             quote_asset_amount,
             &ctx.accounts.state.fee_structure,
-            None,
-            &None,
+            &ctx.accounts.state.fill_order_reward_structure,
+            &discount_tier,
         )?;
-
-        // half of fee to exchange, half to filler
-        let split_fee = user_fee
-            .checked_div(2)
-            .ok_or_else(math_error!())?;
 
         // Increment the clearing house's total fee variables
         {
@@ -1588,12 +1586,12 @@ pub mod clearing_house {
             market.amm.total_fee = market
                 .amm
                 .total_fee
-                .checked_add(split_fee)
+                .checked_add(fee_to_market)
                 .ok_or_else(math_error!())?;
             market.amm.total_fee_minus_distributions = market
                 .amm
                 .total_fee_minus_distributions
-                .checked_add(split_fee)
+                .checked_add(fee_to_market)
                 .ok_or_else(math_error!())?;
         }
 
@@ -1606,10 +1604,15 @@ pub mod clearing_house {
             .checked_add(user_fee)
             .ok_or_else(math_error!())?;
 
+        user.total_token_discount = user
+            .total_token_discount
+            .checked_add(token_discount)
+            .ok_or_else(math_error!())?;
+
         let filler = &mut ctx.accounts.filler;
         filler.collateral = filler
             .collateral
-            .checked_add(cast(split_fee)?)
+            .checked_add(cast(filler_reward)?)
             .ok_or_else(math_error!())?;
 
         // Trade fails if the trade is risk increasing and it pushes to mark price too far
@@ -1642,8 +1645,8 @@ pub mod clearing_house {
             mark_price_after,
             fee: user_fee,
             token_discount,
-            referrer_reward,
-            referee_discount,
+            referrer_reward: 0,
+            referee_discount: 0,
             liquidation: false,
             market_index,
             oracle_price: oracle_price_after,

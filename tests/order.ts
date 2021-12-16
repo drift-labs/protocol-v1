@@ -58,6 +58,7 @@ describe('orders', () => {
     let fillerUSDCAccount: Keypair;
     let fillerUserAccountPublicKey: PublicKey;
     let fillerClearingHouse: ClearingHouse;
+    let fillerUser: ClearingHouseUser;
 
     const marketIndex = new BN(1);
 
@@ -139,10 +140,15 @@ describe('orders', () => {
                 usdcAmount,
                 fillerUSDCAccount.publicKey
             );
+
+        fillerUser = ClearingHouseUser.from(fillerClearingHouse, fillerKeyPair.publicKey);
+        await fillerUser.subscribe();
     });
 
     after(async () => {
         await clearingHouse.unsubscribe();
+        await clearingHouseUser.unsubscribe();
+        await fillerUser.unsubscribe();
     });
 
     it('Open long order', async () => {
@@ -231,12 +237,25 @@ describe('orders', () => {
         const direction = PositionDirection.LONG;
         const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
         const price = MARK_PRICE_PRECISION.mul(new BN(2));
-        await clearingHouse.placeOrder(orderType, direction, baseAssetAmount, price, marketIndex, false);
+        await clearingHouse.placeOrder(orderType, direction, baseAssetAmount, price, marketIndex, false, discountTokenAccount.address);
         const orderIndex = new BN(0);
         await fillerClearingHouse.fillOrder(userAccountPublicKey, userOrdersAccountPublicKey, orderIndex);
 
         const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
         const order = userOrdersAccount.orders[orderIndex.toString()];
+
+        const fillerUserAccount = fillerUser.getUserAccount();
+        console.log(fillerUserAccount.collateral.toString());
+        const expectedFillerReward = new BN(95);
+        assert(fillerUserAccount.collateral.sub(usdcAmount).eq(expectedFillerReward));
+
+        const market = clearingHouse.getMarket(marketIndex);
+        const expectedFeeToMarket = new BN(855);
+        assert(market.amm.totalFee.eq(expectedFeeToMarket));
+
+        const userAccount = clearingHouseUser.getUserAccount();
+        const expectedTokenDiscount = new BN(50);
+        assert(userAccount.totalTokenDiscount.eq(expectedTokenDiscount));
 
         assert(order.baseAssetAmount.eq(new BN(0)));
         assert(order.price.eq(new BN(0)));
@@ -244,12 +263,7 @@ describe('orders', () => {
         assert(enumsAreEqual(order.direction, PositionDirection.LONG));
         assert(enumsAreEqual(order.status, OrderStatus.INIT));
 
-        const user: any = await clearingHouse.program.account.user.fetch(
-            userAccountPublicKey
-        );
-
-        const userPositionsAccount: UserPositionsAccount =
-            await clearingHouse.program.account.userPositions.fetch(user.positions);
+        const userPositionsAccount = clearingHouseUser.getUserPositionsAccount();
         const firstPosition = userPositionsAccount.positions[0];
         assert(firstPosition.baseAssetAmount.eq(baseAssetAmount));
 

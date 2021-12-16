@@ -37,6 +37,7 @@ pub struct State {
     pub discount_mint: Pubkey,
     pub oracle_guard_rails: OracleGuardRails,
     pub max_deposit: u128,
+    pub fill_order_reward_structure: OrderFillerRewardStructure,
 
     // upgrade-ability
     pub padding0: u128,
@@ -45,8 +46,6 @@ pub struct State {
     pub padding3: u128,
     pub padding4: u128,
     pub padding5: u128,
-    pub padding6: u128,
-    pub padding7: u128,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
@@ -98,4 +97,10 @@ pub struct ReferralDiscount {
     pub referrer_reward_denominator: u128,
     pub referee_discount_numerator: u128,
     pub referee_discount_denominator: u128,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
+pub struct OrderFillerRewardStructure {
+    pub reward_numerator: u128,
+    pub reward_denominator: u128,
 }
