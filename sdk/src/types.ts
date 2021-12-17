@@ -80,6 +80,12 @@ export type LiquidationHistoryAccount = {
 	liquidationRecords: LiquidationRecord[];
 };
 
+export type OrderHistoryAccount = {
+	head: BN;
+	lastOrderId: BN;
+	orderRecords: OrderRecord[];
+};
+
 export type DepositRecord = {
 	ts: BN;
 	recordId: BN;
@@ -177,6 +183,12 @@ export type LiquidationRecord = {
 	marginRatio: BN;
 };
 
+export type OrderRecord = {
+	ts: BN;
+	orderId: BN;
+	recordId: BN;
+};
+
 export type StateAccount = {
 	admin: PublicKey;
 	fundingPaused: boolean;
@@ -215,6 +227,7 @@ export type StateAccount = {
 	oracleGuardRails: OracleGuardRails;
 	orderFillerRewardStructure: OrderFillerRewardStructure;
 	maxDeposit: BN;
+	orderHistory: PublicKey;
 };
 
 export type MarketsAccount = {
@@ -290,6 +303,8 @@ export type UserOrdersAccount = {
 
 export type Order = {
 	status: OrderStatus,
+	ts: BN,
+	orderId: BN,
 	marketIndex: BN,
 	price: BN,
 	baseAssetAmount: BN,

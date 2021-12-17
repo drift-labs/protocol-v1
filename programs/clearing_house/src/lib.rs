@@ -40,6 +40,7 @@ pub mod clearing_house {
     use crate::error::ErrorCode::InvalidOracle;
     use std::cmp::min;
     use crate::math::fees::calculate_order_fee_tier;
+    use crate::state::history::order::{OrderHistory, OrderRecord};
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -153,12 +154,11 @@ pub mod clearing_house {
                 reward_numerator: 1,
                 reward_denominator: 10
             },
+            order_history: Pubkey::default(),
             padding0: 0,
             padding1: 0,
             padding2: 0,
             padding3: 0,
-            padding4: 0,
-            padding5: 0,
         };
 
         return Ok(());
@@ -198,6 +198,22 @@ pub mod clearing_house {
         state.funding_payment_history = *funding_payment_history;
         state.liquidation_history = *liquidation_history;
         state.curve_history = *curve_history;
+
+        Ok(())
+    }
+
+    pub fn initialize_order_history(ctx: Context<InitializeOrderHistory>) -> ProgramResult {
+        let state = &mut ctx.accounts.state;
+
+        // If all of the order history account keys is set to the default, assume they haven't been initialized yet
+        if !state.order_history.eq(&Pubkey::default())
+        {
+            return Err(ErrorCode::HistoryAlreadyInitialized.into());
+        }
+
+        ctx.accounts.order_history.load_init()?;
+        let order_history = ctx.accounts.order_history.to_account_info().key;
+        state.order_history = *order_history;
 
         Ok(())
     }
@@ -1297,9 +1313,13 @@ pub mod clearing_house {
             &ctx.accounts.authority.key(),
         )?;
         let discount_tier = calculate_order_fee_tier(&ctx.accounts.state.fee_structure, discount_token)?;
+        let order_history_account = &mut ctx.accounts.order_history.load_mut()?;
+        let order_id = order_history_account.next_order_id();
         let new_order = match order_type {
             OrderType::Limit => Order {
                 status: OrderStatus::Open,
+                ts: now,
+                order_id,
                 market_index,
                 price,
                 base_asset_amount,
@@ -1310,6 +1330,14 @@ pub mod clearing_house {
             },
         };
         user_orders.orders[new_order_idx] = new_order;
+
+        // Add to the order history account
+        let record_id = order_history_account.next_record_id();
+        order_history_account.append(OrderRecord {
+            ts: now,
+            order_id,
+            record_id,
+        });
 
         // Try to update the funding rate
         {

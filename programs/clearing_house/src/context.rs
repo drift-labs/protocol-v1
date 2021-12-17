@@ -10,6 +10,7 @@ use crate::state::market::Markets;
 use crate::state::state::State;
 use crate::state::user::{User, UserPositions};
 use crate::state::orders::UserOrders;
+use crate::state::history::order::OrderHistory;
 
 #[derive(Accounts)]
 #[instruction(
@@ -74,6 +75,18 @@ pub struct InitializeHistory<'info> {
     pub funding_rate_history: Loader<'info, FundingRateHistory>,
     #[account(zero)]
     pub curve_history: Loader<'info, CurveHistory>,
+}
+
+#[derive(Accounts)]
+pub struct InitializeOrderHistory<'info> {
+    pub admin: Signer<'info>,
+    #[account(
+        mut,
+        has_one = admin
+    )]
+    pub state: Box<Account<'info, State>>,
+    #[account(zero)]
+    pub order_history: Loader<'info, OrderHistory>,
 }
 
 #[derive(Accounts)]
@@ -452,6 +465,11 @@ pub struct PlaceOrder<'info> {
         constraint = &state.funding_rate_history.eq(&funding_rate_history.key())
     )]
     pub funding_rate_history: Loader<'info, FundingRateHistory>,
+    #[account(
+        mut,
+        constraint = &state.order_history.eq(&order_history.key())
+    )]
+    pub order_history: Loader<'info, OrderHistory>,
     pub oracle: AccountInfo<'info>,
 }
 

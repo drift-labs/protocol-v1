@@ -26,6 +26,8 @@ impl UserOrders {
 #[zero_copy]
 pub struct Order {
     pub status: OrderStatus,
+    pub ts: i64,
+    pub order_id: u128,
     pub market_index: u64,
     pub price: u128,
     pub base_asset_amount: u128,
@@ -39,6 +41,8 @@ impl Default for Order {
     fn default() -> Self {
         return Self {
             status: OrderStatus::Init,
+            ts: 0,
+            order_id: 0,
             market_index: 0,
             price: 0,
             base_asset_amount: 0,

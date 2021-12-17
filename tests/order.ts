@@ -12,13 +12,13 @@ import {
     ClearingHouse,
     PositionDirection,
     UserPositionsAccount, OrderType, getUserOrdersAccountPublicKey,
-    ClearingHouseUser, OrderStatus, OrderDiscountTier
+    ClearingHouseUser, OrderStatus, OrderDiscountTier, OrderRecord
 } from '../sdk/src';
 
 import { Markets } from '../sdk/src/constants/markets';
 
 import { mockOracle, mockUSDCMint, mockUserUSDCAccount } from './testHelpers';
-import {AMM_RESERVE_PRECISION} from "../sdk";
+import {AMM_RESERVE_PRECISION, ZERO} from "../sdk";
 import {AccountInfo, Token, TOKEN_PROGRAM_ID} from "@solana/spl-token";
 
 const enumsAreEqual = (actual: Object, expected: Object) : boolean => {
@@ -161,6 +161,7 @@ describe('orders', () => {
 
         const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
         const order = userOrdersAccount.orders[0];
+        const expectedOrderId = new BN(1);
 
         assert(order.baseAssetAmount.eq(baseAssetAmount));
         assert(order.price.eq(price));
@@ -169,6 +170,15 @@ describe('orders', () => {
         assert(enumsAreEqual(order.direction, direction));
         assert(enumsAreEqual(order.status, OrderStatus.OPEN));
         assert(enumsAreEqual(order.discountTier, OrderDiscountTier.FOURTH));
+        assert(order.orderId.eq(expectedOrderId));
+        assert(order.ts.gt(ZERO));
+
+        const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
+        const orderRecord : OrderRecord = orderHistoryAccount.orderRecords[0];
+        const expectedRecordId = new BN(1);
+        assert(orderRecord.recordId.eq(expectedRecordId));
+        assert(orderRecord.ts.gt(ZERO));
+        assert(orderRecord.orderId.eq(expectedOrderId));
     });
 
     it('Fail to fill reduce only order', async () => {
@@ -245,7 +255,6 @@ describe('orders', () => {
         const order = userOrdersAccount.orders[orderIndex.toString()];
 
         const fillerUserAccount = fillerUser.getUserAccount();
-        console.log(fillerUserAccount.collateral.toString());
         const expectedFillerReward = new BN(95);
         assert(fillerUserAccount.collateral.sub(usdcAmount).eq(expectedFillerReward));
 

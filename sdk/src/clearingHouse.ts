@@ -17,7 +17,7 @@ import {
 	TradeHistoryAccount,
 	UserAccount,
 	UserPositionsAccount,
-	Market, OrderType, UserOrdersAccount,
+	Market, OrderType, UserOrdersAccount, OrderHistoryAccount,
 } from './types';
 import * as anchor from '@project-serum/anchor';
 import clearingHouseIDL from './idl/clearing_house.json';
@@ -137,6 +137,7 @@ export class ClearingHouse {
 			'fundingRateHistoryAccount',
 			'liquidationHistoryAccount',
 			'tradeHistoryAccount',
+			'orderHistoryAccount',
 		]);
 	}
 
@@ -196,6 +197,10 @@ export class ClearingHouse {
 
 	public getCurveHistoryAccount(): CurveHistoryAccount {
 		return this.accountSubscriber.getCurveHistoryAccount();
+	}
+
+	public getOrderHistoryAccount(): OrderHistoryAccount {
+		return this.accountSubscriber.getOrderHistoryAccount();
 	}
 
 	/**
@@ -778,6 +783,7 @@ export class ClearingHouse {
 					userPositions: userAccount.positions,
 					fundingPaymentHistory: state.fundingPaymentHistory,
 					fundingRateHistory: state.fundingRateHistory,
+					orderHistory: state.orderHistory,
 					oracle: priceOracle,
 				},
 				remainingAccounts,

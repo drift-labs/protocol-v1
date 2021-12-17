@@ -10,7 +10,7 @@ import {
 	FundingPaymentHistoryAccount,
 	FundingRateHistoryAccount,
 	LiquidationHistoryAccount,
-	MarketsAccount,
+	MarketsAccount, OrderHistoryAccount,
 	StateAccount,
 	TradeHistoryAccount,
 } from '../types';
@@ -34,6 +34,7 @@ export class DefaultClearingHouseAccountSubscriber
 	fundingRateHistoryAccountSubscriber?: AccountSubscriber<FundingRateHistoryAccount>;
 	curveHistoryAccountSubscriber?: AccountSubscriber<CurveHistoryAccount>;
 	liquidationHistoryAccountSubscriber?: AccountSubscriber<LiquidationHistoryAccount>;
+	orderHistoryAccountSubscriber?: AccountSubscriber<OrderHistoryAccount>;
 
 	optionalExtraSubscriptions: ClearingHouseAccountTypes[] = [];
 
@@ -131,6 +132,12 @@ export class DefaultClearingHouseAccountSubscriber
 			state.curveHistory
 		);
 
+		this.orderHistoryAccountSubscriber = new WebSocketAccountSubscriber(
+			'orderHistory',
+			this.program,
+			state.orderHistory
+		);
+
 		const extraSusbcribersToUse: {
 			subscriber: AccountSubscriber<any>;
 			eventType: keyof ClearingHouseAccountEvents;
@@ -170,6 +177,12 @@ export class DefaultClearingHouseAccountSubscriber
 			extraSusbcribersToUse.push({
 				subscriber: this.curveHistoryAccountSubscriber,
 				eventType: 'curveHistoryAccountUpdate',
+			});
+
+		if (optionalSubscriptions?.includes('orderHistoryAccount'))
+			extraSusbcribersToUse.push({
+				subscriber: this.orderHistoryAccountSubscriber,
+				eventType: 'orderHistoryAccountUpdate',
 			});
 
 		this.optionalExtraSubscriptions = optionalSubscriptions ?? [];
@@ -299,5 +312,11 @@ export class DefaultClearingHouseAccountSubscriber
 		this.assertIsSubscribed();
 		this.assertOptionalIsSubscribed('liquidationHistoryAccount');
 		return this.liquidationHistoryAccountSubscriber.data;
+	}
+
+	public getOrderHistoryAccount(): OrderHistoryAccount {
+		this.assertIsSubscribed();
+		this.assertOptionalIsSubscribed('orderHistoryAccount');
+		return this.orderHistoryAccountSubscriber.data;
 	}
 }

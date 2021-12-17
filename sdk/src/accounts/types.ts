@@ -4,7 +4,7 @@ import {
 	FundingPaymentHistoryAccount,
 	FundingRateHistoryAccount,
 	LiquidationHistoryAccount,
-	MarketsAccount,
+	MarketsAccount, OrderHistoryAccount,
 	StateAccount,
 	TradeHistoryAccount,
 	UserAccount, UserOrdersAccount,
@@ -34,6 +34,7 @@ export interface ClearingHouseAccountEvents {
 	liquidationHistoryAccountUpdate: (payload: LiquidationHistoryAccount) => void;
 	depositHistoryAccountUpdate: (payload: DepositHistoryAccount) => void;
 	curveHistoryAccountUpdate: (payload: CurveHistoryAccount) => void;
+	orderHistoryAccountUpdate: (payload: OrderHistoryAccount) => void;
 	update: void;
 }
 
@@ -43,7 +44,8 @@ export type ClearingHouseAccountTypes =
 	| 'fundingPaymentHistoryAccount'
 	| 'fundingRateHistoryAccount'
 	| 'curveHistoryAccount'
-	| 'liquidationHistoryAccount';
+	| 'liquidationHistoryAccount'
+	| 'orderHistoryAccount';
 
 export interface ClearingHouseAccountSubscriber {
 	eventEmitter: StrictEventEmitter<EventEmitter, ClearingHouseAccountEvents>;
@@ -65,6 +67,7 @@ export interface ClearingHouseAccountSubscriber {
 	getFundingRateHistoryAccount(): FundingRateHistoryAccount;
 	getCurveHistoryAccount(): CurveHistoryAccount;
 	getLiquidationHistoryAccount(): LiquidationHistoryAccount;
+	getOrderHistoryAccount(): OrderHistoryAccount;
 }
 
 export interface HistoryAccountEvents {

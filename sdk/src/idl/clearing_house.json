@@ -127,6 +127,27 @@
       "args": []
     },
     {
+      "name": "initializeOrderHistory",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "state",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "orderHistory",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "initializeMarket",
       "accounts": [
         {
@@ -564,6 +585,11 @@
         },
         {
           "name": "fundingRateHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "orderHistory",
           "isMut": true,
           "isSigner": false
         },
@@ -1809,6 +1835,33 @@
       }
     },
     {
+      "name": "OrderHistory",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "head",
+            "type": "u64"
+          },
+          {
+            "name": "lastOrderId",
+            "type": "u128"
+          },
+          {
+            "name": "orderRecords",
+            "type": {
+              "array": [
+                {
+                  "defined": "OrderRecord"
+                },
+                1024
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "UserOrders",
       "type": {
         "kind": "struct",
@@ -1983,6 +2036,10 @@
             }
           },
           {
+            "name": "orderHistory",
+            "type": "publicKey"
+          },
+          {
             "name": "padding0",
             "type": "u128"
           },
@@ -1996,14 +2053,6 @@
           },
           {
             "name": "padding3",
-            "type": "u128"
-          },
-          {
-            "name": "padding4",
-            "type": "u128"
-          },
-          {
-            "name": "padding5",
             "type": "u128"
           }
         ]
@@ -2604,6 +2653,26 @@
       }
     },
     {
+      "name": "OrderRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "ts",
+            "type": "i64"
+          },
+          {
+            "name": "orderId",
+            "type": "u128"
+          },
+          {
+            "name": "recordId",
+            "type": "u128"
+          }
+        ]
+      }
+    },
+    {
       "name": "Order",
       "type": {
         "kind": "struct",
@@ -2613,6 +2682,14 @@
             "type": {
               "defined": "OrderStatus"
             }
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          },
+          {
+            "name": "orderId",
+            "type": "u128"
           },
           {
             "name": "marketIndex",

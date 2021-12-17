@@ -48,7 +48,7 @@ export class Admin extends ClearingHouse {
 	public async initialize(
 		usdcMint: PublicKey,
 		adminControlsPrices: boolean
-	): Promise<[TransactionSignature, TransactionSignature]> {
+	): Promise<[TransactionSignature, TransactionSignature, TransactionSignature]> {
 		const stateAccountRPCResponse = await this.connection.getParsedAccountInfo(
 			await this.getStatePublicKey()
 		);
@@ -172,7 +172,31 @@ export class Admin extends ClearingHouse {
 			this.opts
 		);
 
-		return [initializeTxSig, initializeHistoryTxSig];
+		const orderHistory = anchor.web3.Keypair.generate();
+
+		const initializeOrderHistoryTx =
+			await this.program.transaction.initializeOrderHistory({
+				accounts: {
+					admin: this.wallet.publicKey,
+					state: clearingHouseStatePublicKey,
+					orderHistory: orderHistory.publicKey,
+				},
+				instructions: [
+					await this.program.account.orderHistory.createInstruction(
+						orderHistory
+					),
+				],
+			});
+
+		const initializeOrderHistoryTxSig = await this.txSender.send(
+			initializeOrderHistoryTx,
+			[
+				orderHistory,
+			],
+			this.opts
+		);
+
+		return [initializeTxSig, initializeHistoryTxSig, initializeOrderHistoryTxSig];
 	}
 
 	public async initializeMarket(
