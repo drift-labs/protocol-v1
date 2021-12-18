@@ -673,6 +673,11 @@
           "name": "fundingPaymentHistory",
           "isMut": true,
           "isSigner": false
+        },
+        {
+          "name": "orderHistory",
+          "isMut": true,
+          "isSigner": false
         }
       ],
       "args": [
@@ -732,6 +737,11 @@
         },
         {
           "name": "fundingRateHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "orderHistory",
           "isMut": true,
           "isSigner": false
         },
@@ -2662,11 +2672,43 @@
             "type": "i64"
           },
           {
-            "name": "orderId",
+            "name": "recordId",
             "type": "u128"
           },
           {
-            "name": "recordId",
+            "name": "user",
+            "type": "publicKey"
+          },
+          {
+            "name": "authority",
+            "type": "publicKey"
+          },
+          {
+            "name": "order",
+            "type": {
+              "defined": "Order"
+            }
+          },
+          {
+            "name": "action",
+            "type": {
+              "defined": "OrderAction"
+            }
+          },
+          {
+            "name": "filler",
+            "type": "publicKey"
+          },
+          {
+            "name": "baseAssetAmountFilled",
+            "type": "u128"
+          },
+          {
+            "name": "quoteAssetAmount",
+            "type": "u128"
+          },
+          {
+            "name": "fillerReward",
             "type": "u128"
           }
         ]
@@ -3092,6 +3134,23 @@
           },
           {
             "name": "Switchboard"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OrderAction",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Place"
+          },
+          {
+            "name": "Cancel"
+          },
+          {
+            "name": "Fill"
           }
         ]
       }

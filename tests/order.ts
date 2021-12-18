@@ -12,7 +12,7 @@ import {
     ClearingHouse,
     PositionDirection,
     UserPositionsAccount, OrderType, getUserOrdersAccountPublicKey,
-    ClearingHouseUser, OrderStatus, OrderDiscountTier, OrderRecord
+    ClearingHouseUser, OrderStatus, OrderDiscountTier, OrderRecord, OrderAction
 } from '../sdk/src';
 
 import { Markets } from '../sdk/src/constants/markets';
@@ -178,7 +178,10 @@ describe('orders', () => {
         const expectedRecordId = new BN(1);
         assert(orderRecord.recordId.eq(expectedRecordId));
         assert(orderRecord.ts.gt(ZERO));
-        assert(orderRecord.orderId.eq(expectedOrderId));
+        assert(orderRecord.order.orderId.eq(expectedOrderId));
+        assert(enumsAreEqual(orderRecord.action, OrderAction.PLACE));
+        assert(orderRecord.user.equals(await clearingHouseUser.getUserAccountPublicKey()));
+        assert(orderRecord.authority.equals(clearingHouseUser.authority));
     });
 
     it('Fail to fill reduce only order', async () => {
@@ -203,44 +206,18 @@ describe('orders', () => {
         assert(order.marketIndex.eq(new BN(0)));
         assert(enumsAreEqual(order.direction, PositionDirection.LONG));
         assert(enumsAreEqual(order.status, OrderStatus.INIT));
+
+        const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
+        const orderRecord : OrderRecord = orderHistoryAccount.orderRecords[1];
+        const expectedRecordId = new BN(2);
+        const expectedOrderId = new BN(1);
+        assert(orderRecord.recordId.eq(expectedRecordId));
+        assert(orderRecord.ts.gt(ZERO));
+        assert(orderRecord.order.orderId.eq(expectedOrderId));
+        assert(enumsAreEqual(orderRecord.action, OrderAction.CANCEL));
+        assert(orderRecord.user.equals(await clearingHouseUser.getUserAccountPublicKey()));
+        assert(orderRecord.authority.equals(clearingHouseUser.authority));
     });
-
-    // it('Open order with amount that is too small', async () => {
-    //     const amount = new BN(1);
-    //     const price = new BN(1);
-    //     try {
-    //         await clearingHouse.placeOrder(PositionDirection.LONG, amount, price, marketIndex);
-    //     } catch (e) {
-    //         return;
-    //     }
-    //     assert(false);
-    // });
-
-    // it('Open short order', async () => {
-    //     const amount = new BN(10000000);
-    //     const price = new BN(1);
-    //     await clearingHouse.placeOrder(PositionDirection.SHORT, amount, price, marketIndex);
-    //     const user: any = await clearingHouse.program.account.user.fetch(
-    //         userAccountPublicKey
-    //     );
-    //     const userPositionsAccount: UserPositionsAccount =
-    //         await clearingHouse.program.account.userPositions.fetch(user.positions);
-    //     const firstPosition = userPositionsAccount.positions[0];
-    //     assert(firstPosition.shortOrderAmount.eq(amount));
-    //     assert(firstPosition.shortOrderPrice.eq(price));
-    // });
-    //
-    // it('Cancel short order', async () => {
-    //     await clearingHouse.cancelOrder(PositionDirection.SHORT, marketIndex);
-    //     const user: any = await clearingHouse.program.account.user.fetch(
-    //         userAccountPublicKey
-    //     );
-    //     const userPositionsAccount: UserPositionsAccount =
-    //         await clearingHouse.program.account.userPositions.fetch(user.positions);
-    //     const firstPosition = userPositionsAccount.positions[0];
-    //     assert(firstPosition.shortOrderAmount.eq(new BN(0)));
-    //     assert(firstPosition.shortOrderPrice.eq(new BN(0)));
-    // });
 
     it('Fill long order', async () => {
         const orderType = OrderType.LIMIT;
@@ -287,5 +264,20 @@ describe('orders', () => {
             tradeHistoryRecord.baseAssetAmount.eq(baseAssetAmount)
         );
         assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(expectedQuoteAssetAmount));
+
+        const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
+        const orderRecord : OrderRecord = orderHistoryAccount.orderRecords[3];
+        const expectedRecordId = new BN(4);
+        const expectedOrderId = new BN(2);
+        assert(orderRecord.recordId.eq(expectedRecordId));
+        assert(orderRecord.ts.gt(ZERO));
+        assert(orderRecord.order.orderId.eq(expectedOrderId));
+        assert(enumsAreEqual(orderRecord.action, OrderAction.FILL));
+        assert(orderRecord.user.equals(await clearingHouseUser.getUserAccountPublicKey()));
+        assert(orderRecord.authority.equals(clearingHouseUser.authority));
+        assert(orderRecord.filler.equals(await fillerUser.getUserAccountPublicKey()));
+        assert(orderRecord.baseAssetAmountFilled.eq(baseAssetAmount));
+        assert(orderRecord.quoteAssetAmount.eq(expectedQuoteAssetAmount));
+        assert(orderRecord.fillerReward.eq(expectedFillerReward));
     });
 });

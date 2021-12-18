@@ -33,6 +33,12 @@ export class OrderDiscountTier {
 	static readonly FOURTH = { fourth: {} };
 }
 
+export class OrderAction {
+	static readonly PLACE = { place: {} };
+	static readonly CANCEL = { cancel: {} };
+	static readonly FILL = { fill: {} };
+}
+
 export enum TradeSide {
 	None = 0,
 	Buy = 1,
@@ -185,8 +191,15 @@ export type LiquidationRecord = {
 
 export type OrderRecord = {
 	ts: BN;
-	orderId: BN;
 	recordId: BN;
+	order: Order;
+	user: PublicKey;
+	authority: PublicKey;
+	action: OrderAction;
+	filler: PublicKey,
+	baseAssetAmountFilled: BN,
+	quoteAssetAmount: BN,
+	fillerReward: BN,
 };
 
 export type StateAccount = {

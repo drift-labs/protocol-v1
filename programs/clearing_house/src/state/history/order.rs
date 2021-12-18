@@ -1,4 +1,6 @@
 use anchor_lang::prelude::*;
+use borsh::{BorshDeserialize, BorshSerialize};
+use crate::state::orders::Order;
 
 #[account(zero_copy)]
 pub struct OrderHistory {
@@ -44,6 +46,27 @@ impl OrderHistory {
 #[derive(Default)]
 pub struct OrderRecord {
     pub ts: i64,
-    pub order_id: u128,
     pub record_id: u128,
+    pub user: Pubkey,
+    pub authority: Pubkey,
+    pub order: Order,
+    pub action: OrderAction,
+    pub filler: Pubkey,
+    pub base_asset_amount_filled: u128,
+    pub quote_asset_amount: u128,
+    pub filler_reward: u128,
+}
+
+#[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq)]
+pub enum OrderAction {
+    Place,
+    Cancel,
+    Fill
+}
+
+impl Default for OrderAction {
+    // UpOnly
+    fn default() -> Self {
+        OrderAction::Place
+    }
 }

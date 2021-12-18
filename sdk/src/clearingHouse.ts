@@ -824,6 +824,7 @@ export class ClearingHouse {
 					userPositions: userAccount.positions,
 					fundingPaymentHistory: state.fundingPaymentHistory,
 					fundingRateHistory: state.fundingRateHistory,
+					orderHistory: state.orderHistory,
 				},
 			}
 		);
@@ -877,6 +878,7 @@ export class ClearingHouse {
 				tradeHistory: state.tradeHistory,
 				fundingPaymentHistory: state.fundingPaymentHistory,
 				fundingRateHistory: state.fundingRateHistory,
+				orderHistory: state.orderHistory,
 				oracle: oracle,
 			},
 		});

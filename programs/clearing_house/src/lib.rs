@@ -40,7 +40,7 @@ pub mod clearing_house {
     use crate::error::ErrorCode::InvalidOracle;
     use std::cmp::min;
     use crate::math::fees::calculate_order_fee_tier;
-    use crate::state::history::order::{OrderHistory, OrderRecord};
+    use crate::state::history::order::{OrderHistory, OrderRecord, OrderAction};
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -1335,8 +1335,15 @@ pub mod clearing_house {
         let record_id = order_history_account.next_record_id();
         order_history_account.append(OrderRecord {
             ts: now,
-            order_id,
             record_id,
+            order: new_order,
+            user: user.key(),
+            authority: ctx.accounts.authority.key(),
+            action: OrderAction::Place,
+            filler: Pubkey::default(),
+            base_asset_amount_filled: 0,
+            quote_asset_amount: 0,
+            filler_reward: 0,
         });
 
         // Try to update the funding rate
@@ -1387,6 +1394,22 @@ pub mod clearing_house {
         if order.status != OrderStatus::Open {
             return Err(ErrorCode::OrderDoesNotExist.into());
         }
+
+        // Add to the order history account
+        let order_history_account = &mut ctx.accounts.order_history.load_mut()?;
+        let record_id = order_history_account.next_record_id();
+        order_history_account.append(OrderRecord {
+            ts: now,
+            record_id,
+            order: *order,
+            user: user.key(),
+            authority: ctx.accounts.authority.key(),
+            action: OrderAction::Cancel,
+            filler: Pubkey::default(),
+            base_asset_amount_filled: 0,
+            quote_asset_amount: 0,
+            filler_reward: 0,
+        });
 
         user_orders.orders[UserOrders::index_from_u64(order_index)] = Order::default();
 
@@ -1456,8 +1479,6 @@ pub mod clearing_house {
                 .base_asset_amount_filled
                 .checked_add(base_asset_amount)
                 .ok_or_else(math_error!())?;
-        } else {
-            user_orders.orders[UserOrders::index_from_u64(order_index)] = Order::default();
         }
 
         // Get existing position
@@ -1657,6 +1678,24 @@ pub mod clearing_house {
         {
             return Err(ErrorCode::OracleMarkSpreadLimit.into());
         }
+
+        // Add to the order history account
+        let order_history_account = &mut ctx.accounts.order_history.load_mut()?;
+        let record_id = order_history_account.next_record_id();
+        order_history_account.append(OrderRecord {
+            ts: now,
+            record_id,
+            order: *order,
+            user: user.key(),
+            authority: user.authority,
+            action: OrderAction::Fill,
+            filler: filler.key(),
+            base_asset_amount_filled: base_asset_amount,
+            quote_asset_amount,
+            filler_reward,
+        });
+
+        user_orders.orders[UserOrders::index_from_u64(order_index)] = Order::default();
 
         // Add to the trade history account
         let trade_history_account = &mut ctx.accounts.trade_history.load_mut()?;
