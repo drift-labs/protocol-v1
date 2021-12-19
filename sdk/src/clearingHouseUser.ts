@@ -4,6 +4,7 @@ import { EventEmitter } from 'events';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import { ClearingHouse } from './clearingHouse';
 import { UserAccount, UserPosition, UserPositionsAccount } from './types';
+import {calculateEntryPrice} from './math/position';
 import {
 	MARK_PRICE_PRECISION,
 	AMM_TO_QUOTE_PRECISION_RATIO,
@@ -22,6 +23,7 @@ import {
 	calculatePositionFundingPNL,
 	calculatePositionPNL,
 	PositionDirection,
+	convertToNumber
 } from '.';
 import { getUserAccountPublicKey } from './addresses';
 
@@ -226,15 +228,17 @@ export class ClearingHouseUser {
 	 * calculates average exit price for closing 100% of position
 	 * @returns : Precision MARK_PRICE_PRECISION
 	 */
-	public getPositionEstimatedExitPrice(
+	public getPositionEstimatedExitPriceAndPnl(
 		position: UserPosition,
 		amountToClose?: BN
-	): BN {
+	): [BN, BN] {
 		const market = this.clearingHouse.getMarket(position.marketIndex);
+
+		const entryPrice = calculateEntryPrice(position);
 
 		if (amountToClose) {
 			if (amountToClose.eq(ZERO)) {
-				return calculateMarkPrice(market);
+				return [calculateMarkPrice(market), ZERO];
 			}
 			position = {
 				baseAssetAmount: amountToClose,
@@ -246,12 +250,19 @@ export class ClearingHouseUser {
 
 		const baseAssetValue = calculateBaseAssetValue(market, position);
 		if (position.baseAssetAmount.eq(ZERO)) {
-			return ZERO;
+			return [ZERO, ZERO];
 		}
-		return baseAssetValue
-			.mul(AMM_TO_QUOTE_PRECISION_RATIO)
-			.mul(MARK_PRICE_PRECISION)
-			.div(position.baseAssetAmount.abs());
+
+		const exitPrice = baseAssetValue
+		.mul(AMM_TO_QUOTE_PRECISION_RATIO)
+		.mul(MARK_PRICE_PRECISION)
+		.div(position.baseAssetAmount.abs())
+
+		
+		const pnlPerBase = exitPrice.sub(entryPrice);
+		const pnl = pnlPerBase.mul(position.baseAssetAmount).div(MARK_PRICE_PRECISION).div(AMM_TO_QUOTE_PRECISION_RATIO)
+
+		return [exitPrice, pnl];
 	}
 
 	/**
@@ -418,7 +429,7 @@ export class ClearingHouseUser {
 				.div(this.getMaxLeverage('Maintenance'))
 		);
 
-		if(partial){
+		if (partial) {
 			totalFreeCollateralUSDC = this.getTotalCollateral().sub(
 				this.getTotalPositionValue()
 					.mul(TEN_THOUSAND)
@@ -595,12 +606,13 @@ export class ClearingHouseUser {
 
 		const totalPositionAfterTradeExcludingTargetMarket =
 			this.getTotalPositionValueExcludingMarket(targetMarketIndex);
+		const newLeverage = currentMarketPositionAfterTrade
+		.add(totalPositionAfterTradeExcludingTargetMarket)
+		.abs()
+		.mul(TEN_THOUSAND)
+		.div(this.getTotalCollateral());
 
-		return currentMarketPositionAfterTrade
-			.add(totalPositionAfterTradeExcludingTargetMarket)
-			.abs()
-			.mul(TEN_THOUSAND)
-			.div(this.getTotalCollateral());
+		return newLeverage
 	}
 
 	/**
