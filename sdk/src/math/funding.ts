@@ -1,4 +1,5 @@
 import { BN } from '@project-serum/anchor';
+import { convertToNumber } from '..';
 import {
 	AMM_RESERVE_PRECISION,
 	MARK_PRICE_PRECISION,
@@ -66,6 +67,7 @@ export async function calculateAllEstimatedFundingRate(
 	);
 	const oraclePriceData = await pythClient.getPriceData(market.amm.oracle);
 
+	// verify pyth input is positive for live update
 	let oracleStablePriceNum = 0;
 	let oracleInputCount = 0;
 	if (oraclePriceData.price >= 0) {
@@ -84,7 +86,6 @@ export async function calculateAllEstimatedFundingRate(
 
 	let oracleTwapWithMantissa = lastOracleTwapWithMantissa;
 
-	// verify pyth input is within reason for live update
 	const oracleLiveVsTwap = oraclePriceStableWithMantissa
 		.sub(lastOracleTwapWithMantissa)
 		.abs()
@@ -92,7 +93,8 @@ export async function calculateAllEstimatedFundingRate(
 		.mul(new BN(100))
 		.div(lastOracleTwapWithMantissa);
 
-	if (oracleLiveVsTwap.gte(MARK_PRICE_PRECISION.mul(new BN(10)))) {
+	// verify pyth live input is within 10% of last twap for live update
+	if (oracleLiveVsTwap.lte(MARK_PRICE_PRECISION.mul(new BN(10)))) {
 		oracleTwapWithMantissa = oracleTwapTimeSinceLastUpdate
 			.mul(lastOracleTwapWithMantissa)
 			.add(timeSinceLastMarkChange.mul(oraclePriceStableWithMantissa))
@@ -163,22 +165,20 @@ export async function calculateAllEstimatedFundingRate(
 	}
 
 	if (largerSide.gt(ZERO)) {
-		cappedAltEst = smallerSide.mul(twapSpread).div(largerSide);
-
+		// funding smaller flow
+		cappedAltEst = smallerSide.mul(twapSpread).div(hoursInDay);
 		const feePoolTopOff = feePoolSize
 			.mul(MARK_PRICE_PRECISION.div(QUOTE_PRECISION))
-			.mul(AMM_RESERVE_PRECISION)
-			.div(largerSide);
-
-		cappedAltEst = cappedAltEst.add(feePoolTopOff);
-
+			.mul(AMM_RESERVE_PRECISION);
+		cappedAltEst = cappedAltEst.add(feePoolTopOff).div(largerSide);
+		
 		cappedAltEst = cappedAltEst
 			.mul(MARK_PRICE_PRECISION)
 			.mul(new BN(100))
 			.div(oracleTwapWithMantissa)
-			.mul(periodAdjustment)
-			.div(hoursInDay);
-		if (cappedAltEst.abs().gt(interpEst.abs())) {
+			.mul(periodAdjustment);
+
+		if (cappedAltEst.abs().gte(interpEst.abs())) {
 			cappedAltEst = interpEst;
 		}
 	} else {
