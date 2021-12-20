@@ -1695,7 +1695,9 @@ pub mod clearing_house {
             filler_reward,
         });
 
-        user_orders.orders[UserOrders::index_from_u64(order_index)] = Order::default();
+        if !is_partial_fill {
+            user_orders.orders[UserOrders::index_from_u64(order_index)] = Order::default();
+        }
 
         // Add to the trade history account
         let trade_history_account = &mut ctx.accounts.trade_history.load_mut()?;
