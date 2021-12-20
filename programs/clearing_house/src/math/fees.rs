@@ -1,11 +1,12 @@
 use crate::error::*;
 use crate::math_error;
 use crate::state::orders::OrderDiscountTier;
-use crate::state::state::{DiscountTokenTier, FeeStructure, OrderFillerRewardStructure};
+use crate::state::state::{DiscountTokenTier, FeeStructure};
 use crate::state::user::User;
 use anchor_lang::Account;
 use solana_program::msg;
 use spl_token::state::Account as TokenAccount;
+use crate::state::order_state::OrderFillerRewardStructure;
 
 pub fn calculate_fee_for_market_order(
     quote_asset_amount: u128,

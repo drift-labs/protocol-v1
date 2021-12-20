@@ -238,9 +238,13 @@ export type StateAccount = {
 	whitelistMint: PublicKey;
 	discountMint: PublicKey;
 	oracleGuardRails: OracleGuardRails;
-	orderFillerRewardStructure: OrderFillerRewardStructure;
 	maxDeposit: BN;
+	orderState: PublicKey;
+};
+
+export type OrderStateAccount = {
 	orderHistory: PublicKey;
+	orderFillerRewardStructure: OrderFillerRewardStructure;
 };
 
 export type MarketsAccount = {

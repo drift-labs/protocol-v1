@@ -8,7 +8,7 @@ import {
 import {FeeStructure, IWallet, OracleGuardRails, OracleSource, OrderFillerRewardStructure} from './types';
 import { BN, Idl, Program, Provider } from '@project-serum/anchor';
 import * as anchor from '@project-serum/anchor';
-import { getClearingHouseStateAccountPublicKeyAndNonce } from './addresses';
+import {getClearingHouseStateAccountPublicKeyAndNonce, getOrderStateAccountPublicKeyAndNonce} from './addresses';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { ClearingHouse } from './clearingHouse';
 import { PEG_PRECISION } from './constants/numericConstants';
@@ -173,13 +173,20 @@ export class Admin extends ClearingHouse {
 		);
 
 		const orderHistory = anchor.web3.Keypair.generate();
+		const [orderStatePublicKey, orderStateNonce] =
+			await getOrderStateAccountPublicKeyAndNonce(
+				this.program.programId
+			);
 
-		const initializeOrderHistoryTx =
-			await this.program.transaction.initializeOrderHistory({
+		const initializeOrderStateTx =
+			await this.program.transaction.initializeOrderState(orderStateNonce, {
 				accounts: {
 					admin: this.wallet.publicKey,
 					state: clearingHouseStatePublicKey,
 					orderHistory: orderHistory.publicKey,
+					orderState: orderStatePublicKey,
+					rent: SYSVAR_RENT_PUBKEY,
+					systemProgram: anchor.web3.SystemProgram.programId,
 				},
 				instructions: [
 					await this.program.account.orderHistory.createInstruction(
@@ -188,15 +195,15 @@ export class Admin extends ClearingHouse {
 				],
 			});
 
-		const initializeOrderHistoryTxSig = await this.txSender.send(
-			initializeOrderHistoryTx,
+		const initializeOrderStateTxSig = await this.txSender.send(
+			initializeOrderStateTx,
 			[
 				orderHistory,
 			],
 			this.opts
 		);
 
-		return [initializeTxSig, initializeHistoryTxSig, initializeOrderHistoryTxSig];
+		return [initializeTxSig, initializeHistoryTxSig, initializeOrderStateTxSig];
 	}
 
 	public async initializeMarket(
@@ -484,6 +491,7 @@ export class Admin extends ClearingHouse {
 			accounts: {
 				admin: this.wallet.publicKey,
 				state: await this.getStatePublicKey(),
+				orderState: await this.getOrderStatePublicKey(),
 			},
 		});
 	}

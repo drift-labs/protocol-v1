@@ -10,7 +10,7 @@ import {
 	FundingPaymentHistoryAccount,
 	FundingRateHistoryAccount,
 	LiquidationHistoryAccount,
-	MarketsAccount, OrderHistoryAccount,
+	MarketsAccount, OrderHistoryAccount, OrderStateAccount,
 	StateAccount,
 	TradeHistoryAccount,
 } from '../types';
@@ -34,6 +34,7 @@ export class DefaultClearingHouseAccountSubscriber
 	fundingRateHistoryAccountSubscriber?: AccountSubscriber<FundingRateHistoryAccount>;
 	curveHistoryAccountSubscriber?: AccountSubscriber<CurveHistoryAccount>;
 	liquidationHistoryAccountSubscriber?: AccountSubscriber<LiquidationHistoryAccount>;
+	orderStateAccountSubscriber?: AccountSubscriber<OrderStateAccount>;
 	orderHistoryAccountSubscriber?: AccountSubscriber<OrderHistoryAccount>;
 
 	optionalExtraSubscriptions: ClearingHouseAccountTypes[] = [];
@@ -93,6 +94,19 @@ export class DefaultClearingHouseAccountSubscriber
 			this.eventEmitter.emit('update');
 		});
 
+		this.orderStateAccountSubscriber = new WebSocketAccountSubscriber(
+			'orderState',
+			this.program,
+			state.orderState
+		);
+
+		await this.orderStateAccountSubscriber.subscribe((data: OrderStateAccount) => {
+			this.eventEmitter.emit('orderStateAccountUpdate', data);
+			this.eventEmitter.emit('update');
+		});
+
+		const orderState = this.orderStateAccountSubscriber.data;
+
 		// create subscribers for other state accounts
 
 		this.tradeHistoryAccountSubscriber = new WebSocketAccountSubscriber(
@@ -135,7 +149,7 @@ export class DefaultClearingHouseAccountSubscriber
 		this.orderHistoryAccountSubscriber = new WebSocketAccountSubscriber(
 			'orderHistory',
 			this.program,
-			state.orderHistory
+			orderState.orderHistory
 		);
 
 		const extraSusbcribersToUse: {
@@ -318,5 +332,10 @@ export class DefaultClearingHouseAccountSubscriber
 		this.assertIsSubscribed();
 		this.assertOptionalIsSubscribed('orderHistoryAccount');
 		return this.orderHistoryAccountSubscriber.data;
+	}
+
+	public getOrderStateAccount(): OrderStateAccount {
+		this.assertIsSubscribed();
+		return this.orderStateAccountSubscriber.data;
 	}
 }

@@ -11,6 +11,7 @@ use crate::state::state::State;
 use crate::state::user::{User, UserPositions};
 use crate::state::orders::UserOrders;
 use crate::state::history::order::{OrderHistory};
+use crate::state::order_state::OrderState;
 
 #[derive(Accounts)]
 #[instruction(
@@ -78,15 +79,27 @@ pub struct InitializeHistory<'info> {
 }
 
 #[derive(Accounts)]
-pub struct InitializeOrderHistory<'info> {
+#[instruction(
+    order_house_nonce: u8,
+)]
+pub struct InitializeOrderState<'info> {
     pub admin: Signer<'info>,
     #[account(
         mut,
         has_one = admin
     )]
     pub state: Box<Account<'info, State>>,
+    #[account(
+        init,
+        seeds = [b"order_state".as_ref()],
+        bump = order_house_nonce,
+        payer = admin
+    )]
+    pub order_state: Box<Account<'info, OrderState>>,
     #[account(zero)]
     pub order_history: Loader<'info, OrderHistory>,
+    pub rent: Sysvar<'info, Rent>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -387,6 +400,10 @@ pub struct OpenPosition<'info> {
 pub struct FillOrder<'info> {
     #[account(mut)]
     pub state: Box<Account<'info, State>>,
+    #[account(
+        constraint = &state.order_state.eq(&order_state.key())
+    )]
+    pub order_state: Box<Account<'info, OrderState>>,
     pub authority: Signer<'info>,
     #[account(
         mut,
@@ -430,7 +447,7 @@ pub struct FillOrder<'info> {
     pub funding_rate_history: Loader<'info, FundingRateHistory>,
     #[account(
         mut,
-        constraint = &state.order_history.eq(&order_history.key())
+        constraint = &order_state.order_history.eq(&order_history.key())
     )]
     pub order_history: Loader<'info, OrderHistory>,
     pub oracle: AccountInfo<'info>,
@@ -439,6 +456,10 @@ pub struct FillOrder<'info> {
 #[derive(Accounts)]
 pub struct PlaceOrder<'info> {
     pub state: Box<Account<'info, State>>,
+    #[account(
+        constraint = &state.order_state.eq(&order_state.key())
+    )]
+    pub order_state: Box<Account<'info, OrderState>>,
     #[account(
         has_one = authority,
         constraint = &user.positions.eq(&user_positions.key())
@@ -472,7 +493,7 @@ pub struct PlaceOrder<'info> {
     pub funding_rate_history: Loader<'info, FundingRateHistory>,
     #[account(
         mut,
-        constraint = &state.order_history.eq(&order_history.key())
+        constraint = &order_state.order_history.eq(&order_history.key())
     )]
     pub order_history: Loader<'info, OrderHistory>,
     pub oracle: AccountInfo<'info>,
@@ -486,6 +507,10 @@ pub struct PlaceOrderOptionalAccounts {
 #[derive(Accounts)]
 pub struct CancelOrder<'info> {
     pub state: Box<Account<'info, State>>,
+    #[account(
+        constraint = &state.order_state.eq(&order_state.key())
+    )]
+    pub order_state: Box<Account<'info, OrderState>>,
     #[account(
         has_one = authority,
         constraint = &user.positions.eq(&user_positions.key())
@@ -514,7 +539,7 @@ pub struct CancelOrder<'info> {
     pub funding_payment_history: Loader<'info, FundingPaymentHistory>,
     #[account(
         mut,
-        constraint = &state.order_history.eq(&order_history.key())
+        constraint = &order_state.order_history.eq(&order_history.key())
     )]
     pub order_history: Loader<'info, OrderHistory>,
 }
@@ -701,6 +726,20 @@ pub struct AdminUpdateState<'info> {
         has_one = admin
     )]
     pub state: Box<Account<'info, State>>,
+}
+
+#[derive(Accounts)]
+pub struct AdminUpdateOrderState<'info> {
+    pub admin: Signer<'info>,
+    #[account(
+        has_one = admin
+    )]
+    pub state: Box<Account<'info, State>>,
+    #[account(
+        mut,
+        constraint = &state.order_state.eq(&order_state.key())
+    )]
+    pub order_state: Box<Account<'info, OrderState>>,
 }
 
 #[derive(Accounts)]

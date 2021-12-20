@@ -127,7 +127,7 @@
       "args": []
     },
     {
-      "name": "initializeOrderHistory",
+      "name": "initializeOrderState",
       "accounts": [
         {
           "name": "admin",
@@ -140,12 +140,32 @@
           "isSigner": false
         },
         {
+          "name": "orderState",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "orderHistory",
           "isMut": true,
           "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "orderHouseNonce",
+          "type": "u8"
+        }
+      ]
     },
     {
       "name": "initializeMarket",
@@ -554,6 +574,11 @@
           "isSigner": false
         },
         {
+          "name": "orderState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
           "name": "user",
           "isMut": false,
           "isSigner": false
@@ -645,6 +670,11 @@
           "isSigner": false
         },
         {
+          "name": "orderState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
           "name": "user",
           "isMut": false,
           "isSigner": false
@@ -693,6 +723,11 @@
         {
           "name": "state",
           "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "orderState",
+          "isMut": false,
           "isSigner": false
         },
         {
@@ -1434,6 +1469,11 @@
         },
         {
           "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orderState",
           "isMut": true,
           "isSigner": false
         }
@@ -1872,6 +1912,24 @@
       }
     },
     {
+      "name": "OrderState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "orderHistory",
+            "type": "publicKey"
+          },
+          {
+            "name": "orderFillerRewardStructure",
+            "type": {
+              "defined": "OrderFillerRewardStructure"
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "UserOrders",
       "type": {
         "kind": "struct",
@@ -2040,13 +2098,7 @@
             "type": "u128"
           },
           {
-            "name": "orderFillerRewardStructure",
-            "type": {
-              "defined": "OrderFillerRewardStructure"
-            }
-          },
-          {
-            "name": "orderHistory",
+            "name": "orderState",
             "type": "publicKey"
           },
           {
@@ -2063,6 +2115,14 @@
           },
           {
             "name": "padding3",
+            "type": "u128"
+          },
+          {
+            "name": "padding4",
+            "type": "u128"
+          },
+          {
+            "name": "padding5",
             "type": "u128"
           }
         ]
@@ -2715,6 +2775,22 @@
       }
     },
     {
+      "name": "OrderFillerRewardStructure",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "rewardNumerator",
+            "type": "u128"
+          },
+          {
+            "name": "rewardDenominator",
+            "type": "u128"
+          }
+        ]
+      }
+    },
+    {
       "name": "Order",
       "type": {
         "kind": "struct",
@@ -2927,22 +3003,6 @@
           },
           {
             "name": "refereeDiscountDenominator",
-            "type": "u128"
-          }
-        ]
-      }
-    },
-    {
-      "name": "OrderFillerRewardStructure",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "rewardNumerator",
-            "type": "u128"
-          },
-          {
-            "name": "rewardDenominator",
             "type": "u128"
           }
         ]
@@ -3448,6 +3508,11 @@
       "code": 345,
       "name": "ReduceOnlyOrderIncreasedRisk",
       "msg": "Reduce only order increased risk"
+    },
+    {
+      "code": 346,
+      "name": "OrderStateAlreadyInitialized",
+      "msg": "Order state already initialized"
     }
   ]
 }

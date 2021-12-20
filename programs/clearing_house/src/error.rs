@@ -96,6 +96,8 @@ pub enum ErrorCode {
     MarketCantFillOrder,
     #[msg("Reduce only order increased risk")]
     ReduceOnlyOrderIncreasedRisk,
+    #[msg("Order state already initialized")]
+    OrderStateAlreadyInitialized,
 }
 
 #[macro_export]

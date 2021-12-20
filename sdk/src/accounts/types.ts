@@ -4,7 +4,7 @@ import {
 	FundingPaymentHistoryAccount,
 	FundingRateHistoryAccount,
 	LiquidationHistoryAccount,
-	MarketsAccount, OrderHistoryAccount,
+	MarketsAccount, OrderHistoryAccount, OrderStateAccount,
 	StateAccount,
 	TradeHistoryAccount,
 	UserAccount, UserOrdersAccount,
@@ -35,6 +35,7 @@ export interface ClearingHouseAccountEvents {
 	depositHistoryAccountUpdate: (payload: DepositHistoryAccount) => void;
 	curveHistoryAccountUpdate: (payload: CurveHistoryAccount) => void;
 	orderHistoryAccountUpdate: (payload: OrderHistoryAccount) => void;
+	orderStateAccountUpdate: (payload: OrderStateAccount) => void;
 	update: void;
 }
 
@@ -67,6 +68,7 @@ export interface ClearingHouseAccountSubscriber {
 	getFundingRateHistoryAccount(): FundingRateHistoryAccount;
 	getCurveHistoryAccount(): CurveHistoryAccount;
 	getLiquidationHistoryAccount(): LiquidationHistoryAccount;
+	getOrderStateAccount(): OrderStateAccount;
 	getOrderHistoryAccount(): OrderHistoryAccount;
 }
 

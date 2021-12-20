@@ -17,7 +17,7 @@ import {
 	TradeHistoryAccount,
 	UserAccount,
 	UserPositionsAccount,
-	Market, OrderType, UserOrdersAccount, OrderHistoryAccount,
+	Market, OrderType, UserOrdersAccount, OrderHistoryAccount, OrderStateAccount,
 } from './types';
 import * as anchor from '@project-serum/anchor';
 import clearingHouseIDL from './idl/clearing_house.json';
@@ -36,7 +36,7 @@ import { MockUSDCFaucet } from './mockUSDCFaucet';
 import { EventEmitter } from 'events';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import {
-	getClearingHouseStateAccountPublicKey,
+	getClearingHouseStateAccountPublicKey, getOrderStateAccountPublicKey,
 	getUserAccountPublicKey,
 	getUserAccountPublicKeyAndNonce, getUserOrdersAccountPublicKey, getUserOrdersAccountPublicKeyAndNonce,
 } from './addresses';
@@ -201,6 +201,21 @@ export class ClearingHouse {
 
 	public getOrderHistoryAccount(): OrderHistoryAccount {
 		return this.accountSubscriber.getOrderHistoryAccount();
+	}
+
+	orderStatePublicKey?: PublicKey;
+	public async getOrderStatePublicKey(): Promise<PublicKey> {
+		if (this.orderStatePublicKey) {
+			return this.orderStatePublicKey;
+		}
+		this.orderStatePublicKey = await getOrderStateAccountPublicKey(
+			this.program.programId
+		);
+		return this.orderStatePublicKey;
+	}
+
+	public getOrderStateAccount(): OrderStateAccount {
+		return this.accountSubscriber.getOrderStateAccount();
 	}
 
 	/**
@@ -765,6 +780,7 @@ export class ClearingHouse {
 		}
 
 		const state = this.getStateAccount();
+		const orderState = this.getOrderStateAccount();
 		return await this.program.instruction.placeOrder(
 			orderType,
 			direction,
@@ -783,7 +799,8 @@ export class ClearingHouse {
 					userPositions: userAccount.positions,
 					fundingPaymentHistory: state.fundingPaymentHistory,
 					fundingRateHistory: state.fundingRateHistory,
-					orderHistory: state.orderHistory,
+					orderState: await this.getOrderStatePublicKey(),
+					orderHistory: orderState.orderHistory,
 					oracle: priceOracle,
 				},
 				remainingAccounts,
@@ -812,6 +829,7 @@ export class ClearingHouse {
 		const userAccount = await this.getUserAccount();
 
 		const state = this.getStateAccount();
+		const orderState = this.getOrderStateAccount();
 		return await this.program.instruction.cancelOrder(
 			orderIndex,
 			{
@@ -824,7 +842,8 @@ export class ClearingHouse {
 					userPositions: userAccount.positions,
 					fundingPaymentHistory: state.fundingPaymentHistory,
 					fundingRateHistory: state.fundingRateHistory,
-					orderHistory: state.orderHistory,
+					orderState: await this.getOrderStatePublicKey(),
+					orderHistory: orderState.orderHistory,
 				},
 			}
 		);
@@ -866,6 +885,7 @@ export class ClearingHouse {
 		const oracle = this.getMarket(marketIndex).amm.oracle;
 
 		const state = this.getStateAccount();
+		const orderState = this.getOrderStateAccount();
 		return await this.program.instruction.fillOrder(orderIndex, {
 			accounts: {
 				state: await this.getStatePublicKey(),
@@ -878,7 +898,8 @@ export class ClearingHouse {
 				tradeHistory: state.tradeHistory,
 				fundingPaymentHistory: state.fundingPaymentHistory,
 				fundingRateHistory: state.fundingRateHistory,
-				orderHistory: state.orderHistory,
+				orderState: await this.getOrderStatePublicKey(),
+				orderHistory: orderState.orderHistory,
 				oracle: oracle,
 			},
 		});

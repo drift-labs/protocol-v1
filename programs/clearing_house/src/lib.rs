@@ -9,6 +9,7 @@ use state::{
     history::trade::TradeRecord,
     market::{Market, Markets, OracleSource, AMM},
     orders::*,
+    order_state::*,
     state::*,
     user::{MarketPosition, User},
 };
@@ -19,8 +20,8 @@ pub mod context;
 pub mod controller;
 pub mod error;
 pub mod math;
-pub mod optional_accounts;
 pub mod state;
+pub mod optional_accounts;
 
 #[cfg(feature = "mainnet-beta")]
 declare_id!("dammHkt7jmytvbS3nHTxQNEcP59aE57nxwV21YdqEDN");
@@ -41,6 +42,7 @@ pub mod clearing_house {
     use std::cmp::min;
     use crate::math::fees::calculate_order_fee_tier;
     use crate::state::history::order::{OrderHistory, OrderRecord, OrderAction};
+    use crate::state::order_state::{OrderState, OrderFillerRewardStructure};
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -150,15 +152,13 @@ pub mod clearing_house {
                 },
                 use_for_liquidations: true,
             },
-            order_filler_reward_structure: OrderFillerRewardStructure {
-                reward_numerator: 1,
-                reward_denominator: 10
-            },
-            order_history: Pubkey::default(),
+            order_state: Pubkey::default(),
             padding0: 0,
             padding1: 0,
             padding2: 0,
             padding3: 0,
+            padding4: 0,
+            padding5: 0,
         };
 
         return Ok(());
@@ -202,18 +202,24 @@ pub mod clearing_house {
         Ok(())
     }
 
-    pub fn initialize_order_history(ctx: Context<InitializeOrderHistory>) -> ProgramResult {
+    pub fn initialize_order_state(ctx: Context<InitializeOrderState>, _order_house_nonce: u8,) -> ProgramResult {
         let state = &mut ctx.accounts.state;
 
-        // If all of the order history account keys is set to the default, assume they haven't been initialized yet
-        if !state.order_history.eq(&Pubkey::default())
+        if !state.order_state.eq(&Pubkey::default())
         {
-            return Err(ErrorCode::HistoryAlreadyInitialized.into());
+            return Err(ErrorCode::OrderStateAlreadyInitialized.into());
         }
 
+        state.order_state = ctx.accounts.order_state.key();
         ctx.accounts.order_history.load_init()?;
-        let order_history = ctx.accounts.order_history.to_account_info().key;
-        state.order_history = *order_history;
+
+        **ctx.accounts.order_state = OrderState {
+            order_history: ctx.accounts.order_history.key(),
+            order_filler_reward_structure: OrderFillerRewardStructure {
+                reward_numerator: 1,
+                reward_denominator: 10,
+            }
+        };
 
         Ok(())
     }
@@ -1624,7 +1630,7 @@ pub mod clearing_house {
         let (user_fee, fee_to_market, token_discount, filler_reward) = fees::calculate_fee_for_limit_order(
             quote_asset_amount,
             &ctx.accounts.state.fee_structure,
-            &ctx.accounts.state.order_filler_reward_structure,
+            &ctx.accounts.order_state.order_filler_reward_structure,
             &discount_tier,
         )?;
 
@@ -2481,8 +2487,8 @@ pub mod clearing_house {
         Ok(())
     }
 
-    pub fn update_order_filler_reward_structure(ctx: Context<AdminUpdateState>, order_filler_reward_structure: OrderFillerRewardStructure) -> ProgramResult {
-        ctx.accounts.state.order_filler_reward_structure = order_filler_reward_structure;
+    pub fn update_order_filler_reward_structure(ctx: Context<AdminUpdateOrderState>, order_filler_reward_structure: OrderFillerRewardStructure) -> ProgramResult {
+        ctx.accounts.order_state.order_filler_reward_structure = order_filler_reward_structure;
         Ok(())
     }
 

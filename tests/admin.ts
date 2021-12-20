@@ -174,10 +174,10 @@ describe('admin', () => {
 
 		await clearingHouse.updateOrderFillerRewardStructure(newStructure);
 
-		const state = clearingHouse.getStateAccount();
+		const orderState = clearingHouse.getOrderStateAccount();
 
 		assert(
-			JSON.stringify(newStructure) === JSON.stringify(state.orderFillerRewardStructure)
+			JSON.stringify(newStructure) === JSON.stringify(orderState.orderFillerRewardStructure)
 		);
 	});
 
