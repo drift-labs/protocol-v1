@@ -22,6 +22,7 @@ pub mod error;
 pub mod math;
 pub mod state;
 pub mod optional_accounts;
+pub mod order_validation;
 
 #[cfg(feature = "mainnet-beta")]
 declare_id!("dammHkt7jmytvbS3nHTxQNEcP59aE57nxwV21YdqEDN");
@@ -43,6 +44,7 @@ pub mod clearing_house {
     use crate::math::fees::calculate_order_fee_tier;
     use crate::state::history::order::{OrderHistory, OrderRecord, OrderAction};
     use crate::state::order_state::{OrderState, OrderFillerRewardStructure};
+    use crate::order_validation::validate_order;
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -1297,26 +1299,6 @@ pub mod clearing_house {
             now,
         )?;
 
-        if base_asset_amount == 0 {
-            return Err(ErrorCode::InvalidOrder.into());
-        }
-
-        {
-            let market = &ctx.accounts.markets.load()?.markets
-                [Markets::index_from_u64(market_index)];
-            if base_asset_amount < market.amm.minimum_base_asset_trade_size {
-                return Err(ErrorCode::OrderAmountTooSmall.into());
-            }
-        }
-
-        if order_type == OrderType::Limit && price == 0 {
-            return Err(ErrorCode::InvalidOrder.into());
-        }
-
-        if order_type != OrderType::Stop && trigger_price > 0 {
-            return Err(ErrorCode::InvalidOrder.into());
-        }
-
         let user_orders = &mut ctx.accounts.user_orders.load_mut()?;
         let new_order_idx = user_orders.orders
             .iter()
@@ -1346,6 +1328,13 @@ pub mod clearing_house {
             trigger_price,
             trigger_condition,
         };
+
+        {
+            let market = &ctx.accounts.markets.load()?.markets
+                [Markets::index_from_u64(market_index)];
+            validate_order(&new_order, market)?;
+        }
+
         user_orders.orders[new_order_idx] = new_order;
 
         // Add to the order history account
