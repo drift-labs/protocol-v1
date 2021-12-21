@@ -1277,6 +1277,8 @@ pub mod clearing_house {
         price: u128,
         market_index: u64,
         reduce_only: bool,
+        trigger_price: u128,
+        trigger_condition: OrderTriggerCondition,
         optional_accounts: PlaceOrderOptionalAccounts,
     ) -> ProgramResult {
         let user = &mut ctx.accounts.user;
@@ -1295,7 +1297,7 @@ pub mod clearing_house {
             now,
         )?;
 
-        if base_asset_amount == 0 || price == 0 {
+        if base_asset_amount == 0 {
             return Err(ErrorCode::InvalidOrder.into());
         }
 
@@ -1305,6 +1307,14 @@ pub mod clearing_house {
             if base_asset_amount < market.amm.minimum_base_asset_trade_size {
                 return Err(ErrorCode::OrderAmountTooSmall.into());
             }
+        }
+
+        if order_type == OrderType::Limit && price == 0 {
+            return Err(ErrorCode::InvalidOrder.into());
+        }
+
+        if order_type != OrderType::Stop && trigger_price > 0 {
+            return Err(ErrorCode::InvalidOrder.into());
         }
 
         let user_orders = &mut ctx.accounts.user_orders.load_mut()?;
@@ -1321,19 +1331,20 @@ pub mod clearing_house {
         let discount_tier = calculate_order_fee_tier(&ctx.accounts.state.fee_structure, discount_token)?;
         let order_history_account = &mut ctx.accounts.order_history.load_mut()?;
         let order_id = order_history_account.next_order_id();
-        let new_order = match order_type {
-            OrderType::Limit => Order {
-                status: OrderStatus::Open,
-                ts: now,
-                order_id,
-                market_index,
-                price,
-                base_asset_amount,
-                base_asset_amount_filled: 0,
-                direction,
-                reduce_only,
-                discount_tier,
-            },
+        let new_order = Order {
+            status: OrderStatus::Open,
+            order_type,
+            ts: now,
+            order_id,
+            market_index,
+            price,
+            base_asset_amount,
+            base_asset_amount_filled: 0,
+            direction,
+            reduce_only,
+            discount_tier,
+            trigger_price,
+            trigger_condition,
         };
         user_orders.orders[new_order_idx] = new_order;
 
@@ -1347,6 +1358,7 @@ pub mod clearing_house {
             authority: ctx.accounts.authority.key(),
             action: OrderAction::Place,
             filler: Pubkey::default(),
+            trade_record_id: 0,
             base_asset_amount_filled: 0,
             quote_asset_amount: 0,
             filler_reward: 0,
@@ -1412,6 +1424,7 @@ pub mod clearing_house {
             authority: ctx.accounts.authority.key(),
             action: OrderAction::Cancel,
             filler: Pubkey::default(),
+            trade_record_id: 0,
             base_asset_amount_filled: 0,
             quote_asset_amount: 0,
             filler_reward: 0,
@@ -1451,6 +1464,7 @@ pub mod clearing_house {
             return Err(ErrorCode::OrderDoesNotExist.into());
         }
 
+        let order_type = order.order_type;
         let market_index = order.market_index;
         let direction = order.direction;
         let base_asset_amount_to_fill = order.base_asset_amount
@@ -1472,15 +1486,17 @@ pub mod clearing_house {
                 return Err(ErrorCode::InvalidOracle.into());
             }
 
-            let (max_trade_base_asset_amount, max_trade_direction) = math::amm::calculate_max_base_asset_amount_to_trade(&market.amm, limit_price)?;
-            if max_trade_direction != direction || max_trade_base_asset_amount == 0 {
-                return Err(ErrorCode::MarketCantFillOrder.into());
+            if order_type == OrderType::Limit {
+                let (max_trade_base_asset_amount, max_trade_direction) = math::amm::calculate_max_base_asset_amount_to_trade(&market.amm, limit_price)?;
+                if max_trade_direction != direction || max_trade_base_asset_amount == 0 {
+                    return Err(ErrorCode::MarketCantFillOrder.into());
+                }
+                base_asset_amount = min(base_asset_amount, max_trade_base_asset_amount);
             }
-            base_asset_amount = min(base_asset_amount, max_trade_base_asset_amount);
         }
 
-        let is_partial_fill = base_asset_amount != base_asset_amount_to_fill;
-        if is_partial_fill {
+        let order_filled = base_asset_amount == base_asset_amount_to_fill;
+        if !order_filled {
             order.base_asset_amount_filled = order
                 .base_asset_amount_filled
                 .checked_add(base_asset_amount)
@@ -1524,6 +1540,21 @@ pub mod clearing_house {
                 clock_slot,
                 &ctx.accounts.state.oracle_guard_rails.validity,
             )?;
+        }
+
+        if order_type == OrderType::Stop {
+            match order.trigger_condition {
+                OrderTriggerCondition::Above => {
+                    if mark_price_before <= order.trigger_price {
+                        return Err(ErrorCode::OrderTriggerConditionNotSatisfied.into());
+                    }
+                },
+                OrderTriggerCondition::Below => {
+                    if mark_price_before >= order.trigger_price {
+                        return Err(ErrorCode::OrderTriggerConditionNotSatisfied.into());
+                    }
+                }
+            }
         }
 
         // The trade increases the the user position if
@@ -1685,32 +1716,12 @@ pub mod clearing_house {
             return Err(ErrorCode::OracleMarkSpreadLimit.into());
         }
 
-        // Add to the order history account
-        let order_history_account = &mut ctx.accounts.order_history.load_mut()?;
-        let record_id = order_history_account.next_record_id();
-        order_history_account.append(OrderRecord {
-            ts: now,
-            record_id,
-            order: *order,
-            user: user.key(),
-            authority: user.authority,
-            action: OrderAction::Fill,
-            filler: filler.key(),
-            base_asset_amount_filled: base_asset_amount,
-            quote_asset_amount,
-            filler_reward,
-        });
-
-        if !is_partial_fill {
-            user_orders.orders[UserOrders::index_from_u64(order_index)] = Order::default();
-        }
-
         // Add to the trade history account
         let trade_history_account = &mut ctx.accounts.trade_history.load_mut()?;
-        let record_id = trade_history_account.next_record_id();
+        let trade_record_id = trade_history_account.next_record_id();
         trade_history_account.append(TradeRecord {
             ts: now,
-            record_id,
+            record_id: trade_record_id,
             user_authority: *ctx.accounts.authority.to_account_info().key,
             user: *user.to_account_info().key,
             direction,
@@ -1726,6 +1737,27 @@ pub mod clearing_house {
             market_index,
             oracle_price: oracle_price_after,
         });
+
+        // Add to the order history account
+        let order_history_account = &mut ctx.accounts.order_history.load_mut()?;
+        let record_id = order_history_account.next_record_id();
+        order_history_account.append(OrderRecord {
+            ts: now,
+            record_id,
+            order: *order,
+            user: user.key(),
+            authority: user.authority,
+            action: OrderAction::Fill,
+            filler: filler.key(),
+            trade_record_id,
+            base_asset_amount_filled: base_asset_amount,
+            quote_asset_amount,
+            filler_reward,
+        });
+
+        if order_filled {
+            user_orders.orders[UserOrders::index_from_u64(order_index)] = Order::default();
+        }
 
         // Try to update the funding rate at the end of every trade
         {

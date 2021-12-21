@@ -98,6 +98,8 @@ pub enum ErrorCode {
     ReduceOnlyOrderIncreasedRisk,
     #[msg("Order state already initialized")]
     OrderStateAlreadyInitialized,
+    #[msg("Order trigger condition not satisfied")]
+    OrderTriggerConditionNotSatisfied,
 }
 
 #[macro_export]

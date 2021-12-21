@@ -654,6 +654,16 @@
           "type": "bool"
         },
         {
+          "name": "triggerPrice",
+          "type": "u128"
+        },
+        {
+          "name": "triggerCondition",
+          "type": {
+            "defined": "OrderTriggerCondition"
+          }
+        },
+        {
           "name": "optionalAccounts",
           "type": {
             "defined": "PlaceOrderOptionalAccounts"
@@ -2760,6 +2770,10 @@
             "type": "publicKey"
           },
           {
+            "name": "tradeRecordId",
+            "type": "u128"
+          },
+          {
             "name": "baseAssetAmountFilled",
             "type": "u128"
           },
@@ -2802,6 +2816,12 @@
             }
           },
           {
+            "name": "orderType",
+            "type": {
+              "defined": "OrderType"
+            }
+          },
+          {
             "name": "ts",
             "type": "i64"
           },
@@ -2839,6 +2859,16 @@
             "name": "discountTier",
             "type": {
               "defined": "OrderDiscountTier"
+            }
+          },
+          {
+            "name": "triggerPrice",
+            "type": "u128"
+          },
+          {
+            "name": "triggerCondition",
+            "type": {
+              "defined": "OrderTriggerCondition"
             }
           }
         ]
@@ -3236,6 +3266,9 @@
         "variants": [
           {
             "name": "Limit"
+          },
+          {
+            "name": "Stop"
           }
         ]
       }
@@ -3259,6 +3292,20 @@
           },
           {
             "name": "Fourth"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OrderTriggerCondition",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Above"
+          },
+          {
+            "name": "Below"
           }
         ]
       }
@@ -3513,6 +3560,11 @@
       "code": 346,
       "name": "OrderStateAlreadyInitialized",
       "msg": "Order state already initialized"
+    },
+    {
+      "code": 347,
+      "name": "OrderTriggerConditionNotSatisfied",
+      "msg": "Order trigger condition not satisfied"
     }
   ]
 }

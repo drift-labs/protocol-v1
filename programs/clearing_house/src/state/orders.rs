@@ -26,6 +26,7 @@ impl UserOrders {
 #[zero_copy]
 pub struct Order {
     pub status: OrderStatus,
+    pub order_type: OrderType,
     pub ts: i64,
     pub order_id: u128,
     pub market_index: u64,
@@ -35,12 +36,15 @@ pub struct Order {
     pub direction: PositionDirection,
     pub reduce_only: bool,
     pub discount_tier: OrderDiscountTier,
+    pub trigger_price: u128,
+    pub trigger_condition: OrderTriggerCondition,
 }
 
 impl Default for Order {
     fn default() -> Self {
         return Self {
             status: OrderStatus::Init,
+            order_type: OrderType::Limit,
             ts: 0,
             order_id: 0,
             market_index: 0,
@@ -50,6 +54,8 @@ impl Default for Order {
             direction: PositionDirection::Long,
             reduce_only: false,
             discount_tier: OrderDiscountTier::None,
+            trigger_price: 0,
+            trigger_condition: OrderTriggerCondition::Above,
         };
     }
 }
@@ -63,6 +69,7 @@ pub enum  OrderStatus {
 #[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq)]
 pub enum  OrderType {
     Limit,
+    Stop,
 }
 
 #[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq)]
@@ -72,6 +79,12 @@ pub enum  OrderDiscountTier {
     Second,
     Third,
     Fourth
+}
+
+#[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq)]
+pub enum  OrderTriggerCondition {
+    Above,
+    Below,
 }
 
 

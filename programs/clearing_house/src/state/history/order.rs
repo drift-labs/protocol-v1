@@ -52,6 +52,7 @@ pub struct OrderRecord {
     pub order: Order,
     pub action: OrderAction,
     pub filler: Pubkey,
+    pub trade_record_id: u128,
     pub base_asset_amount_filled: u128,
     pub quote_asset_amount: u128,
     pub filler_reward: u128,

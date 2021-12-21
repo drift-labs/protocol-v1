@@ -17,7 +17,7 @@ import {
 	TradeHistoryAccount,
 	UserAccount,
 	UserPositionsAccount,
-	Market, OrderType, UserOrdersAccount, OrderHistoryAccount, OrderStateAccount,
+	Market, OrderType, UserOrdersAccount, OrderHistoryAccount, OrderStateAccount, OrderTriggerCondition,
 } from './types';
 import * as anchor from '@project-serum/anchor';
 import clearingHouseIDL from './idl/clearing_house.json';
@@ -732,6 +732,8 @@ export class ClearingHouse {
 		price: BN,
 		marketIndex: BN,
 		reduceOnly: boolean,
+		triggerPrice?: BN,
+		triggerCondition?: OrderTriggerCondition,
 		discountToken?: PublicKey,
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
@@ -743,6 +745,8 @@ export class ClearingHouse {
 					price,
 					marketIndex,
 					reduceOnly,
+					triggerPrice,
+					triggerCondition,
 					discountToken,
 				)
 			),
@@ -758,6 +762,8 @@ export class ClearingHouse {
 		price: BN,
 		marketIndex: BN,
 		reduceOnly: boolean,
+		triggerPrice?: BN,
+		triggerCondition?: OrderTriggerCondition,
 		discountToken?: PublicKey,
 	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
@@ -779,6 +785,14 @@ export class ClearingHouse {
 			});
 		}
 
+		if (!triggerPrice) {
+			triggerPrice = new BN(0);
+		}
+
+		if (!triggerCondition) {
+			triggerCondition = OrderTriggerCondition.ABOVE;
+		}
+
 		const state = this.getStateAccount();
 		const orderState = this.getOrderStateAccount();
 		return await this.program.instruction.placeOrder(
@@ -788,6 +802,8 @@ export class ClearingHouse {
 			price,
 			marketIndex,
 			reduceOnly,
+			triggerPrice,
+			triggerCondition,
 			optionalAccounts,
 			{
 				accounts: {

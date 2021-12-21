@@ -18,6 +18,7 @@ export class OracleSource {
 
 export class OrderType {
 	static readonly LIMIT = { limit: {} };
+	static readonly STOP = { stop: {} };
 }
 
 export class OrderStatus {
@@ -37,6 +38,11 @@ export class OrderAction {
 	static readonly PLACE = { place: {} };
 	static readonly CANCEL = { cancel: {} };
 	static readonly FILL = { fill: {} };
+}
+
+export class OrderTriggerCondition {
+	static readonly ABOVE = { above: {} };
+	static readonly BELOW = { below: {} };
 }
 
 export enum TradeSide {
@@ -200,6 +206,7 @@ export type OrderRecord = {
 	baseAssetAmountFilled: BN,
 	quoteAssetAmount: BN,
 	fillerReward: BN,
+	tradeRecordId: BN,
 };
 
 export type StateAccount = {
@@ -327,6 +334,7 @@ export type Order = {
 	baseAssetAmount: BN,
 	direction: PositionDirection,
 	reduceOnly: boolean,
+	triggerPrice: BN,
 	discountTier: OrderDiscountTier,
 };
 
