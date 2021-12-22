@@ -175,6 +175,11 @@ describe('orders', () => {
         assert(order.orderId.eq(expectedOrderId));
         assert(order.ts.gt(ZERO));
 
+        const userPositionsAccount = clearingHouseUser.getUserPositionsAccount();
+        const position = userPositionsAccount.positions[0];
+        const expectedOpenOrders = new BN(1);
+        assert(position.openOrders.eq(expectedOpenOrders));
+
         const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
         const orderRecord : OrderRecord = orderHistoryAccount.orderRecords[0];
         const expectedRecordId = new BN(1);
@@ -208,6 +213,11 @@ describe('orders', () => {
         assert(order.marketIndex.eq(new BN(0)));
         assert(enumsAreEqual(order.direction, PositionDirection.LONG));
         assert(enumsAreEqual(order.status, OrderStatus.INIT));
+
+        const userPositionsAccount = clearingHouseUser.getUserPositionsAccount();
+        const position = userPositionsAccount.positions[0];
+        const expectedOpenOrders = new BN(0);
+        assert(position.openOrders.eq(expectedOpenOrders));
 
         const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
         const orderRecord : OrderRecord = orderHistoryAccount.orderRecords[1];

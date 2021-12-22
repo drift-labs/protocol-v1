@@ -45,15 +45,16 @@ pub struct MarketPosition {
     pub last_cumulative_funding_rate: i128,
     pub last_cumulative_repeg_rebate: u128,
     pub last_funding_rate_ts: i64,
-    pub long_order_price: u128,
-    pub long_order_amount: u128,
-    pub short_order_price: u128,
-    pub short_order_amount: u128,
-    pub transfer_to: Pubkey,
+    pub open_orders: u128,
 
     // upgrade-ability
     pub padding0: u128,
     pub padding1: u128,
+    pub padding2: u128,
+    pub padding3: u128,
+    pub padding4: u128,
+    pub padding5: u128,
+    pub padding6: u128,
 }
 
 impl MarketPosition {
@@ -70,17 +71,6 @@ impl MarketPosition {
     }
 
     pub fn has_open_order(&self) -> bool {
-        return (self.long_order_amount != 0 && self.long_order_price != 0)
-            || (self.short_order_amount != 0 && self.short_order_price != 0);
-    }
-
-    pub fn get_order(&self) -> ClearingHouseResult<(PositionDirection, u128, u128)> {
-        if self.long_order_amount > 0 && self.long_order_price > 0 {
-            Ok((PositionDirection::Long, self.long_order_amount, self.long_order_price))
-        } else if self.short_order_amount > 0 && self.short_order_price > 0 {
-            Ok((PositionDirection::Short, self.short_order_amount, self.short_order_price))
-        } else {
-            Err(ErrorCode::UserHasNoOrder.into())
-        }
+        return self.open_orders != 0;
     }
 }

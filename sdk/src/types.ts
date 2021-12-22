@@ -300,10 +300,7 @@ export type UserPosition = {
 	lastCumulativeFundingRate: BN;
 	marketIndex: BN;
 	quoteAssetAmount: BN;
-	longOrderAmount: BN;
-	longOrderPrice: BN;
-	shortOrderAmount: BN;
-	shortOrderPrice: BN;
+	openOrders: BN;
 };
 
 export type UserPositionsAccount = {

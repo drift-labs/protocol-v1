@@ -2996,24 +2996,8 @@
             "type": "i64"
           },
           {
-            "name": "longOrderPrice",
+            "name": "openOrders",
             "type": "u128"
-          },
-          {
-            "name": "longOrderAmount",
-            "type": "u128"
-          },
-          {
-            "name": "shortOrderPrice",
-            "type": "u128"
-          },
-          {
-            "name": "shortOrderAmount",
-            "type": "u128"
-          },
-          {
-            "name": "transferTo",
-            "type": "publicKey"
           },
           {
             "name": "padding0",
@@ -3021,6 +3005,26 @@
           },
           {
             "name": "padding1",
+            "type": "u128"
+          },
+          {
+            "name": "padding2",
+            "type": "u128"
+          },
+          {
+            "name": "padding3",
+            "type": "u128"
+          },
+          {
+            "name": "padding4",
+            "type": "u128"
+          },
+          {
+            "name": "padding5",
+            "type": "u128"
+          },
+          {
+            "name": "padding6",
             "type": "u128"
           }
         ]

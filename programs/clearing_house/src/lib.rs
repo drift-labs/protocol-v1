@@ -1019,6 +1019,13 @@ pub mod clearing_house {
 
         user_orders.orders[new_order_idx] = new_order;
 
+        // Increment open orders for existing position
+        let position_index = get_position_index(user_positions, market_index)
+            .or_else(|_| add_new_position(user_positions, market_index))?;
+        let market_position = &mut user_positions.positions[position_index];
+        market_position.open_orders += 1;
+
+
         // Add to the order history account
         let record_id = order_history_account.next_record_id();
         order_history_account.append(OrderRecord {
@@ -1101,6 +1108,10 @@ pub mod clearing_house {
             filler_reward: 0,
         });
 
+        // Decrement open orders for existing position
+        let position_index = get_position_index(user_positions, order.market_index)?;
+        let market_position = &mut user_positions.positions[position_index];
+        market_position.open_orders -= 1;
         user_orders.orders[UserOrders::index_from_u64(order_index)] = Order::default();
 
         Ok(())
@@ -1152,8 +1163,7 @@ pub mod clearing_house {
         }
 
         // Get existing position
-        let position_index = get_position_index(user_positions, market_index)
-            .or_else(|_| add_new_position(user_positions, market_index))?;
+        let position_index = get_position_index(user_positions, market_index)?;
         let market_position = &mut user_positions.positions[position_index];
 
         // Collect data about position/market before trade is executed so that it can be stored in trade history
@@ -1405,6 +1415,8 @@ pub mod clearing_house {
         // Cant reset order until after its been logged in order history
         if order.base_asset_amount == order.base_asset_amount_filled {
             *order = Order::default();
+            let market_position = &mut user_positions.positions[position_index];
+            market_position.open_orders -= 1;
         }
 
         // Try to update the funding rate at the end of every trade
@@ -2298,13 +2310,14 @@ fn add_new_position(user_positions: &mut RefMut<UserPositions>, market_index: u6
         last_cumulative_funding_rate: 0,
         last_cumulative_repeg_rebate: 0,
         last_funding_rate_ts: 0,
-        short_order_price: 0,
-        short_order_amount: 0,
-        long_order_price: 0,
-        long_order_amount: 0,
-        transfer_to: Pubkey::default(),
+        open_orders: 0,
         padding0: 0,
         padding1: 0,
+        padding2: 0,
+        padding3: 0,
+        padding4: 0,
+        padding5: 0,
+        padding6: 0,
     };
 
     user_positions.positions[new_position_index] = new_market_position;
