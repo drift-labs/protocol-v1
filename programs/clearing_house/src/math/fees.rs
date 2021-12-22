@@ -1,6 +1,6 @@
 use crate::error::*;
 use crate::math_error;
-use crate::state::orders::OrderDiscountTier;
+use crate::state::user_orders::OrderDiscountTier;
 use crate::state::state::{DiscountTokenTier, FeeStructure};
 use crate::state::user::User;
 use anchor_lang::Account;

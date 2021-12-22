@@ -1,5 +1,5 @@
 use crate::error::{ClearingHouseResult, ErrorCode};
-use crate::state::orders::{Order, OrderType};
+use crate::state::user_orders::{Order, OrderType};
 use crate::state::market::Market;
 use solana_program::msg;
 

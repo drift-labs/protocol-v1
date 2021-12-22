@@ -9,8 +9,8 @@ use crate::state::history::{funding_payment::FundingPaymentHistory, trade::Trade
 use crate::state::market::Markets;
 use crate::state::state::State;
 use crate::state::user::{User, UserPositions};
-use crate::state::orders::UserOrders;
-use crate::state::history::order::{OrderHistory};
+use crate::state::user_orders::UserOrders;
+use crate::state::history::order_history::{OrderHistory};
 use crate::state::order_state::OrderState;
 
 #[derive(Accounts)]

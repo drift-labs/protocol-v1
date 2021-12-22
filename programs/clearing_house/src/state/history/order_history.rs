@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
-use crate::state::orders::Order;
+use crate::state::user_orders::Order;
 
 #[account(zero_copy)]
 pub struct OrderHistory {

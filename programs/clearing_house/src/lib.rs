@@ -4,11 +4,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use context::*;
 use controller::position::PositionDirection;
 use error::*;
-use math::{amm, bn, constants::*, fees, margin::*, position::*, withdrawal::*};
+use math::{amm, bn, constants::*, fees, margin::*, orders::*, position::*, withdrawal::*};
 use state::{
     history::trade::TradeRecord,
     market::{Market, Markets, OracleSource, AMM},
-    orders::*,
+    user_orders::*,
     order_state::*,
     state::*,
     user::{MarketPosition, User},
@@ -42,9 +42,10 @@ pub mod clearing_house {
     use crate::error::ErrorCode::InvalidOracle;
     use std::cmp::min;
     use crate::math::fees::calculate_order_fee_tier;
-    use crate::state::history::order::{OrderHistory, OrderRecord, OrderAction};
+    use crate::state::history::order_history::{OrderHistory, OrderRecord, OrderAction};
     use crate::state::order_state::{OrderState, OrderFillerRewardStructure};
     use crate::order_validation::validate_order;
+    use crate::controller::orders::update_order_after_trade;
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -1448,22 +1449,13 @@ pub mod clearing_house {
         )?;
 
         let user_orders = &mut ctx.accounts.user_orders.load_mut()?;
-        let order = &mut user_orders.orders[UserOrders::index_from_u64(order_index)];
+        let order = &user_orders.orders[UserOrders::index_from_u64(order_index)];
         if order.status != OrderStatus::Open {
             return Err(ErrorCode::OrderDoesNotExist.into());
         }
 
-        let order_type = order.order_type;
         let market_index = order.market_index;
-        let direction = order.direction;
-        let base_asset_amount_to_fill = order.base_asset_amount
-            .checked_sub(order.base_asset_amount_filled)
-            .ok_or_else(math_error!())?;
-        let limit_price = order.price;
-        let reduce_only = order.reduce_only;
-        let discount_tier = order.discount_tier;
-
-        let mut base_asset_amount = base_asset_amount_to_fill;
+        let minimum_base_asset_trade_size : u128;
         {
             let market = &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
 
@@ -1475,34 +1467,13 @@ pub mod clearing_house {
                 return Err(ErrorCode::InvalidOracle.into());
             }
 
-            if order_type == OrderType::Limit {
-                let (max_trade_base_asset_amount, max_trade_direction) = math::amm::calculate_max_base_asset_amount_to_trade(&market.amm, limit_price)?;
-                if max_trade_direction != direction || max_trade_base_asset_amount == 0 {
-                    return Err(ErrorCode::MarketCantFillOrder.into());
-                }
-                base_asset_amount = min(base_asset_amount, max_trade_base_asset_amount);
-            }
-        }
-
-        let order_filled = base_asset_amount == base_asset_amount_to_fill;
-        if !order_filled {
-            order.base_asset_amount_filled = order
-                .base_asset_amount_filled
-                .checked_add(base_asset_amount)
-                .ok_or_else(math_error!())?;
+            minimum_base_asset_trade_size = market.amm.minimum_base_asset_trade_size;
         }
 
         // Get existing position
         let position_index = get_position_index(user_positions, market_index)
             .or_else(|_| add_new_position(user_positions, market_index))?;
         let market_position = &mut user_positions.positions[position_index];
-
-        // A trade is risk increasing if it increases the users leverage
-        // If a trade is risk increasing and brings the user's margin ratio below initial requirement
-        // the trade fails
-        // If a trade is risk increasing and it pushes the mark price too far away from the oracle price
-        // the trade fails
-        let mut potentially_risk_increasing = true;
 
         // Collect data about position/market before trade is executed so that it can be stored in trade history
         let quote_asset_reserve_before;
@@ -1531,20 +1502,22 @@ pub mod clearing_house {
             )?;
         }
 
-        if order_type == OrderType::Stop {
-            match order.trigger_condition {
-                OrderTriggerCondition::Above => {
-                    if mark_price_before <= order.trigger_price {
-                        return Err(ErrorCode::OrderTriggerConditionNotSatisfied.into());
-                    }
-                },
-                OrderTriggerCondition::Below => {
-                    if mark_price_before >= order.trigger_price {
-                        return Err(ErrorCode::OrderTriggerConditionNotSatisfied.into());
-                    }
-                }
-            }
+        let base_asset_amount : u128;
+        {
+            let market = &ctx.accounts.markets.load()?.markets
+                [Markets::index_from_u64(market_index)];
+
+            base_asset_amount = calculate_base_asset_amount_to_trade(order, market, Some(mark_price_before))?;
         }
+
+        // A trade is risk increasing if it increases the users leverage
+        // If a trade is risk increasing and brings the user's margin ratio below initial requirement
+        // the trade fails
+        // If a trade is risk increasing and it pushes the mark price too far away from the oracle price
+        // the trade fails
+        let mut potentially_risk_increasing = true;
+        let direction = order.direction;
+        let reduce_only = order.reduce_only;
 
         // The trade increases the the user position if
         // 1) the user does not have a position
@@ -1605,6 +1578,9 @@ pub mod clearing_house {
             return Err(ErrorCode::ReduceOnlyOrderIncreasedRisk.into());
         }
 
+        let order = &mut user_orders.orders[UserOrders::index_from_u64(order_index)];
+        update_order_after_trade(order, minimum_base_asset_trade_size, base_asset_amount)?;
+
         // Collect data about position/market after trade is executed so that it can be stored in trade history
         let quote_asset_amount;
         let mark_price_after: u128;
@@ -1647,6 +1623,7 @@ pub mod clearing_house {
         }
 
         // Don't account for referrer/discount token for now
+        let discount_tier = order.discount_tier;
         let (user_fee, fee_to_market, token_discount, filler_reward) = fees::calculate_fee_for_limit_order(
             quote_asset_amount,
             &ctx.accounts.state.fee_structure,
@@ -1744,8 +1721,9 @@ pub mod clearing_house {
             filler_reward,
         });
 
-        if order_filled {
-            user_orders.orders[UserOrders::index_from_u64(order_index)] = Order::default();
+        // Cant reset order until after its been logged in order history
+        if order.base_asset_amount == order.base_asset_amount_filled {
+            *order = Order::default();
         }
 
         // Try to update the funding rate at the end of every trade
