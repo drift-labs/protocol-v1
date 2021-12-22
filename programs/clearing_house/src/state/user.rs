@@ -1,5 +1,3 @@
-use crate::controller::position::PositionDirection;
-use crate::error::{ClearingHouseResult, ErrorCode};
 use anchor_lang::prelude::*;
 
 #[account]

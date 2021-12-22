@@ -4,7 +4,6 @@ use crate::state::user::User;
 use anchor_lang::prelude::{AccountInfo, Pubkey};
 use anchor_lang::Account;
 use solana_program::account_info::next_account_info;
-use solana_program::msg;
 use spl_token::solana_program::program_pack::{IsInitialized, Pack};
 use spl_token::state::Account as TokenAccount;
 use std::slice::Iter;

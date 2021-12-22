@@ -1,7 +1,6 @@
 use crate::error::ClearingHouseResult;
 use crate::error::*;
 use crate::math_error;
-use crate::state::market::Market;
 use crate::state::user_orders::Order;
 use solana_program::msg;
 
