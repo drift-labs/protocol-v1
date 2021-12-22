@@ -8,7 +8,11 @@ import {
 import {FeeStructure, IWallet, OracleGuardRails, OracleSource, OrderFillerRewardStructure} from './types';
 import { BN, Idl, Program, Provider } from '@project-serum/anchor';
 import * as anchor from '@project-serum/anchor';
-import {getClearingHouseStateAccountPublicKeyAndNonce, getOrderStateAccountPublicKeyAndNonce} from './addresses';
+import {
+	getClearingHouseStateAccountPublicKey,
+	getClearingHouseStateAccountPublicKeyAndNonce,
+	getOrderStateAccountPublicKeyAndNonce
+} from './addresses';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { ClearingHouse } from './clearingHouse';
 import { PEG_PRECISION } from './constants/numericConstants';
@@ -172,9 +176,19 @@ export class Admin extends ClearingHouse {
 			this.opts
 		);
 
+		const initializeOrderStateTxSig = await this.initializeOrderState();
+
+		return [initializeTxSig, initializeHistoryTxSig, initializeOrderStateTxSig];
+	}
+
+	public async initializeOrderState() : Promise<TransactionSignature> {
 		const orderHistory = anchor.web3.Keypair.generate();
 		const [orderStatePublicKey, orderStateNonce] =
 			await getOrderStateAccountPublicKeyAndNonce(
+				this.program.programId
+			);
+		const clearingHouseStatePublicKey =
+			await getClearingHouseStateAccountPublicKey(
 				this.program.programId
 			);
 
@@ -195,15 +209,13 @@ export class Admin extends ClearingHouse {
 				],
 			});
 
-		const initializeOrderStateTxSig = await this.txSender.send(
+		return await this.txSender.send(
 			initializeOrderStateTx,
 			[
 				orderHistory,
 			],
 			this.opts
 		);
-
-		return [initializeTxSig, initializeHistoryTxSig, initializeOrderStateTxSig];
 	}
 
 	public async initializeMarket(
