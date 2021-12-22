@@ -1,6 +1,6 @@
+use crate::state::user_orders::Order;
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
-use crate::state::user_orders::Order;
 
 #[account(zero_copy)]
 pub struct OrderHistory {
@@ -62,7 +62,7 @@ pub struct OrderRecord {
 pub enum OrderAction {
     Place,
     Cancel,
-    Fill
+    Fill,
 }
 
 impl Default for OrderAction {

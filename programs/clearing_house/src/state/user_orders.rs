@@ -1,6 +1,6 @@
+use crate::controller::position::PositionDirection;
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
-use crate::controller::position::PositionDirection;
 
 #[account(zero_copy)]
 pub struct UserOrders {
@@ -61,30 +61,28 @@ impl Default for Order {
 }
 
 #[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq)]
-pub enum  OrderStatus {
+pub enum OrderStatus {
     Init,
     Open,
 }
 
 #[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq)]
-pub enum  OrderType {
+pub enum OrderType {
     Limit,
     Stop,
 }
 
 #[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq)]
-pub enum  OrderDiscountTier {
+pub enum OrderDiscountTier {
     None,
     First,
     Second,
     Third,
-    Fourth
+    Fourth,
 }
 
 #[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq)]
-pub enum  OrderTriggerCondition {
+pub enum OrderTriggerCondition {
     Above,
     Below,
 }
-
-

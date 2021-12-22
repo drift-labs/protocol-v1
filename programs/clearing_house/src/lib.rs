@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
 
+use crate::state::user::UserPositions;
 use context::*;
 use controller::position::PositionDirection;
 use error::*;
@@ -8,21 +9,20 @@ use math::{amm, bn, constants::*, fees, margin::*, orders::*, position::*, withd
 use state::{
     history::trade::TradeRecord,
     market::{Market, Markets, OracleSource, AMM},
-    user_orders::*,
     order_state::*,
     state::*,
     user::{MarketPosition, User},
+    user_orders::*,
 };
 use std::cell::RefMut;
-use crate::state::user::UserPositions;
 
 pub mod context;
 pub mod controller;
 pub mod error;
 pub mod math;
-pub mod state;
 pub mod optional_accounts;
 pub mod order_validation;
+pub mod state;
 
 #[cfg(feature = "mainnet-beta")]
 declare_id!("dammHkt7jmytvbS3nHTxQNEcP59aE57nxwV21YdqEDN");
@@ -32,20 +32,20 @@ declare_id!("AsW7LnXB9UA1uec9wi9MctYTgTz7YH9snhxd16GsFaGX");
 #[program]
 pub mod clearing_house {
     use crate::math;
-    use crate::optional_accounts::{get_whitelist_token, get_discount_token};
+    use crate::optional_accounts::{get_discount_token, get_whitelist_token};
     use crate::state::history::curve::CurveRecord;
     use crate::state::history::deposit::{DepositDirection, DepositRecord};
     use crate::state::history::liquidation::LiquidationRecord;
 
     use super::*;
-    use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
-    use crate::error::ErrorCode::InvalidOracle;
-    use std::cmp::min;
-    use crate::math::fees::calculate_order_fee_tier;
-    use crate::state::history::order_history::{OrderHistory, OrderRecord, OrderAction};
-    use crate::state::order_state::{OrderState, OrderFillerRewardStructure};
-    use crate::order_validation::validate_order;
     use crate::controller::orders::update_order_after_trade;
+    use crate::error::ErrorCode::InvalidOracle;
+    use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
+    use crate::math::fees::calculate_order_fee_tier;
+    use crate::order_validation::validate_order;
+    use crate::state::history::order_history::{OrderAction, OrderHistory, OrderRecord};
+    use crate::state::order_state::{OrderFillerRewardStructure, OrderState};
+    use std::cmp::min;
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -205,11 +205,13 @@ pub mod clearing_house {
         Ok(())
     }
 
-    pub fn initialize_order_state(ctx: Context<InitializeOrderState>, _order_house_nonce: u8,) -> ProgramResult {
+    pub fn initialize_order_state(
+        ctx: Context<InitializeOrderState>,
+        _order_house_nonce: u8,
+    ) -> ProgramResult {
         let state = &mut ctx.accounts.state;
 
-        if !state.order_state.eq(&Pubkey::default())
-        {
+        if !state.order_state.eq(&Pubkey::default()) {
             return Err(ErrorCode::OrderStateAlreadyInitialized.into());
         }
 
@@ -221,7 +223,7 @@ pub mod clearing_house {
             order_filler_reward_structure: OrderFillerRewardStructure {
                 reward_numerator: 1,
                 reward_denominator: 10,
-            }
+            },
         };
 
         Ok(())
@@ -521,13 +523,14 @@ pub mod clearing_house {
             let market = &mut ctx.accounts.markets.load_mut()?.markets
                 [Markets::index_from_u64(market_index)];
             mark_price_before = market.amm.mark_price()?;
-            let (oracle_price, _, _oracle_mark_spread_pct_before) = amm::calculate_oracle_mark_spread_pct(
-                &market.amm,
-                &ctx.accounts.oracle,
-                0,
-                clock_slot,
-                None,
-            )?;
+            let (oracle_price, _, _oracle_mark_spread_pct_before) =
+                amm::calculate_oracle_mark_spread_pct(
+                    &market.amm,
+                    &ctx.accounts.oracle,
+                    0,
+                    clock_slot,
+                    None,
+                )?;
             oracle_mark_spread_pct_before = _oracle_mark_spread_pct_before;
             is_oracle_valid = amm::is_oracle_valid(
                 &market.amm,
@@ -648,12 +651,13 @@ pub mod clearing_house {
             &user.key(),
             &ctx.accounts.authority.key(),
         )?;
-        let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) = fees::calculate_fee_for_market_order(
-            quote_asset_amount,
-            &ctx.accounts.state.fee_structure,
-            discount_token,
-            &referrer,
-        )?;
+        let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) =
+            fees::calculate_fee_for_market_order(
+                quote_asset_amount,
+                &ctx.accounts.state.fee_structure,
+                discount_token,
+                &referrer,
+            )?;
 
         // Increment the clearing house's total fee variables
         {
@@ -843,12 +847,13 @@ pub mod clearing_house {
             &user.key(),
             &ctx.accounts.authority.key(),
         )?;
-        let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) = fees::calculate_fee_for_market_order(
-            quote_asset_amount,
-            &ctx.accounts.state.fee_structure,
-            discount_token,
-            &referrer,
-        )?;
+        let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) =
+            fees::calculate_fee_for_market_order(
+                quote_asset_amount,
+                &ctx.accounts.state.fee_structure,
+                discount_token,
+                &referrer,
+            )?;
 
         // Increment the clearing house's total fee variables
         market.amm.total_fee = market
@@ -982,7 +987,8 @@ pub mod clearing_house {
         )?;
 
         let user_orders = &mut ctx.accounts.user_orders.load_mut()?;
-        let new_order_idx = user_orders.orders
+        let new_order_idx = user_orders
+            .orders
             .iter()
             .position(|order| order.status.eq(&OrderStatus::Init))
             .ok_or(ErrorCode::MaxNumberOfOrders)?;
@@ -992,7 +998,8 @@ pub mod clearing_house {
             &ctx.accounts.state.discount_mint,
             &ctx.accounts.authority.key(),
         )?;
-        let discount_tier = calculate_order_fee_tier(&ctx.accounts.state.fee_structure, discount_token)?;
+        let discount_tier =
+            calculate_order_fee_tier(&ctx.accounts.state.fee_structure, discount_token)?;
         let order_history_account = &mut ctx.accounts.order_history.load_mut()?;
         let order_id = order_history_account.next_order_id();
         let new_order = Order {
@@ -1012,8 +1019,8 @@ pub mod clearing_house {
         };
 
         {
-            let market = &ctx.accounts.markets.load()?.markets
-                [Markets::index_from_u64(market_index)];
+            let market =
+                &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
             validate_order(&new_order, market)?;
         }
 
@@ -1024,7 +1031,6 @@ pub mod clearing_house {
             .or_else(|_| add_new_position(user_positions, market_index))?;
         let market_position = &mut user_positions.positions[position_index];
         market_position.open_orders += 1;
-
 
         // Add to the order history account
         let record_id = order_history_account.next_record_id();
@@ -1066,10 +1072,7 @@ pub mod clearing_house {
     #[access_control(
         exchange_not_paused(&ctx.accounts.state)
     )]
-    pub fn cancel_order<'info>(
-        ctx: Context<CancelOrder>,
-        order_index: u64
-    ) -> ProgramResult {
+    pub fn cancel_order<'info>(ctx: Context<CancelOrder>, order_index: u64) -> ProgramResult {
         let user = &mut ctx.accounts.user;
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
@@ -1120,10 +1123,7 @@ pub mod clearing_house {
     #[access_control(
         exchange_not_paused(&ctx.accounts.state)
     )]
-    pub fn fill_order<'info>(
-        ctx: Context<FillOrder>,
-        order_index: u64,
-    ) -> ProgramResult {
+    pub fn fill_order<'info>(ctx: Context<FillOrder>, order_index: u64) -> ProgramResult {
         let user = &mut ctx.accounts.user;
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
@@ -1147,9 +1147,10 @@ pub mod clearing_house {
         }
 
         let market_index = order.market_index;
-        let minimum_base_asset_trade_size : u128;
+        let minimum_base_asset_trade_size: u128;
         {
-            let market = &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
+            let market =
+                &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
 
             if !market.initialized {
                 return Err(ErrorCode::MarketIndexNotInitialized.into());
@@ -1193,12 +1194,13 @@ pub mod clearing_house {
             )?;
         }
 
-        let base_asset_amount : u128;
+        let base_asset_amount: u128;
         {
-            let market = &ctx.accounts.markets.load()?.markets
-                [Markets::index_from_u64(market_index)];
+            let market =
+                &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
 
-            base_asset_amount = calculate_base_asset_amount_to_trade(order, market, Some(mark_price_before))?;
+            base_asset_amount =
+                calculate_base_asset_amount_to_trade(order, market, Some(mark_price_before))?;
         }
 
         // A trade is risk increasing if it increases the users leverage
@@ -1249,7 +1251,8 @@ pub mod clearing_house {
                     .ok_or_else(math_error!())?;
 
                 // If the value of the new position is less than value of the old position, consider it risk decreasing
-                if base_asset_amount_after_close < market_position.base_asset_amount.unsigned_abs() {
+                if base_asset_amount_after_close < market_position.base_asset_amount.unsigned_abs()
+                {
                     potentially_risk_increasing = false;
                 }
 
@@ -1285,7 +1288,11 @@ pub mod clearing_house {
                 .ok_or_else(math_error!())?
                 .unsigned_abs();
             let round_up = direction == PositionDirection::Long;
-            quote_asset_amount = math::quote_asset::reserve_to_amount(quote_asset_reserve_change, market.amm.peg_multiplier, round_up)?;
+            quote_asset_amount = math::quote_asset::reserve_to_amount(
+                quote_asset_reserve_change,
+                market.amm.peg_multiplier,
+                round_up,
+            )?;
 
             mark_price_after = market.amm.mark_price()?;
             let (_oracle_price_after, _oracle_mark_spread_after, _oracle_mark_spread_pct_after) =
@@ -1315,12 +1322,13 @@ pub mod clearing_house {
 
         // Don't account for referrer/discount token for now
         let discount_tier = order.discount_tier;
-        let (user_fee, fee_to_market, token_discount, filler_reward) = fees::calculate_fee_for_limit_order(
-            quote_asset_amount,
-            &ctx.accounts.state.fee_structure,
-            &ctx.accounts.order_state.order_filler_reward_structure,
-            &discount_tier,
-        )?;
+        let (user_fee, fee_to_market, token_discount, filler_reward) =
+            fees::calculate_fee_for_limit_order(
+                quote_asset_amount,
+                &ctx.accounts.state.fee_structure,
+                &ctx.accounts.order_state.order_filler_reward_structure,
+                &discount_tier,
+            )?;
 
         // Increment the clearing house's total fee variables
         {
@@ -1366,7 +1374,7 @@ pub mod clearing_house {
         )?;
         if is_oracle_mark_too_divergent
             && oracle_mark_spread_pct_after.unsigned_abs()
-            >= oracle_mark_spread_pct_before.unsigned_abs()
+                >= oracle_mark_spread_pct_before.unsigned_abs()
             && is_oracle_valid
             && potentially_risk_increasing
         {
@@ -2179,7 +2187,10 @@ pub mod clearing_house {
         Ok(())
     }
 
-    pub fn update_order_filler_reward_structure(ctx: Context<AdminUpdateOrderState>, order_filler_reward_structure: OrderFillerRewardStructure) -> ProgramResult {
+    pub fn update_order_filler_reward_structure(
+        ctx: Context<AdminUpdateOrderState>,
+        order_filler_reward_structure: OrderFillerRewardStructure,
+    ) -> ProgramResult {
         ctx.accounts.order_state.order_filler_reward_structure = order_filler_reward_structure;
         Ok(())
     }
@@ -2284,7 +2295,10 @@ pub mod clearing_house {
     }
 }
 
-fn get_position_index(user_positions: &mut RefMut<UserPositions>, market_index: u64) -> ClearingHouseResult<usize> {
+fn get_position_index(
+    user_positions: &mut RefMut<UserPositions>,
+    market_index: u64,
+) -> ClearingHouseResult<usize> {
     let position_index = user_positions
         .positions
         .iter_mut()
@@ -2292,11 +2306,14 @@ fn get_position_index(user_positions: &mut RefMut<UserPositions>, market_index: 
 
     match position_index {
         Some(position_index) => Ok(position_index),
-        None => Err(ErrorCode::UserHasNoPositionInMarket.into())
+        None => Err(ErrorCode::UserHasNoPositionInMarket.into()),
     }
 }
 
-fn add_new_position(user_positions: &mut RefMut<UserPositions>, market_index: u64) -> ClearingHouseResult<usize> {
+fn add_new_position(
+    user_positions: &mut RefMut<UserPositions>,
+    market_index: u64,
+) -> ClearingHouseResult<usize> {
     let new_position_index = user_positions
         .positions
         .iter()

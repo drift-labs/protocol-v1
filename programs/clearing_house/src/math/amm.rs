@@ -4,16 +4,18 @@ use anchor_lang::prelude::AccountInfo;
 use solana_program::msg;
 
 use crate::controller::amm::SwapDirection;
+use crate::controller::position::PositionDirection;
 use crate::error::*;
 use crate::math::bn;
 use crate::math::bn::U192;
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
-use crate::math::constants::{MARK_PRICE_PRECISION, ONE_HOUR, PRICE_TO_PEG_PRECISION_RATIO, PEG_PRECISION};
+use crate::math::constants::{
+    MARK_PRICE_PRECISION, ONE_HOUR, PEG_PRECISION, PRICE_TO_PEG_PRECISION_RATIO,
+};
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math_error;
 use crate::state::market::{Market, AMM};
 use crate::state::state::{PriceDivergenceGuardRails, ValidityGuardRails};
-use crate::controller::position::PositionDirection;
 
 pub fn calculate_price(
     unpegged_quote_asset_amount: u128,
@@ -329,7 +331,10 @@ pub fn adjust_k_cost(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouse
     Ok(cost)
 }
 
-pub fn calculate_max_base_asset_amount_to_trade(amm: &AMM, limit_price: u128) -> ClearingHouseResult<(u128, PositionDirection)> {
+pub fn calculate_max_base_asset_amount_to_trade(
+    amm: &AMM,
+    limit_price: u128,
+) -> ClearingHouseResult<(u128, PositionDirection)> {
     let invariant_sqrt_u192 = U192::from(amm.sqrt_k);
     let invariant = invariant_sqrt_u192
         .checked_mul(invariant_sqrt_u192)
@@ -345,17 +350,20 @@ pub fn calculate_max_base_asset_amount_to_trade(amm: &AMM, limit_price: u128) ->
         .checked_div(U192::from(PEG_PRECISION))
         .ok_or_else(math_error!())?;
 
-    let new_base_asset_reserve = new_base_asset_reserve_squared.integer_sqrt().try_to_u128()?;
+    let new_base_asset_reserve = new_base_asset_reserve_squared
+        .integer_sqrt()
+        .try_to_u128()?;
 
     return if new_base_asset_reserve > amm.base_asset_reserve {
-        let max_trade_amount = new_base_asset_reserve.
-            checked_sub(amm.base_asset_reserve)
+        let max_trade_amount = new_base_asset_reserve
+            .checked_sub(amm.base_asset_reserve)
             .ok_or_else(math_error!())?;
         Ok((max_trade_amount, PositionDirection::Short))
     } else {
-        let max_trade_amount = amm.base_asset_reserve.
-            checked_sub(new_base_asset_reserve)
+        let max_trade_amount = amm
+            .base_asset_reserve
+            .checked_sub(new_base_asset_reserve)
             .ok_or_else(math_error!())?;
         Ok((max_trade_amount, PositionDirection::Long))
-    }
+    };
 }

@@ -1,6 +1,6 @@
 use crate::error::{ClearingHouseResult, ErrorCode};
-use crate::state::user_orders::{Order, OrderType};
 use crate::state::market::Market;
+use crate::state::user_orders::{Order, OrderType};
 use solana_program::msg;
 
 pub fn validate_order(order: &Order, market: &Market) -> ClearingHouseResult {

@@ -4,10 +4,10 @@ use crate::state::user::User;
 use anchor_lang::prelude::{AccountInfo, Pubkey};
 use anchor_lang::Account;
 use solana_program::account_info::next_account_info;
+use solana_program::msg;
 use spl_token::solana_program::program_pack::{IsInitialized, Pack};
 use spl_token::state::Account as TokenAccount;
 use std::slice::Iter;
-use solana_program::msg;
 
 pub fn get_whitelist_token(
     optional_accounts: InitializeUserOptionalAccounts,
@@ -48,11 +48,11 @@ pub fn get_discount_token_and_referrer<'a, 'b, 'c, 'd, 'e>(
     authority_public_key: &'e Pubkey,
 ) -> ClearingHouseResult<(Option<TokenAccount>, Option<Account<'b, User>>)> {
     let account_info_iter = &mut accounts.iter();
-    let optional_discount_token= get_discount_token(
-       optional_accounts.discount_token,
+    let optional_discount_token = get_discount_token(
+        optional_accounts.discount_token,
         account_info_iter,
         discount_mint,
-        authority_public_key
+        authority_public_key,
     )?;
 
     let mut optional_referrer = None;

@@ -1,6 +1,6 @@
-use anchor_lang::prelude::*;
-use crate::error::{ClearingHouseResult, ErrorCode};
 use crate::controller::position::PositionDirection;
+use crate::error::{ClearingHouseResult, ErrorCode};
+use anchor_lang::prelude::*;
 
 #[account]
 #[derive(Default)]
@@ -59,7 +59,8 @@ pub struct MarketPosition {
 
 impl MarketPosition {
     pub fn is_for(&self, market_index: u64) -> bool {
-        return self.market_index == market_index && (self.is_open_position() || self.has_open_order());
+        return self.market_index == market_index
+            && (self.is_open_position() || self.has_open_order());
     }
 
     pub fn is_available(&self) -> bool {

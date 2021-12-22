@@ -73,9 +73,13 @@ pub fn peg_quote_asset_amount(
     return Ok(unpegged_quote_asset_amount);
 }
 
-pub fn reserve_to_amount(quote_asset_reserve: u128, peg_multiplier: u128, round_up: bool) -> ClearingHouseResult<u128> {
+pub fn reserve_to_amount(
+    quote_asset_reserve: u128,
+    peg_multiplier: u128,
+    round_up: bool,
+) -> ClearingHouseResult<u128> {
     peg_quote_asset_amount(
         scale_from_amm_precision(quote_asset_reserve, round_up)?,
-        peg_multiplier
+        peg_multiplier,
     )
 }
