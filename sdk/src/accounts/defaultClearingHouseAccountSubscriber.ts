@@ -228,6 +228,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		await this.stateAccountSubscriber.unsubscribe();
 		await this.marketsAccountSubscriber.unsubscribe();
+		await this.orderStateAccountSubscriber.unsubscribe();
 
 		if (this.optionalExtraSubscriptions.includes('tradeHistoryAccount')) {
 			await this.tradeHistoryAccountSubscriber.unsubscribe();
@@ -253,6 +254,10 @@ export class DefaultClearingHouseAccountSubscriber
 
 		if (this.optionalExtraSubscriptions.includes('liquidationHistoryAccount')) {
 			await this.liquidationHistoryAccountSubscriber.unsubscribe();
+		}
+
+		if (this.optionalExtraSubscriptions.includes('orderHistoryAccount')) {
+			await this.orderHistoryAccountSubscriber.unsubscribe();
 		}
 
 		this.isSubscribed = false;
