@@ -335,54 +335,6 @@ export type Order = {
 	discountTier: OrderDiscountTier,
 };
 
-// # UI ↔ History Server Data Types
-export interface Trade {
-	price: number;
-	beforePrice: number;
-	afterPrice: number;
-	side: TradeSide;
-	size: number;
-	ts: number;
-	fee: number;
-	marketIndex: number;
-	chainTs: number;
-}
-
-export type Liquidation = {
-	ts: number;
-	chainTs: number;
-	recordId: number;
-	userAuthority: PublicKey;
-	user: PublicKey;
-	partial: boolean;
-	baseAssetValue: number;
-	baseAssetValueClosed: number;
-	liquidationFee: number;
-	feeToLiquidator: number;
-	feeToInsuranceFund: number;
-	liquidator: PublicKey;
-	totalCollateral: number;
-	collateral: number;
-	unrealizedPnl: number;
-	marginRatio: number;
-};
-
-export type Candle = {
-	open: number;
-	close: number;
-	high: number;
-	low: number;
-	volume: number;
-	start: number;
-	end: number;
-};
-export interface FundingPayment {
-	userPublicKey: string;
-	ts: number;
-	marketIndex: number;
-	amount: string;
-}
-
 // # Misc Types
 export interface IWallet {
 	signTransaction(tx: Transaction): Promise<Transaction>;

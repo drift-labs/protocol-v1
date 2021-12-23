@@ -1,16 +1,15 @@
-import { Market, PositionDirection, UserPosition } from '../types';
-import {
-	AMM_TO_QUOTE_PRECISION_RATIO,
-	PEG_PRECISION,
-	ZERO,
-} from '../constants/numericConstants';
 import BN from 'bn.js';
-import { calculateAmmReservesAfterSwap, getSwapDirection } from './amm';
 import {
 	AMM_RESERVE_PRECISION,
+	AMM_TO_QUOTE_PRECISION_RATIO,
 	FUNDING_PAYMENT_PRECISION,
+	MARK_PRICE_PRECISION,
+	PEG_PRECISION,
 	PRICE_TO_QUOTE_PRECISION,
+	ZERO,
 } from '../constants/numericConstants';
+import { Market, PositionDirection, UserPosition } from '../types';
+import { calculateAmmReservesAfterSwap, getSwapDirection } from './amm';
 
 /**
  * calculateBaseAssetValue
@@ -130,4 +129,21 @@ export function calculatePositionFundingPNL(
 		.mul(new BN(-1));
 
 	return perPositionFundingRate;
+}
+
+/**
+ *
+ * @param userPosition
+ * @returns Precision: MARK_PRICE_PRECISION (10^10)
+ */
+export function calculateEntryPrice(userPosition: UserPosition): BN {
+	if (userPosition.baseAssetAmount.eq(ZERO)) {
+		return ZERO;
+	}
+
+	return userPosition.quoteAssetAmount
+		.mul(MARK_PRICE_PRECISION)
+		.mul(AMM_TO_QUOTE_PRECISION_RATIO)
+		.div(userPosition.baseAssetAmount)
+		.abs();
 }

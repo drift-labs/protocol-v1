@@ -28,7 +28,8 @@ export type PriceImpactUnit =
 	| 'quoteAssetAmount'
 	| 'quoteAssetAmountPeg'
 	| 'acquiredBaseAssetAmount'
-	| 'acquiredQuoteAssetAmount';
+	| 'acquiredQuoteAssetAmount'
+	| 'all';
 
 /**
  * Calculates avg/max slippage (price impact) for candidate trade
@@ -49,7 +50,7 @@ export function calculateTradeSlippage(
 	direction: PositionDirection,
 	amount: BN,
 	market: Market,
-	inputAssetType: AssetType = 'quote',
+	inputAssetType: AssetType = 'quote'
 ): [BN, BN, BN, BN] {
 	const oldPrice = calculateMarkPrice(market);
 	if (amount.eq(ZERO)) {
@@ -107,7 +108,7 @@ export function calculateTradeAcquiredAmounts(
 	direction: PositionDirection,
 	amount: BN,
 	market: Market,
-	inputAssetType: AssetType = 'quote',
+	inputAssetType: AssetType = 'quote'
 ): [BN, BN] {
 	if (amount.eq(ZERO)) {
 		return [ZERO, ZERO];
@@ -145,7 +146,8 @@ export function calculateTradeAcquiredAmounts(
 export function calculateTargetPriceTrade(
 	market: Market,
 	targetPrice: BN,
-	pct: BN = MAXPCT
+	pct: BN = MAXPCT,
+	outputAssetType: AssetType = 'quote'
 ): [PositionDirection, BN, BN, BN] {
 	assert(market.amm.baseAssetReserve.gt(ZERO));
 	assert(targetPrice.gt(ZERO));
@@ -198,7 +200,7 @@ export function calculateTargetPriceTrade(
 			.mul(peg)
 			.div(PEG_PRECISION)
 			.div(AMM_TO_QUOTE_PRECISION_RATIO);
-		baseSize = baseAssetReserveBefore.sub(baseAssetReserveAfter);
+		baseSize = baseAssetReserveAfter.sub(baseAssetReserveBefore);
 	} else if (markPriceBefore.lt(targetPrice)) {
 		// underestimate y2
 		baseAssetReserveAfter = squareRootBN(
@@ -220,7 +222,7 @@ export function calculateTargetPriceTrade(
 			.mul(peg)
 			.div(PEG_PRECISION)
 			.div(AMM_TO_QUOTE_PRECISION_RATIO);
-		baseSize = baseAssetReserveAfter.sub(baseAssetReserveBefore);
+		baseSize = baseAssetReserveBefore.sub(baseAssetReserveAfter);
 	} else {
 		// no trade, market is at target
 		direction = PositionDirection.LONG;
@@ -253,6 +255,9 @@ export function calculateTargetPriceTrade(
 			'err: ' +
 			tp2.sub(tp1).abs().toString()
 	);
-
-	return [direction, tradeSize, entryPrice, targetPrice];
+	if (outputAssetType == 'quote') {
+		return [direction, tradeSize, entryPrice, targetPrice];
+	} else {
+		return [direction, baseSize, entryPrice, targetPrice];
+	}
 }

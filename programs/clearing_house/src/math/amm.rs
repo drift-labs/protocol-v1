@@ -13,6 +13,7 @@ use crate::math::constants::{
     MARK_PRICE_PRECISION, ONE_HOUR, PEG_PRECISION, PRICE_TO_PEG_PRECISION_RATIO,
 };
 use crate::math::position::_calculate_base_asset_value_and_pnl;
+use crate::math::quote_asset::asset_to_reserve_precision;
 use crate::math_error;
 use crate::state::market::{Market, AMM};
 use crate::state::state::{PriceDivergenceGuardRails, ValidityGuardRails};
@@ -101,12 +102,12 @@ pub fn update_oracle_price_twap(
     amm: &mut AMM,
     now: i64,
     oracle_price: i128,
-) -> ClearingHouseResult {
+) -> ClearingHouseResult<i128> {
     let oracle_price_twap = calculate_new_oracle_price_twap(amm, now, oracle_price)?;
     amm.last_oracle_price_twap = oracle_price_twap;
     amm.last_oracle_price_twap_ts = now;
 
-    return Ok(());
+    return Ok(oracle_price_twap);
 }
 
 pub fn calculate_new_oracle_price_twap(
@@ -366,4 +367,24 @@ pub fn calculate_max_base_asset_amount_to_trade(
             .ok_or_else(math_error!())?;
         Ok((max_trade_amount, PositionDirection::Long))
     };
+}
+
+pub fn should_round_trade(
+    amm: &AMM,
+    quote_asset_amount: u128,
+    base_asset_value: u128,
+) -> ClearingHouseResult<bool> {
+    let difference = if quote_asset_amount > base_asset_value {
+        quote_asset_amount
+            .checked_sub(base_asset_value)
+            .ok_or_else(math_error!())?
+    } else {
+        base_asset_value
+            .checked_sub(quote_asset_amount)
+            .ok_or_else(math_error!())?
+    };
+
+    let quote_asset_reserve_amount = asset_to_reserve_precision(amm, difference, false)?;
+
+    return Ok(quote_asset_reserve_amount < amm.minimum_quote_asset_trade_size);
 }

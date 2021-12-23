@@ -1,6 +1,7 @@
 use crate::error::*;
 use crate::math::constants::{AMM_TO_QUOTE_PRECISION_RATIO, PEG_PRECISION};
 use crate::math_error;
+use crate::state::market::AMM;
 use solana_program::msg;
 
 pub fn scale_to_amm_precision(quote_asset_amount: u128) -> ClearingHouseResult<u128> {
@@ -82,4 +83,16 @@ pub fn reserve_to_amount(
         scale_from_amm_precision(quote_asset_reserve, round_up)?,
         peg_multiplier,
     )
+}
+
+pub fn asset_to_reserve_precision(
+    amm: &AMM,
+    quote_asset_amount: u128,
+    round_up: bool,
+) -> ClearingHouseResult<u128> {
+    return unpeg_quote_asset_amount(
+        scale_to_amm_precision(quote_asset_amount)?,
+        amm.peg_multiplier,
+        round_up,
+    );
 }
