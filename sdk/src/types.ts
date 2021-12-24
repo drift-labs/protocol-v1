@@ -6,6 +6,7 @@ export class SwapDirection {
 	static readonly ADD = { add: {} };
 	static readonly REMOVE = { remove: {} };
 }
+
 export class PositionDirection {
 	static readonly LONG = { long: {} };
 	static readonly SHORT = { short: {} };
@@ -43,6 +44,10 @@ export class OrderAction {
 export class OrderTriggerCondition {
 	static readonly ABOVE = { above: {} };
 	static readonly BELOW = { below: {} };
+}
+
+export function isVariant(object: unknown, type: string) {
+	return object.hasOwnProperty(type);
 }
 
 export enum TradeSide {
@@ -202,11 +207,11 @@ export type OrderRecord = {
 	user: PublicKey;
 	authority: PublicKey;
 	action: OrderAction;
-	filler: PublicKey,
-	baseAssetAmountFilled: BN,
-	quoteAssetAmount: BN,
-	fillerReward: BN,
-	tradeRecordId: BN,
+	filler: PublicKey;
+	baseAssetAmountFilled: BN;
+	quoteAssetAmount: BN;
+	fillerReward: BN;
+	tradeRecordId: BN;
 };
 
 export type StateAccount = {
@@ -323,18 +328,18 @@ export type UserOrdersAccount = {
 };
 
 export type Order = {
-	status: OrderStatus,
-	orderType: OrderType,
-	ts: BN,
-	orderId: BN,
-	marketIndex: BN,
-	price: BN,
-	baseAssetAmount: BN,
-	direction: PositionDirection,
-	reduceOnly: boolean,
-	triggerPrice: BN,
-	triggerCondition: OrderTriggerCondition,
-	discountTier: OrderDiscountTier,
+	status: OrderStatus;
+	orderType: OrderType;
+	ts: BN;
+	orderId: BN;
+	marketIndex: BN;
+	price: BN;
+	baseAssetAmount: BN;
+	direction: PositionDirection;
+	reduceOnly: boolean;
+	triggerPrice: BN;
+	triggerCondition: OrderTriggerCondition;
+	discountTier: OrderDiscountTier;
 };
 
 // # Misc Types

@@ -8,7 +8,12 @@ import {
 import { calculateBaseAssetValue } from './position';
 import { AMM, PositionDirection, SwapDirection, Market } from '../types';
 import { assert } from '../assert/assert';
-import {calculatePositionPNL, calculateMarkPrice, convertToNumber, squareRootBN} from '..';
+import {
+	calculatePositionPNL,
+	calculateMarkPrice,
+	convertToNumber,
+	squareRootBN,
+} from '..';
 
 /**
  * Calculates a price given an arbitrary base and quote amount (they must have the same precision)
@@ -229,28 +234,31 @@ export function calculateRepegCost(
  * @param market
  * @returns cost : Precision MARK_PRICE_PRECISION
  */
-export function calculateTerminalPrice(market: Market){
+export function calculateTerminalPrice(market: Market) {
 	const directionToClose = market.baseAssetAmount.gt(ZERO)
-	? PositionDirection.SHORT
-	: PositionDirection.LONG;
+		? PositionDirection.SHORT
+		: PositionDirection.LONG;
 
 	const [newQuoteAssetReserve, newBaseAssetReserve] =
-	calculateAmmReservesAfterSwap(
-		market.amm,
-		'base',
-		market.baseAssetAmount.abs(),
-		getSwapDirection('base', directionToClose)
-	);
+		calculateAmmReservesAfterSwap(
+			market.amm,
+			'base',
+			market.baseAssetAmount.abs(),
+			getSwapDirection('base', directionToClose)
+		);
 	const terminalPrice = newQuoteAssetReserve
 		.mul(MARK_PRICE_PRECISION)
 		.mul(market.amm.pegMultiplier)
 		.div(PEG_PRECISION)
 		.div(newBaseAssetReserve);
 
-	return terminalPrice
+	return terminalPrice;
 }
 
-export function calculateMaxBaseAssetAmountToTrade(amm: AMM, limit_price: BN) : [BN, PositionDirection] {
+export function calculateMaxBaseAssetAmountToTrade(
+	amm: AMM,
+	limit_price: BN
+): [BN, PositionDirection] {
 	const invariant = amm.sqrtK.mul(amm.sqrtK);
 
 	const newBaseAssetReserveSquared = invariant
@@ -262,8 +270,14 @@ export function calculateMaxBaseAssetAmountToTrade(amm: AMM, limit_price: BN) : 
 	const newBaseAssetReserve = squareRootBN(newBaseAssetReserveSquared);
 
 	if (newBaseAssetReserve.gt(amm.baseAssetReserve)) {
-		return [newBaseAssetReserve.sub(amm.baseAssetReserve), PositionDirection.SHORT]
+		return [
+			newBaseAssetReserve.sub(amm.baseAssetReserve),
+			PositionDirection.SHORT,
+		];
 	} else {
-		return [amm.baseAssetReserve.sub(newBaseAssetReserve), PositionDirection.LONG]
+		return [
+			amm.baseAssetReserve.sub(newBaseAssetReserve),
+			PositionDirection.LONG,
+		];
 	}
 }
