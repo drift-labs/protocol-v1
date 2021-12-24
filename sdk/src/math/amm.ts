@@ -8,7 +8,7 @@ import {
 import { calculateBaseAssetValue } from './position';
 import { AMM, PositionDirection, SwapDirection, Market } from '../types';
 import { assert } from '../assert/assert';
-import { calculatePositionPNL, calculateMarkPrice, convertToNumber } from '..';
+import {calculatePositionPNL, calculateMarkPrice, convertToNumber, squareRootBN} from '..';
 
 /**
  * Calculates a price given an arbitrary base and quote amount (they must have the same precision)
@@ -248,4 +248,22 @@ export function calculateTerminalPrice(market: Market){
 		.div(newBaseAssetReserve);
 
 	return terminalPrice
+}
+
+export function calculateMaxBaseAssetAmountToTrade(amm: AMM, limit_price: BN) : [BN, PositionDirection] {
+	const invariant = amm.sqrtK.mul(amm.sqrtK);
+
+	const newBaseAssetReserveSquared = invariant
+		.mul(MARK_PRICE_PRECISION)
+		.div(limit_price)
+		.mul(amm.pegMultiplier)
+		.div(PEG_PRECISION);
+
+	const newBaseAssetReserve = squareRootBN(newBaseAssetReserveSquared);
+
+	if (newBaseAssetReserve.gt(amm.baseAssetReserve)) {
+		return [newBaseAssetReserve.sub(amm.baseAssetReserve), PositionDirection.SHORT]
+	} else {
+		return [amm.baseAssetReserve.sub(newBaseAssetReserve), PositionDirection.LONG]
+	}
 }

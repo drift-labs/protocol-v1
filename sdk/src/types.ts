@@ -324,6 +324,7 @@ export type UserOrdersAccount = {
 
 export type Order = {
 	status: OrderStatus,
+	orderType: OrderType,
 	ts: BN,
 	orderId: BN,
 	marketIndex: BN,
@@ -332,6 +333,7 @@ export type Order = {
 	direction: PositionDirection,
 	reduceOnly: boolean,
 	triggerPrice: BN,
+	triggerCondition: OrderTriggerCondition,
 	discountTier: OrderDiscountTier,
 };
 
