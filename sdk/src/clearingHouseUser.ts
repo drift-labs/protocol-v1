@@ -25,7 +25,7 @@ import {
 	calculatePositionFundingPNL,
 	calculatePositionPNL,
 	PositionDirection,
-	convertToNumber,
+	convertToNumber, getUserOrdersAccountPublicKey,
 } from '.';
 import { getUserAccountPublicKey } from './addresses';
 
@@ -34,6 +34,7 @@ export class ClearingHouseUser {
 	authority: PublicKey;
 	accountSubscriber: UserAccountSubscriber;
 	userAccountPublicKey?: PublicKey;
+	userOrdersAccountPublicKey?: PublicKey;
 	isSubscribed = false;
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
 
@@ -117,6 +118,18 @@ export class ClearingHouseUser {
 			this.authority
 		);
 		return this.userAccountPublicKey;
+	}
+
+	public async getUserOrdersAccountPublicKey(): Promise<PublicKey> {
+		if (this.userOrdersAccountPublicKey) {
+			return this.userOrdersAccountPublicKey;
+		}
+
+		this.userOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(
+			this.clearingHouse.program.programId,
+			this.authority
+		);
+		return this.userOrdersAccountPublicKey;
 	}
 
 	public async exists(): Promise<boolean> {
