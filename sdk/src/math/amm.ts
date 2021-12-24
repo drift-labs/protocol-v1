@@ -158,6 +158,7 @@ export function calculateAdjustKCost(
 		lastCumulativeFundingRate: market.amm.cumulativeFundingRate,
 		marketIndex: new BN(marketIndex),
 		quoteAssetAmount: new BN(0),
+		openOrders: new BN(0),
 	};
 
 	const currentValue = calculateBaseAssetValue(market, netUserPosition);
@@ -198,6 +199,7 @@ export function calculateRepegCost(
 		lastCumulativeFundingRate: market.amm.cumulativeFundingRate,
 		marketIndex: new BN(marketIndex),
 		quoteAssetAmount: new BN(0),
+		openOrders: new BN(0),
 	};
 
 	const currentValue = calculateBaseAssetValue(market, netUserPosition);

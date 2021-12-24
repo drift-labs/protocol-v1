@@ -102,6 +102,7 @@ export class ClearingHouseUser {
 				lastCumulativeFundingRate: ZERO,
 				marketIndex,
 				quoteAssetAmount: ZERO,
+				openOrders: ZERO,
 			}
 		);
 	}
@@ -414,6 +415,7 @@ export class ClearingHouseUser {
 			),
 			lastCumulativeFundingRate: new BN(0),
 			quoteAssetAmount: new BN(0),
+			openOrders: new BN(0),
 		};
 
 		const market = this.clearingHouse.getMarket(
@@ -544,9 +546,7 @@ export class ClearingHouseUser {
 				baseAssetAmount: proposedBaseAssetAmount,
 				lastCumulativeFundingRate: currentMarketPosition.lastCumulativeFundingRate,
 				quoteAssetAmount: new BN(0),
-				unrealizedFundingPnl: new BN(0),
-				unrealizedPnl: new BN(0),
-				baseAssetValue: new BN(0),
+				openOrders: new BN(0),
 			};
 	
 			const market = this.clearingHouse.getMarket(
