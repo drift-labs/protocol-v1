@@ -572,6 +572,8 @@ pub mod clearing_house {
                 quote_asset_amount = base_asset_value;
             }
 
+            amm::update_quote_volume_30d(user, now, quote_asset_amount)?;
+
             // we calculate what the user's position is worth if they closed to determine
             // if they are reducing or closing and reversing their position
             if base_asset_value > quote_asset_amount {
@@ -923,6 +925,8 @@ pub mod clearing_house {
         if is_oracle_valid {
             amm::update_oracle_price_twap(&mut market.amm, now, oracle_price_after)?;
         }
+
+        amm::update_quote_volume_30d(user, now, quote_asset_amount)?;
 
         // Add to the trade history account
         let trade_history_account = &mut ctx.accounts.trade_history.load_mut()?;
@@ -1439,8 +1443,10 @@ pub mod clearing_house {
         user.collateral = 0;
         user.cumulative_deposits = 0;
         user.positions = *ctx.accounts.user_positions.to_account_info().key;
+        user.quote_volume_30d = 0;
+        user.quote_volume_30d_ts = 0;
 
-        user.padding0 = 0;
+        // user.padding0 = 0;
         user.padding1 = 0;
         user.padding2 = 0;
         user.padding3 = 0;

@@ -8,13 +8,15 @@ use crate::error::*;
 use crate::math::bn;
 use crate::math::bn::U192;
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
-use crate::math::constants::{MARK_PRICE_PRECISION, ONE_HOUR, PRICE_TO_PEG_PRECISION_RATIO};
+use crate::math::constants::{MARK_PRICE_PRECISION, ONE_HOUR, THIRTY_DAYS, PRICE_TO_PEG_PRECISION_RATIO};
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math::quote_asset::asset_to_reserve_precision;
 use crate::math_error;
-use crate::state::market::{Market, AMM};
-use crate::state::state::{PriceDivergenceGuardRails, ValidityGuardRails};
-
+use crate::state::{
+    market::{Market, AMM},
+    state::{PriceDivergenceGuardRails, ValidityGuardRails},
+    user::{User},
+};
 pub fn calculate_price(
     unpegged_quote_asset_amount: u128,
     base_asset_amount: u128,
@@ -119,7 +121,8 @@ pub fn calculate_new_oracle_price_twap(
     ))?;
     let from_start = max(
         1,
-        ONE_HOUR.checked_sub(since_last).ok_or_else(math_error!())?,
+        cast_to_i128(amm.funding_period)?
+        .checked_sub(since_last).ok_or_else(math_error!())?,
     );
 
     let new_twap = calculate_twap(
@@ -130,6 +133,38 @@ pub fn calculate_new_oracle_price_twap(
     )?;
 
     return Ok(new_twap);
+}
+
+pub fn update_quote_volume_30d(
+    user: &mut User,
+    now: i64,
+    quote_asset_amount: u128,
+) -> ClearingHouseResult<i128> {
+    // calculate EWM-sum of user's volume within drift protocol
+    // rolling sum of 30d volume  ~= 
+    // ((30days - since_last)/30days) * quote_volume_30d + new trade volume
+
+    let since_last = cast_to_i128(max(
+        1,
+        now.checked_sub(user.quote_volume_30d_ts)
+            .ok_or_else(math_error!())?,
+    ))?;
+    let from_start = max(
+        1,
+        THIRTY_DAYS.checked_sub(since_last).ok_or_else(math_error!())?,
+    );
+    let prev_twap_99 = cast_to_i128(user.quote_volume_30d)?
+                .checked_mul(from_start).ok_or_else(math_error!())?
+                .checked_div(THIRTY_DAYS).ok_or_else(math_error!())?;
+    let latest_price_01 = cast_to_i128(quote_asset_amount)?;
+    let new_weighted_sum = prev_twap_99
+        .checked_add(latest_price_01)
+        .ok_or_else(math_error!())?;
+
+    user.quote_volume_30d = cast_to_u128(new_weighted_sum)?;
+    user.quote_volume_30d_ts = now;
+
+    return Ok(new_weighted_sum);
 }
 
 pub fn calculate_twap(

@@ -1681,12 +1681,16 @@
             "type": "publicKey"
           },
           {
-            "name": "padding0",
+            "name": "quoteVolume30d",
             "type": "u128"
           },
           {
+            "name": "quoteVolume30dTs",
+            "type": "i64"
+          },
+          {
             "name": "padding1",
-            "type": "u128"
+            "type": "i64"
           },
           {
             "name": "padding2",

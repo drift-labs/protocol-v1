@@ -13,8 +13,9 @@ pub struct User {
     pub positions: Pubkey,
 
     // upgrade-ability
-    pub padding0: u128,
-    pub padding1: u128,
+    pub quote_volume_30d: u128,
+    pub quote_volume_30d_ts: i64,
+    pub padding1: i64,
     pub padding2: u128,
     pub padding3: u128,
 }
