@@ -801,11 +801,11 @@ export class ClearingHouse {
 		orderIndex: BN,
 	): Promise<TransactionInstruction> {
 		const fillerPublicKey = await this.getUserAccountPublicKey();
-		const userAccount: UserAccount = await this.program.account.user.fetch(
+		const userAccount: any = await this.program.account.user.fetch(
 			userAccountPublicKey
 		);
 
-		const userOrdersAccount : UserOrdersAccount = await this.program.account.userOrders.fetch(
+		const userOrdersAccount : any = await this.program.account.userOrders.fetch(
 			userOrdersAccountPublicKey
 		);
 		const order = userOrdersAccount.orders[orderIndex.toNumber()];

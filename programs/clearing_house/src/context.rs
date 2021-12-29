@@ -97,7 +97,7 @@ pub struct InitializeOrderState<'info> {
     )]
     pub order_state: Box<Account<'info, OrderState>>,
     #[account(zero)]
-    pub order_history: Loader<'info, OrderHistory>,
+    pub order_history: AccountLoader<'info, OrderHistory>,
     pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
 }
@@ -136,7 +136,7 @@ pub struct InitializeUserOrders<'info> {
         bump = user_orders_nonce,
         payer = authority
     )]
-    pub user_orders: Loader<'info, UserOrders>,
+    pub user_orders: AccountLoader<'info, UserOrders>,
     pub state: Box<Account<'info, State>>,
     pub authority: Signer<'info>,
     pub rent: Sysvar<'info, Rent>,
@@ -419,37 +419,37 @@ pub struct FillOrder<'info> {
         mut,
         constraint = &state.markets.eq(&markets.key())
     )]
-    pub markets: Loader<'info, Markets>,
+    pub markets: AccountLoader<'info, Markets>,
     #[account(
         mut,
         has_one = user
     )]
-    pub user_positions: Loader<'info, UserPositions>,
+    pub user_positions: AccountLoader<'info, UserPositions>,
     #[account(
         mut,
         has_one = user
     )]
-    pub user_orders: Loader<'info, UserOrders>,
+    pub user_orders: AccountLoader<'info, UserOrders>,
     #[account(
         mut,
         constraint = &state.trade_history.eq(&trade_history.key())
     )]
-    pub trade_history: Loader<'info, TradeHistory>,
+    pub trade_history: AccountLoader<'info, TradeHistory>,
     #[account(
         mut,
         constraint = &state.funding_payment_history.eq(&funding_payment_history.key())
     )]
-    pub funding_payment_history: Loader<'info, FundingPaymentHistory>,
+    pub funding_payment_history: AccountLoader<'info, FundingPaymentHistory>,
     #[account(
         mut,
         constraint = &state.funding_rate_history.eq(&funding_rate_history.key())
     )]
-    pub funding_rate_history: Loader<'info, FundingRateHistory>,
+    pub funding_rate_history: AccountLoader<'info, FundingRateHistory>,
     #[account(
         mut,
         constraint = &order_state.order_history.eq(&order_history.key())
     )]
-    pub order_history: Loader<'info, OrderHistory>,
+    pub order_history: AccountLoader<'info, OrderHistory>,
     pub oracle: AccountInfo<'info>,
 }
 
@@ -470,32 +470,32 @@ pub struct PlaceOrder<'info> {
         mut,
         constraint = &state.markets.eq(&markets.key())
     )]
-    pub markets: Loader<'info, Markets>,
+    pub markets: AccountLoader<'info, Markets>,
     #[account(
         mut,
         has_one = user
     )]
-    pub user_positions: Loader<'info, UserPositions>,
+    pub user_positions: AccountLoader<'info, UserPositions>,
     #[account(
         mut,
         has_one = user
     )]
-    pub user_orders: Loader<'info, UserOrders>,
+    pub user_orders: AccountLoader<'info, UserOrders>,
     #[account(
         mut,
         constraint = &state.funding_payment_history.eq(&funding_payment_history.key())
     )]
-    pub funding_payment_history: Loader<'info, FundingPaymentHistory>,
+    pub funding_payment_history: AccountLoader<'info, FundingPaymentHistory>,
     #[account(
         mut,
         constraint = &state.funding_rate_history.eq(&funding_rate_history.key())
     )]
-    pub funding_rate_history: Loader<'info, FundingRateHistory>,
+    pub funding_rate_history: AccountLoader<'info, FundingRateHistory>,
     #[account(
         mut,
         constraint = &order_state.order_history.eq(&order_history.key())
     )]
-    pub order_history: Loader<'info, OrderHistory>,
+    pub order_history: AccountLoader<'info, OrderHistory>,
     pub oracle: AccountInfo<'info>,
 }
 
@@ -521,27 +521,27 @@ pub struct CancelOrder<'info> {
         mut,
         constraint = &state.markets.eq(&markets.key())
     )]
-    pub markets: Loader<'info, Markets>,
+    pub markets: AccountLoader<'info, Markets>,
     #[account(
         mut,
         has_one = user
     )]
-    pub user_positions: Loader<'info, UserPositions>,
+    pub user_positions: AccountLoader<'info, UserPositions>,
     #[account(
         mut,
         has_one = user
     )]
-    pub user_orders: Loader<'info, UserOrders>,
+    pub user_orders: AccountLoader<'info, UserOrders>,
     #[account(
         mut,
         constraint = &state.funding_payment_history.eq(&funding_payment_history.key())
     )]
-    pub funding_payment_history: Loader<'info, FundingPaymentHistory>,
+    pub funding_payment_history: AccountLoader<'info, FundingPaymentHistory>,
     #[account(
         mut,
         constraint = &order_state.order_history.eq(&order_history.key())
     )]
-    pub order_history: Loader<'info, OrderHistory>,
+    pub order_history: AccountLoader<'info, OrderHistory>,
 }
 
 #[derive(Accounts)]

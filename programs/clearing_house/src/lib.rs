@@ -960,6 +960,7 @@ pub mod clearing_house {
         Ok(())
     }
 
+    #[allow(unused_must_use)]
     #[access_control(
         market_initialized(&ctx.accounts.markets, market_index) &&
         exchange_not_paused(&ctx.accounts.state) &&
