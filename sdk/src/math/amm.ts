@@ -6,7 +6,13 @@ import {
 	ZERO,
 } from '../constants/numericConstants';
 import { calculateBaseAssetValue } from './position';
-import { AMM, PositionDirection, SwapDirection, Market } from '../types';
+import {
+	AMM,
+	PositionDirection,
+	SwapDirection,
+	Market,
+	isVariant,
+} from '../types';
 import { assert } from '../assert/assert';
 import {
 	calculatePositionPNL,
@@ -127,17 +133,11 @@ export function getSwapDirection(
 	inputAssetType: AssetType,
 	positionDirection: PositionDirection
 ): SwapDirection {
-	if (
-		positionDirection === PositionDirection.LONG &&
-		inputAssetType === 'base'
-	) {
+	if (isVariant(positionDirection, 'long') && inputAssetType === 'base') {
 		return SwapDirection.REMOVE;
 	}
 
-	if (
-		positionDirection === PositionDirection.SHORT &&
-		inputAssetType === 'quote'
-	) {
+	if (isVariant(positionDirection, 'short') && inputAssetType === 'quote') {
 		return SwapDirection.REMOVE;
 	}
 
