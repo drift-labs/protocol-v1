@@ -526,14 +526,15 @@ export class ClearingHouseUser {
 		// solves formula for example calc below
 
 		/* example: assume BTC price is $40k (examine 10% up/down)
-			
-			if 10k deposit and levered 10x short BTC => BTC up $400 means:
-			1. higher base_asset_value (+$4k)
-			2. lower collateral (-$4k)
-			3. (10k - 4k)/(100k + 4k) => 6k/104k => .0576
-	
-			for 10x long, BTC down $400:
-			3. (10k - 4k) / (100k - 4k) = 6k/96k => .0625 */
+
+        if 10k deposit and levered 10x short BTC => BTC up $400 means:
+        1. higher base_asset_value (+$4k)
+        2. lower collateral (-$4k)
+        3. (10k - 4k)/(100k + 4k) => 6k/104k => .0576
+
+        for 10x long, BTC down $400:
+        3. (10k - 4k) / (100k - 4k) = 6k/96k => .0625 */
+
 
 		const tc = this.getTotalCollateral();
 		const tpv = this.getTotalPositionValue();
@@ -563,8 +564,7 @@ export class ClearingHouseUser {
 		const proposedMarketPosition: UserPosition = {
 			marketIndex: targetMarket.marketIndex,
 			baseAssetAmount: proposedBaseAssetAmount,
-			lastCumulativeFundingRate:
-				currentMarketPosition.lastCumulativeFundingRate,
+			lastCumulativeFundingRate: currentMarketPosition.lastCumulativeFundingRate,
 			quoteAssetAmount: new BN(0),
 			openOrders: new BN(0),
 		};
@@ -591,26 +591,17 @@ export class ClearingHouseUser {
 		);
 
 		if (partial) {
-			totalFreeCollateralUSDC = tc.sub(
-				totalCurrentPositionValueIgnoringTargetUSDC
-					.mul(TEN_THOUSAND)
-					.div(this.getMaxLeverage('Partial'))
+			totalFreeCollateralUSDC = tc.sub(totalCurrentPositionValueIgnoringTargetUSDC
+				.mul(TEN_THOUSAND)
+				.div(this.getMaxLeverage('Partial'))
 			);
 		}
 
 		let priceDelt;
-		if (currentMarketPositionBaseSize.lt(ZERO)) {
-			priceDelt = tc
-				.mul(thisLev)
-				.sub(tpv)
-				.mul(PRICE_TO_QUOTE_PRECISION)
-				.div(thisLev.add(new BN(1)));
-		} else {
-			priceDelt = tc
-				.mul(thisLev)
-				.sub(tpv)
-				.mul(PRICE_TO_QUOTE_PRECISION)
-				.div(thisLev.sub(new BN(1)));
+		if(currentMarketPositionBaseSize.lt(ZERO)){
+			priceDelt = (tc.mul(thisLev).sub(tpv)).mul(PRICE_TO_QUOTE_PRECISION).div((thisLev.add(new BN(1))));
+		} else{
+			priceDelt = (tc.mul(thisLev).sub(tpv)).mul(PRICE_TO_QUOTE_PRECISION).div((thisLev.sub(new BN(1))));
 		}
 
 		const currentPrice = calculateMarkPrice(
@@ -625,9 +616,9 @@ export class ClearingHouseUser {
 			return new BN(-1);
 		}
 
-		const eatMargin2 = priceDelt
-			.mul(AMM_RESERVE_PRECISION)
-			.div(proposedBaseAssetAmount);
+		if (proposedBaseAssetAmount.eq(ZERO)) return new BN(-1);
+
+		const eatMargin2 = priceDelt.mul(AMM_RESERVE_PRECISION).div(proposedBaseAssetAmount);
 
 		const liqPrice = currentPrice.sub(eatMargin2);
 		return liqPrice;

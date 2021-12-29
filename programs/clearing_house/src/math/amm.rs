@@ -9,9 +9,7 @@ use crate::error::*;
 use crate::math::bn;
 use crate::math::bn::U192;
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
-use crate::math::constants::{
-    MARK_PRICE_PRECISION, ONE_HOUR, PEG_PRECISION, PRICE_TO_PEG_PRECISION_RATIO,
-};
+use crate::math::constants::{MARK_PRICE_PRECISION, PEG_PRECISION, PRICE_TO_PEG_PRECISION_RATIO};
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math::quote_asset::asset_to_reserve_precision;
 use crate::math_error;
@@ -81,7 +79,9 @@ pub fn calculate_new_mark_twap(
     ))?;
     let from_start = max(
         1,
-        ONE_HOUR.checked_sub(since_last).ok_or_else(math_error!())?,
+        cast_to_i128(amm.funding_period)?
+            .checked_sub(since_last)
+            .ok_or_else(math_error!())?,
     );
     let current_price = match precomputed_mark_price {
         Some(mark_price) => mark_price,
@@ -122,7 +122,9 @@ pub fn calculate_new_oracle_price_twap(
     ))?;
     let from_start = max(
         1,
-        ONE_HOUR.checked_sub(since_last).ok_or_else(math_error!())?,
+        cast_to_i128(amm.funding_period)?
+            .checked_sub(since_last)
+            .ok_or_else(math_error!())?,
     );
 
     let new_twap = calculate_twap(
