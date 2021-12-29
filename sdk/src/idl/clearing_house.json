@@ -3450,47 +3450,47 @@
       "msg": "Casting Failure"
     },
     {
-      "code": 339,
+      "code": 6039,
       "name": "InvalidOrder",
       "msg": "Invalid Order"
     },
     {
-      "code": 340,
+      "code": 6040,
       "name": "UserHasNoOrder",
       "msg": "User has no order"
     },
     {
-      "code": 341,
+      "code": 6041,
       "name": "OrderAmountTooSmall",
       "msg": "Order Amount Too Small"
     },
     {
-      "code": 342,
+      "code": 6042,
       "name": "MaxNumberOfOrders",
       "msg": "Max number of orders taken"
     },
     {
-      "code": 343,
+      "code": 6043,
       "name": "OrderDoesNotExist",
       "msg": "Order does not exist"
     },
     {
-      "code": 344,
+      "code": 6044,
       "name": "MarketCantFillOrder",
       "msg": "Market cant fill order"
     },
     {
-      "code": 345,
+      "code": 6045,
       "name": "ReduceOnlyOrderIncreasedRisk",
       "msg": "Reduce only order increased risk"
     },
     {
-      "code": 346,
+      "code": 6046,
       "name": "OrderStateAlreadyInitialized",
       "msg": "Order state already initialized"
     },
     {
-      "code": 347,
+      "code": 6047,
       "name": "OrderTriggerConditionNotSatisfied",
       "msg": "Order trigger condition not satisfied"
     }
