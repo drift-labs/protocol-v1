@@ -245,5 +245,5 @@ export function calculateTerminalPrice(market: Market){
 		.div(PEG_PRECISION)
 		.div(newBaseAssetReserve);
 
-	return terminalPrice
+	return terminalPrice;
 }
