@@ -186,7 +186,7 @@ function calculateAmountToTrade(market: Market, order: Order): BN {
 	}
 }
 
-function calculateAmountToTradeForLimit(market: Market, order: Order): BN {
+export function calculateAmountToTradeForLimit(market: Market, order: Order): BN {
 	const [maxAmountToTrade, direction] = calculateMaxBaseAssetAmountToTrade(
 		market.amm,
 		order.price

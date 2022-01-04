@@ -263,8 +263,8 @@ export function calculateMaxBaseAssetAmountToTrade(
 
 	const newBaseAssetReserveSquared = invariant
 		.mul(MARK_PRICE_PRECISION)
-		.div(limit_price)
 		.mul(amm.pegMultiplier)
+		.div(limit_price)
 		.div(PEG_PRECISION);
 
 	const newBaseAssetReserve = squareRootBN(newBaseAssetReserveSquared);
@@ -274,9 +274,15 @@ export function calculateMaxBaseAssetAmountToTrade(
 			newBaseAssetReserve.sub(amm.baseAssetReserve),
 			PositionDirection.SHORT,
 		];
-	} else {
+	} else if(newBaseAssetReserve.lt(amm.baseAssetReserve)) {
 		return [
 			amm.baseAssetReserve.sub(newBaseAssetReserve),
+			PositionDirection.LONG,
+		];
+	} else {
+		console.log('tradeSize Too Small');
+		return [
+			new BN(0),
 			PositionDirection.LONG,
 		];
 	}
