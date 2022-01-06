@@ -335,6 +335,7 @@ export type Order = {
 	marketIndex: BN;
 	price: BN;
 	baseAssetAmount: BN;
+	baseAssetAmountFilled: BN;
 	direction: PositionDirection;
 	reduceOnly: boolean;
 	triggerPrice: BN;
