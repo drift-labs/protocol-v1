@@ -13,6 +13,7 @@ export * from './clearingHouseUser';
 export * from './clearingHouse';
 export * from './math/conversion';
 export * from './math/funding';
+export * from './math/insuranceFund';
 export * from './math/market';
 export * from './math/position';
 export * from './math/amm';

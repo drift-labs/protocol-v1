@@ -1,12 +1,11 @@
 use crate::controller::amm::SwapDirection;
 use crate::controller::position::PositionDirection;
 use crate::error::*;
-use crate::math::casting::{cast, cast_to_i128};
-use crate::math::{amm, quote_asset::*};
-use crate::math_error;
+use crate::math::amm;
+use crate::math::amm::calculate_quote_asset_amount_swapped;
+use crate::math::pnl::calculate_pnl;
 use crate::state::market::AMM;
 use crate::state::user::MarketPosition;
-use solana_program::msg;
 
 pub fn calculate_base_asset_value_and_pnl(
     market_position: &MarketPosition,
@@ -37,37 +36,16 @@ pub fn _calculate_base_asset_value_and_pnl(
         amm.sqrt_k,
     )?;
 
-    let scaled_unpegged_quote_asset_amount_acquired = match swap_direction {
-        SwapDirection::Add => amm
-            .quote_asset_reserve
-            .checked_sub(new_quote_asset_reserve)
-            .ok_or_else(math_error!())?,
-
-        SwapDirection::Remove => new_quote_asset_reserve
-            .checked_sub(amm.quote_asset_reserve)
-            .ok_or_else(math_error!())?,
-    };
-
-    let round_up = swap_direction == SwapDirection::Remove;
-    let scaled_pegged_quote_asset_amount_acquired =
-        scale_from_amm_precision(scaled_unpegged_quote_asset_amount_acquired, round_up)?;
-
-    let pegged_quote_asset_amount_acquired = peg_quote_asset_amount(
-        scaled_pegged_quote_asset_amount_acquired,
+    let base_asset_value = calculate_quote_asset_amount_swapped(
+        amm.quote_asset_reserve,
+        new_quote_asset_reserve,
+        swap_direction,
         amm.peg_multiplier,
     )?;
 
-    let pnl: i128 = match swap_direction {
-        SwapDirection::Add => cast_to_i128(pegged_quote_asset_amount_acquired)?
-            .checked_sub(cast(quote_asset_amount)?)
-            .ok_or_else(math_error!())?,
+    let pnl = calculate_pnl(base_asset_value, quote_asset_amount, swap_direction)?;
 
-        SwapDirection::Remove => cast_to_i128(quote_asset_amount)?
-            .checked_sub(cast(pegged_quote_asset_amount_acquired)?)
-            .ok_or_else(math_error!())?,
-    };
-
-    return Ok((pegged_quote_asset_amount_acquired, pnl));
+    return Ok((base_asset_value, pnl));
 }
 
 pub fn direction_to_close_position(base_asset_amount: i128) -> PositionDirection {

@@ -6,8 +6,7 @@ use crate::controller::amm::SwapDirection;
 use crate::error::*;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
-use crate::math::position::calculate_base_asset_value_and_pnl;
-use crate::math::quote_asset::{peg_quote_asset_amount, scale_from_amm_precision};
+use crate::math::pnl::calculate_pnl;
 use crate::math_error;
 use crate::{Market, MarketPosition, User};
 use solana_program::msg;
@@ -121,25 +120,8 @@ pub fn increase_with_base_asset_amount(
         PositionDirection::Short => SwapDirection::Add,
     };
 
-    let quote_asset_reserve_before = market.amm.quote_asset_reserve;
-    controller::amm::swap_base_asset(&mut market.amm, base_asset_amount, swap_direction, now)?;
-
-    let quote_asset_swapped_amm_precision = match swap_direction {
-        SwapDirection::Remove => market
-            .amm
-            .quote_asset_reserve
-            .checked_sub(quote_asset_reserve_before)
-            .ok_or_else(math_error!())?,
-        SwapDirection::Add => quote_asset_reserve_before
-            .checked_sub(market.amm.quote_asset_reserve)
-            .ok_or_else(math_error!())?,
-    };
-
-    let round_up = direction == PositionDirection::Long;
-    let quote_asset_swapped = peg_quote_asset_amount(
-        scale_from_amm_precision(quote_asset_swapped_amm_precision, round_up)?,
-        market.amm.peg_multiplier,
-    )?;
+    let quote_asset_swapped =
+        controller::amm::swap_base_asset(&mut market.amm, base_asset_amount, swap_direction, now)?;
 
     market_position.quote_asset_amount = market_position
         .quote_asset_amount
@@ -269,25 +251,8 @@ pub fn reduce_with_base_asset_amount<'info>(
         PositionDirection::Short => SwapDirection::Add,
     };
 
-    let quote_asset_reserve_before = market.amm.quote_asset_reserve;
-    controller::amm::swap_base_asset(&mut market.amm, base_asset_amount, swap_direction, now)?;
-
-    let quote_asset_swapper_amm_precision = match swap_direction {
-        SwapDirection::Remove => market
-            .amm
-            .quote_asset_reserve
-            .checked_sub(quote_asset_reserve_before)
-            .ok_or_else(math_error!())?,
-        SwapDirection::Add => quote_asset_reserve_before
-            .checked_sub(market.amm.quote_asset_reserve)
-            .ok_or_else(math_error!())?,
-    };
-
-    let round_up = direction == PositionDirection::Long;
-    let quote_asset_swapped = peg_quote_asset_amount(
-        scale_from_amm_precision(quote_asset_swapper_amm_precision, round_up)?,
-        market.amm.peg_multiplier,
-    )?;
+    let quote_asset_swapped =
+        controller::amm::swap_base_asset(&mut market.amm, base_asset_amount, swap_direction, now)?;
 
     let base_asset_amount = match direction {
         PositionDirection::Long => cast_to_i128(base_asset_amount)?,
@@ -370,14 +335,16 @@ pub fn close(
         SwapDirection::Remove
     };
 
-    let (_base_asset_value, pnl) =
-        calculate_base_asset_value_and_pnl(&market_position, &market.amm)?;
-
-    controller::amm::swap_base_asset(
+    let base_asset_value = controller::amm::swap_base_asset(
         &mut market.amm,
         market_position.base_asset_amount.unsigned_abs(),
         swap_direction,
         now,
+    )?;
+    let pnl = calculate_pnl(
+        base_asset_value,
+        market_position.quote_asset_amount,
+        swap_direction,
     )?;
 
     user.collateral = calculate_updated_collateral(user.collateral, pnl)?;

@@ -23,6 +23,7 @@ pub mod math;
 pub mod optional_accounts;
 pub mod order_validation;
 pub mod state;
+mod user_initialization;
 
 #[cfg(feature = "mainnet-beta")]
 declare_id!("dammHkt7jmytvbS3nHTxQNEcP59aE57nxwV21YdqEDN");
@@ -32,7 +33,7 @@ declare_id!("EidrjDVk4L3tPZN6Wuxe3iuMN6D3SFZWZnJg8wCoKu6V");
 #[program]
 pub mod clearing_house {
     use crate::math;
-    use crate::optional_accounts::{get_discount_token, get_whitelist_token};
+    use crate::optional_accounts::get_discount_token;
     use crate::state::history::curve::CurveRecord;
     use crate::state::history::deposit::{DepositDirection, DepositRecord};
     use crate::state::history::liquidation::LiquidationRecord;
@@ -230,8 +231,8 @@ pub mod clearing_house {
     pub fn initialize_market(
         ctx: Context<InitializeMarket>,
         market_index: u64,
-        amm_base_asset_amount: u128,
-        amm_quote_asset_amount: u128,
+        amm_base_asset_reserve: u128,
+        amm_quote_asset_reserve: u128,
         amm_periodicity: i64,
         amm_peg_multiplier: u128,
     ) -> ProgramResult {
@@ -245,19 +246,19 @@ pub mod clearing_house {
             return Err(ErrorCode::MarketIndexAlreadyInitialized.into());
         }
 
-        if amm_base_asset_amount != amm_quote_asset_amount {
+        if amm_base_asset_reserve != amm_quote_asset_reserve {
             return Err(ErrorCode::InvalidInitialPeg.into());
         }
 
         let init_mark_price = amm::calculate_price(
-            amm_quote_asset_amount,
-            amm_base_asset_amount,
+            amm_quote_asset_reserve,
+            amm_base_asset_reserve,
             amm_peg_multiplier,
         )?;
 
         // Verify there's no overflow
-        let _k = bn::U192::from(amm_base_asset_amount)
-            .checked_mul(bn::U192::from(amm_quote_asset_amount))
+        let _k = bn::U192::from(amm_base_asset_reserve)
+            .checked_mul(bn::U192::from(amm_quote_asset_reserve))
             .ok_or_else(math_error!())?;
 
         // Verify oracle is readable
@@ -280,8 +281,8 @@ pub mod clearing_house {
             amm: AMM {
                 oracle: *ctx.accounts.oracle.key,
                 oracle_source: OracleSource::Pyth,
-                base_asset_reserve: amm_base_asset_amount,
-                quote_asset_reserve: amm_quote_asset_amount,
+                base_asset_reserve: amm_base_asset_reserve,
+                quote_asset_reserve: amm_quote_asset_reserve,
                 cumulative_repeg_rebate_long: 0,
                 cumulative_repeg_rebate_short: 0,
                 cumulative_funding_rate_long: 0,
@@ -292,7 +293,7 @@ pub mod clearing_house {
                 last_oracle_price_twap: oracle_price_twap,
                 last_mark_price_twap: init_mark_price,
                 last_mark_price_twap_ts: now,
-                sqrt_k: amm_base_asset_amount,
+                sqrt_k: amm_base_asset_reserve,
                 peg_multiplier: amm_peg_multiplier,
                 total_fee: 0,
                 total_fee_withdrawn: 0,
@@ -750,18 +751,13 @@ pub mod clearing_house {
             let market =
                 &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
 
-            let scaled_quote_asset_amount =
-                math::quote_asset::scale_to_amm_precision(quote_asset_amount)?;
-
-            let round_up = direction == PositionDirection::Short;
-            let unpegged_scaled_quote_asset_amount = math::quote_asset::unpeg_quote_asset_amount(
-                scaled_quote_asset_amount,
+            let quote_asset_reserve_amount = math::quote_asset::asset_to_reserve_amount(
+                quote_asset_amount,
                 market.amm.peg_multiplier,
-                round_up,
             )?;
 
             let entry_price = amm::calculate_price(
-                unpegged_scaled_quote_asset_amount,
+                quote_asset_reserve_amount,
                 base_asset_amount_change,
                 market.amm.peg_multiplier,
             )?;
@@ -1295,11 +1291,9 @@ pub mod clearing_house {
                 .checked_sub(cast(quote_asset_reserve_before)?)
                 .ok_or_else(math_error!())?
                 .unsigned_abs();
-            let round_up = direction == PositionDirection::Long;
-            quote_asset_amount = math::quote_asset::reserve_to_amount(
+            quote_asset_amount = math::quote_asset::reserve_to_asset_amount(
                 quote_asset_reserve_change,
                 market.amm.peg_multiplier,
-                round_up,
             )?;
 
             mark_price_after = market.amm.mark_price()?;
@@ -1908,43 +1902,29 @@ pub mod clearing_house {
         _user_nonce: u8,
         optional_accounts: InitializeUserOptionalAccounts,
     ) -> ProgramResult {
-        let user = &mut ctx.accounts.user;
+        user_initialization::initialize(
+            &ctx.accounts.state,
+            &mut ctx.accounts.user,
+            &ctx.accounts.user_positions,
+            &ctx.accounts.authority,
+            ctx.remaining_accounts,
+            optional_accounts,
+        )
+    }
 
-        if !ctx.accounts.state.whitelist_mint.eq(&Pubkey::default()) {
-            let whitelist_token = get_whitelist_token(
-                optional_accounts,
-                ctx.remaining_accounts,
-                &ctx.accounts.state.whitelist_mint,
-            )?;
-
-            if whitelist_token.is_none() {
-                return Err(ErrorCode::WhitelistTokenNotFound.into());
-            }
-
-            let whitelist_token = whitelist_token.unwrap();
-            if !whitelist_token.owner.eq(ctx.accounts.authority.key) {
-                return Err(ErrorCode::InvalidWhitelistToken.into());
-            }
-
-            if whitelist_token.amount == 0 {
-                return Err(ErrorCode::WhitelistTokenNotFound.into());
-            }
-        }
-
-        user.authority = *ctx.accounts.authority.key;
-        user.collateral = 0;
-        user.cumulative_deposits = 0;
-        user.positions = *ctx.accounts.user_positions.to_account_info().key;
-
-        user.padding0 = 0;
-        user.padding1 = 0;
-        user.padding2 = 0;
-        user.padding3 = 0;
-
-        let user_positions = &mut ctx.accounts.user_positions.load_init()?;
-        user_positions.user = *ctx.accounts.user.to_account_info().key;
-
-        Ok(())
+    pub fn initialize_user_with_explicit_payer(
+        ctx: Context<InitializeUserWithExplicitPayer>,
+        _user_nonce: u8,
+        optional_accounts: InitializeUserOptionalAccounts,
+    ) -> ProgramResult {
+        user_initialization::initialize(
+            &ctx.accounts.state,
+            &mut ctx.accounts.user,
+            &ctx.accounts.user_positions,
+            &ctx.accounts.authority,
+            ctx.remaining_accounts,
+            optional_accounts,
+        )
     }
 
     pub fn initialize_user_orders(

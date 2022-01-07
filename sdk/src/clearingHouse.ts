@@ -16,7 +16,6 @@ import {
 	PositionDirection,
 	TradeHistoryAccount,
 	UserAccount,
-	UserPositionsAccount,
 	Market, OrderType, UserOrdersAccount, OrderHistoryAccount, OrderStateAccount, OrderTriggerCondition,
 } from './types';
 import * as anchor from '@project-serum/anchor';
