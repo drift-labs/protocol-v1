@@ -1,11 +1,15 @@
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
+use std::cmp::min;
 
 use crate::state::user::UserPositions;
 use context::*;
+use controller::amm::{SwapDirection};
 use controller::position::PositionDirection;
 use error::*;
 use math::{amm, bn, constants::*, fees, margin::*, orders::*, position::*, withdrawal::*};
+use math::quote_asset::{asset_to_reserve_amount};
+
 use state::{
     history::trade::TradeRecord,
     market::{Market, Markets, OracleSource, AMM},
@@ -1167,6 +1171,29 @@ pub mod clearing_house {
             minimum_base_asset_trade_size = market.amm.minimum_base_asset_trade_size;
         }
 
+        let free_collateral: u128;
+        // let max_leverage: u128 = 5;
+        let max_leverage: u128 = MARGIN_PRECISION
+                .checked_div(ctx.accounts.state.margin_ratio_initial)
+                .ok_or_else(math_error!())?;
+        {
+            let (
+                _total_collateral_before,
+                _unrealized_pnl_before,
+                _base_asset_value_before,
+                _margin_ratio_before,
+            ) = calculate_margin_ratio(user, user_positions, &ctx.accounts.markets.load()?)?;
+
+            free_collateral = _total_collateral_before
+                .checked_sub(
+                    _base_asset_value_before
+                        .checked_div(max_leverage)
+                        .ok_or_else(math_error!())?,
+                )
+                .ok_or_else(math_error!())?;
+
+        }
+
         // Get existing position
         let position_index = get_position_index(user_positions, market_index)?;
         let market_position = &mut user_positions.positions[position_index];
@@ -1203,8 +1230,45 @@ pub mod clearing_house {
             let market =
                 &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
 
-            base_asset_amount =
+            let max_user_base_asset_amount = free_collateral
+                .checked_mul(max_leverage)
+                .ok_or_else(math_error!())?
+                .checked_mul(MARK_PRICE_PRECISION / QUOTE_PRECISION)
+                .ok_or_else(math_error!())?
+                .checked_mul(AMM_RESERVE_PRECISION)
+                .ok_or_else(math_error!())?
+                .checked_div(mark_price_before)
+                .ok_or_else(math_error!())?;
+            let order_swap_direction = match order.direction {
+                PositionDirection::Long => SwapDirection::Add,
+                PositionDirection::Short => SwapDirection::Remove,
+            };
+
+            let quote_asset_reserve_amount =
+                asset_to_reserve_amount(free_collateral
+                    .checked_mul(max_leverage)
+                    .ok_or_else(math_error!())?, market.amm.peg_multiplier)?;
+
+            // if quote_asset_reserve_amount < market.amm.minimum_quote_asset_trade_size {
+            //     return Err(ErrorCode::TradeSizeTooSmall);
+            // }
+            
+            let initial_base_asset_amount = market.amm.base_asset_reserve;
+            let (new_base_asset_amount, new_quote_asset_amount) = amm::calculate_swap_output(
+                quote_asset_reserve_amount,
+                market.amm.quote_asset_reserve,
+                order_swap_direction,
+                market.amm.sqrt_k,
+            )?;
+        
+            let max_user_base_asset_amount = cast_to_i128(initial_base_asset_amount)?
+                .checked_sub(cast(new_base_asset_amount)?)
+                .ok_or_else(math_error!())?.unsigned_abs();
+
+            let trade_base_asset_amount =
                 calculate_base_asset_amount_to_trade(order, market, Some(mark_price_before))?;
+
+            base_asset_amount = min(max_user_base_asset_amount, trade_base_asset_amount);
         }
 
         // A trade is risk increasing if it increases the users leverage

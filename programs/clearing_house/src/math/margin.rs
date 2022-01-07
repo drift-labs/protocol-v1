@@ -38,7 +38,7 @@ pub fn calculate_margin_ratio(
     let total_collateral: u128;
     let margin_ratio: u128;
     if base_asset_value == 0 {
-        total_collateral = u128::MAX;
+        total_collateral = user.collateral;
         margin_ratio = u128::MAX;
     } else {
         total_collateral = calculate_updated_collateral(user.collateral, unrealized_pnl)?;
