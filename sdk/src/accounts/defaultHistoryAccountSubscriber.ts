@@ -6,7 +6,6 @@ import {
 	FundingPaymentHistoryAccount,
 	FundingRateHistoryAccount,
 	LiquidationHistoryAccount,
-	StateAccount,
 	TradeHistoryAccount,
 } from '../types';
 import { Program } from '@project-serum/anchor';
@@ -42,9 +41,7 @@ export class DefaultHistoryAccountSubscriber
 		const statePublicKey = await getClearingHouseStateAccountPublicKey(
 			this.program.programId
 		);
-		const state: any = await this.program.account.state.fetch(
-			statePublicKey
-		);
+		const state: any = await this.program.account.state.fetch(statePublicKey);
 
 		this.tradeHistoryAccountSubscriber = new WebSocketAccountSubscriber(
 			'tradeHistory',

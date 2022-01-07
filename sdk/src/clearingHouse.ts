@@ -16,7 +16,11 @@ import {
 	PositionDirection,
 	TradeHistoryAccount,
 	UserAccount,
-	Market, OrderType, UserOrdersAccount, OrderHistoryAccount, OrderStateAccount, OrderTriggerCondition,
+	Market,
+	OrderType,
+	OrderHistoryAccount,
+	OrderStateAccount,
+	OrderTriggerCondition,
 } from './types';
 import * as anchor from '@project-serum/anchor';
 import clearingHouseIDL from './idl/clearing_house.json';
@@ -35,9 +39,12 @@ import { MockUSDCFaucet } from './mockUSDCFaucet';
 import { EventEmitter } from 'events';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import {
-	getClearingHouseStateAccountPublicKey, getOrderStateAccountPublicKey,
+	getClearingHouseStateAccountPublicKey,
+	getOrderStateAccountPublicKey,
 	getUserAccountPublicKey,
-	getUserAccountPublicKeyAndNonce, getUserOrdersAccountPublicKey, getUserOrdersAccountPublicKeyAndNonce,
+	getUserAccountPublicKeyAndNonce,
+	getUserOrdersAccountPublicKey,
+	getUserOrdersAccountPublicKeyAndNonce,
 } from './addresses';
 import {
 	ClearingHouseAccountSubscriber,
@@ -248,7 +255,9 @@ export class ClearingHouse {
 			initializeUserOrdersAccountIx,
 		] = await this.getInitializeUserInstructions();
 
-		const tx = new Transaction().add(initializeUserAccountIx).add(initializeUserOrdersAccountIx);
+		const tx = new Transaction()
+			.add(initializeUserAccountIx)
+			.add(initializeUserOrdersAccountIx);
 		const txSig = await this.txSender.send(
 			tx,
 			[userPositionsAccount],
@@ -305,12 +314,20 @@ export class ClearingHouse {
 				}
 			);
 
-		const initializeUserOrdersAccountIx = await this.getInitializeUserOrdersInstruction(userAccountPublicKey);
+		const initializeUserOrdersAccountIx =
+			await this.getInitializeUserOrdersInstruction(userAccountPublicKey);
 
-		return [userPositions, userAccountPublicKey, initializeUserAccountIx, initializeUserOrdersAccountIx];
+		return [
+			userPositions,
+			userAccountPublicKey,
+			initializeUserAccountIx,
+			initializeUserOrdersAccountIx,
+		];
 	}
 
-	async getInitializeUserOrdersInstruction(userAccountPublicKey?: PublicKey): Promise<TransactionInstruction> {
+	async getInitializeUserOrdersInstruction(
+		userAccountPublicKey?: PublicKey
+	): Promise<TransactionInstruction> {
 		const [userOrdersAccountPublicKey, userOrdersAccountNonce] =
 			await getUserOrdersAccountPublicKeyAndNonce(
 				this.program.programId,
@@ -322,18 +339,18 @@ export class ClearingHouse {
 		}
 
 		return await this.program.instruction.initializeUserOrders(
-				userOrdersAccountNonce,
-				{
-					accounts: {
-						user: userAccountPublicKey,
-						authority: this.wallet.publicKey,
-						rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-						systemProgram: anchor.web3.SystemProgram.programId,
-						userOrders: userOrdersAccountPublicKey,
-						state: await this.getStatePublicKey(),
-					},
-				}
-			);
+			userOrdersAccountNonce,
+			{
+				accounts: {
+					user: userAccountPublicKey,
+					authority: this.wallet.publicKey,
+					rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+					systemProgram: anchor.web3.SystemProgram.programId,
+					userOrders: userOrdersAccountPublicKey,
+					state: await this.getStatePublicKey(),
+				},
+			}
+		);
 	}
 
 	userAccountPublicKey?: PublicKey;
@@ -645,7 +662,7 @@ export class ClearingHouse {
 		reduceOnly: boolean,
 		triggerPrice?: BN,
 		triggerCondition?: OrderTriggerCondition,
-		discountToken?: PublicKey,
+		discountToken?: PublicKey
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
 			wrapInTx(
@@ -658,7 +675,7 @@ export class ClearingHouse {
 					reduceOnly,
 					triggerPrice,
 					triggerCondition,
-					discountToken,
+					discountToken
 				)
 			),
 			[],
@@ -675,7 +692,7 @@ export class ClearingHouse {
 		reduceOnly: boolean,
 		triggerPrice?: BN,
 		triggerCondition?: OrderTriggerCondition,
-		discountToken?: PublicKey,
+		discountToken?: PublicKey
 	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
 		const userAccount = await this.getUserAccount();
@@ -735,58 +752,49 @@ export class ClearingHouse {
 		);
 	}
 
-	public async cancelOrder(
-		orderIndex: BN,
-	): Promise<TransactionSignature> {
+	public async cancelOrder(orderIndex: BN): Promise<TransactionSignature> {
 		return await this.txSender.send(
-			wrapInTx(
-				await this.getCancelOrderIx(
-					orderIndex
-				)
-			),
+			wrapInTx(await this.getCancelOrderIx(orderIndex)),
 			[],
 			this.opts
 		);
 	}
 
 	public async getCancelOrderIx(
-		orderIndex: BN,
+		orderIndex: BN
 	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
 		const userAccount = await this.getUserAccount();
 
 		const state = this.getStateAccount();
 		const orderState = this.getOrderStateAccount();
-		return await this.program.instruction.cancelOrder(
-			orderIndex,
-			{
-				accounts: {
-					state: await this.getStatePublicKey(),
-					user: userAccountPublicKey,
-					authority: this.wallet.publicKey,
-					markets: state.markets,
-					userOrders: await this.getUserOrdersAccountPublicKey(),
-					userPositions: userAccount.positions,
-					fundingPaymentHistory: state.fundingPaymentHistory,
-					fundingRateHistory: state.fundingRateHistory,
-					orderState: await this.getOrderStatePublicKey(),
-					orderHistory: orderState.orderHistory,
-				},
-			}
-		);
+		return await this.program.instruction.cancelOrder(orderIndex, {
+			accounts: {
+				state: await this.getStatePublicKey(),
+				user: userAccountPublicKey,
+				authority: this.wallet.publicKey,
+				markets: state.markets,
+				userOrders: await this.getUserOrdersAccountPublicKey(),
+				userPositions: userAccount.positions,
+				fundingPaymentHistory: state.fundingPaymentHistory,
+				fundingRateHistory: state.fundingRateHistory,
+				orderState: await this.getOrderStatePublicKey(),
+				orderHistory: orderState.orderHistory,
+			},
+		});
 	}
 
 	public async fillOrder(
 		userAccountPublicKey: PublicKey,
 		userOrdersAccountPublicKey: PublicKey,
-		marketIndex: BN,
+		marketIndex: BN
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
 			wrapInTx(
 				await this.getFillOrderIx(
 					userAccountPublicKey,
 					userOrdersAccountPublicKey,
-					marketIndex,
+					marketIndex
 				)
 			),
 			[],
@@ -797,14 +805,14 @@ export class ClearingHouse {
 	public async getFillOrderIx(
 		userAccountPublicKey: PublicKey,
 		userOrdersAccountPublicKey: PublicKey,
-		orderIndex: BN,
+		orderIndex: BN
 	): Promise<TransactionInstruction> {
 		const fillerPublicKey = await this.getUserAccountPublicKey();
 		const userAccount: any = await this.program.account.user.fetch(
 			userAccountPublicKey
 		);
 
-		const userOrdersAccount : any = await this.program.account.userOrders.fetch(
+		const userOrdersAccount: any = await this.program.account.userOrders.fetch(
 			userOrdersAccountPublicKey
 		);
 		const order = userOrdersAccount.orders[orderIndex.toNumber()];

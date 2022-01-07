@@ -10,7 +10,9 @@ import {
 	FundingPaymentHistoryAccount,
 	FundingRateHistoryAccount,
 	LiquidationHistoryAccount,
-	MarketsAccount, OrderHistoryAccount, OrderStateAccount,
+	MarketsAccount,
+	OrderHistoryAccount,
+	OrderStateAccount,
 	StateAccount,
 	TradeHistoryAccount,
 } from '../types';
@@ -100,10 +102,12 @@ export class DefaultClearingHouseAccountSubscriber
 			state.orderState
 		);
 
-		await this.orderStateAccountSubscriber.subscribe((data: OrderStateAccount) => {
-			this.eventEmitter.emit('orderStateAccountUpdate', data);
-			this.eventEmitter.emit('update');
-		});
+		await this.orderStateAccountSubscriber.subscribe(
+			(data: OrderStateAccount) => {
+				this.eventEmitter.emit('orderStateAccountUpdate', data);
+				this.eventEmitter.emit('update');
+			}
+		);
 
 		const orderState = this.orderStateAccountSubscriber.data;
 

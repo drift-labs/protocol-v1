@@ -53,7 +53,10 @@ export async function getUserOrdersAccountPublicKeyAndNonce(
 	authority: PublicKey
 ): Promise<[PublicKey, number]> {
 	return anchor.web3.PublicKey.findProgramAddress(
-		[Buffer.from(anchor.utils.bytes.utf8.encode('user_orders')), authority.toBuffer()],
+		[
+			Buffer.from(anchor.utils.bytes.utf8.encode('user_orders')),
+			authority.toBuffer(),
+		],
 		programId
 	);
 }

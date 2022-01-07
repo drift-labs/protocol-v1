@@ -266,16 +266,13 @@ export function calculateMaxBaseAssetAmountToTrade(
 			newBaseAssetReserve.sub(amm.baseAssetReserve),
 			PositionDirection.SHORT,
 		];
-	} else if(newBaseAssetReserve.lt(amm.baseAssetReserve)) {
+	} else if (newBaseAssetReserve.lt(amm.baseAssetReserve)) {
 		return [
 			amm.baseAssetReserve.sub(newBaseAssetReserve),
 			PositionDirection.LONG,
 		];
 	} else {
 		console.log('tradeSize Too Small');
-		return [
-			new BN(0),
-			PositionDirection.LONG,
-		];
+		return [new BN(0), PositionDirection.LONG];
 	}
 }

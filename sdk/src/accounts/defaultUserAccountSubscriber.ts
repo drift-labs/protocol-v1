@@ -7,9 +7,12 @@ import { Program } from '@project-serum/anchor';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import { EventEmitter } from 'events';
 import { PublicKey } from '@solana/web3.js';
-import {getUserAccountPublicKey, getUserOrdersAccountPublicKey} from '../addresses';
+import {
+	getUserAccountPublicKey,
+	getUserOrdersAccountPublicKey,
+} from '../addresses';
 import { WebSocketAccountSubscriber } from './webSocketAccountSubscriber';
-import {UserAccount, UserOrdersAccount, UserPositionsAccount} from '../types';
+import { UserAccount, UserOrdersAccount, UserPositionsAccount } from '../types';
 
 export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
 	isSubscribed: boolean;
@@ -71,10 +74,12 @@ export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
 			this.program,
 			userOrdersPublicKey
 		);
-		await this.userOrdersAccountSubscriber.subscribe((data: UserOrdersAccount) => {
-			this.eventEmitter.emit('userOrdersData', data);
-			this.eventEmitter.emit('update');
-		});
+		await this.userOrdersAccountSubscriber.subscribe(
+			(data: UserOrdersAccount) => {
+				this.eventEmitter.emit('userOrdersData', data);
+				this.eventEmitter.emit('update');
+			}
+		);
 
 		this.eventEmitter.emit('update');
 		this.isSubscribed = true;

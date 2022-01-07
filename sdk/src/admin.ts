@@ -5,13 +5,19 @@ import {
 	SYSVAR_RENT_PUBKEY,
 	TransactionSignature,
 } from '@solana/web3.js';
-import {FeeStructure, IWallet, OracleGuardRails, OracleSource, OrderFillerRewardStructure} from './types';
+import {
+	FeeStructure,
+	IWallet,
+	OracleGuardRails,
+	OracleSource,
+	OrderFillerRewardStructure,
+} from './types';
 import { BN, Idl, Program, Provider } from '@project-serum/anchor';
 import * as anchor from '@project-serum/anchor';
 import {
 	getClearingHouseStateAccountPublicKey,
 	getClearingHouseStateAccountPublicKeyAndNonce,
-	getOrderStateAccountPublicKeyAndNonce
+	getOrderStateAccountPublicKeyAndNonce,
 } from './addresses';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { ClearingHouse } from './clearingHouse';
@@ -52,7 +58,9 @@ export class Admin extends ClearingHouse {
 	public async initialize(
 		usdcMint: PublicKey,
 		adminControlsPrices: boolean
-	): Promise<[TransactionSignature, TransactionSignature, TransactionSignature]> {
+	): Promise<
+		[TransactionSignature, TransactionSignature, TransactionSignature]
+	> {
 		const stateAccountRPCResponse = await this.connection.getParsedAccountInfo(
 			await this.getStatePublicKey()
 		);
@@ -181,16 +189,12 @@ export class Admin extends ClearingHouse {
 		return [initializeTxSig, initializeHistoryTxSig, initializeOrderStateTxSig];
 	}
 
-	public async initializeOrderState() : Promise<TransactionSignature> {
+	public async initializeOrderState(): Promise<TransactionSignature> {
 		const orderHistory = anchor.web3.Keypair.generate();
 		const [orderStatePublicKey, orderStateNonce] =
-			await getOrderStateAccountPublicKeyAndNonce(
-				this.program.programId
-			);
+			await getOrderStateAccountPublicKeyAndNonce(this.program.programId);
 		const clearingHouseStatePublicKey =
-			await getClearingHouseStateAccountPublicKey(
-				this.program.programId
-			);
+			await getClearingHouseStateAccountPublicKey(this.program.programId);
 
 		const initializeOrderStateTx =
 			await this.program.transaction.initializeOrderState(orderStateNonce, {
@@ -211,9 +215,7 @@ export class Admin extends ClearingHouse {
 
 		return await this.txSender.send(
 			initializeOrderStateTx,
-			[
-				orderHistory,
-			],
+			[orderHistory],
 			this.opts
 		);
 	}
@@ -498,14 +500,19 @@ export class Admin extends ClearingHouse {
 		);
 	}
 
-	public async updateOrderFillerRewardStructure(orderFillerRewardStructure: OrderFillerRewardStructure): Promise<TransactionSignature> {
-		return await this.program.rpc.updateOrderFillerRewardStructure(orderFillerRewardStructure, {
-			accounts: {
-				admin: this.wallet.publicKey,
-				state: await this.getStatePublicKey(),
-				orderState: await this.getOrderStatePublicKey(),
-			},
-		});
+	public async updateOrderFillerRewardStructure(
+		orderFillerRewardStructure: OrderFillerRewardStructure
+	): Promise<TransactionSignature> {
+		return await this.program.rpc.updateOrderFillerRewardStructure(
+			orderFillerRewardStructure,
+			{
+				accounts: {
+					admin: this.wallet.publicKey,
+					state: await this.getStatePublicKey(),
+					orderState: await this.getOrderStatePublicKey(),
+				},
+			}
+		);
 	}
 
 	public async updateFee(fees: FeeStructure): Promise<TransactionSignature> {

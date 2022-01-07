@@ -7,7 +7,8 @@ import {
 	Admin,
 	MARK_PRICE_PRECISION,
 	FeeStructure,
-	OracleGuardRails, OrderFillerRewardStructure,
+	OracleGuardRails,
+	OrderFillerRewardStructure,
 } from '../sdk/src';
 import { OracleSource } from '../sdk';
 
@@ -177,7 +178,8 @@ describe('admin', () => {
 		const orderState = clearingHouse.getOrderStateAccount();
 
 		assert(
-			JSON.stringify(newStructure) === JSON.stringify(orderState.orderFillerRewardStructure)
+			JSON.stringify(newStructure) ===
+				JSON.stringify(orderState.orderFillerRewardStructure)
 		);
 	});
 
@@ -292,7 +294,7 @@ describe('admin', () => {
 		const market =
 			clearingHouse.getMarketsAccount().markets[
 				Markets[0].marketIndex.toNumber()
-				];
+			];
 		assert(market.amm.minimumBaseAssetTradeSize.eq(minimumTradeSize));
 	});
 

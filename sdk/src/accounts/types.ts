@@ -4,10 +4,13 @@ import {
 	FundingPaymentHistoryAccount,
 	FundingRateHistoryAccount,
 	LiquidationHistoryAccount,
-	MarketsAccount, OrderHistoryAccount, OrderStateAccount,
+	MarketsAccount,
+	OrderHistoryAccount,
+	OrderStateAccount,
 	StateAccount,
 	TradeHistoryAccount,
-	UserAccount, UserOrdersAccount,
+	UserAccount,
+	UserOrdersAccount,
 	UserPositionsAccount,
 } from '../types';
 import StrictEventEmitter from 'strict-event-emitter-types';
