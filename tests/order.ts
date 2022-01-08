@@ -317,6 +317,7 @@ describe("orders", () => {
 
     const fillerUserAccount = fillerUser.getUserAccount();
     const expectedFillerReward = new BN(95);
+    console.log('FillerReward: $', convertToNumber(fillerUserAccount.collateral.sub(usdcAmount), QUOTE_PRECISION));
     assert(
       fillerUserAccount.collateral.sub(usdcAmount).eq(expectedFillerReward)
     );
@@ -405,6 +406,7 @@ describe("orders", () => {
 
     const fillerUserAccount = fillerUser.getUserAccount();
     const expectedFillerReward = new BN(190);
+    console.log('FillerReward: $', convertToNumber(fillerUserAccount.collateral.sub(usdcAmount), QUOTE_PRECISION));
     assert(
       fillerUserAccount.collateral.sub(usdcAmount).eq(expectedFillerReward)
     );

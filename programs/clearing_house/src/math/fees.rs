@@ -1,4 +1,6 @@
 use crate::error::*;
+use crate::math::bn::U192;
+use crate::math::casting::cast_to_u128;
 use crate::math_error;
 use crate::state::order_state::OrderFillerRewardStructure;
 use crate::state::state::{DiscountTokenTier, FeeStructure};
@@ -7,6 +9,7 @@ use crate::state::user_orders::OrderDiscountTier;
 use anchor_lang::Account;
 use solana_program::msg;
 use spl_token::state::Account as TokenAccount;
+use std::cmp::{max, min};
 
 pub fn calculate_fee_for_market_order(
     quote_asset_amount: u128,
@@ -182,6 +185,8 @@ pub fn calculate_fee_for_limit_order(
     fee_structure: &FeeStructure,
     filler_reward_structure: &OrderFillerRewardStructure,
     order_fee_tier: &OrderDiscountTier,
+    order_ts: i64,
+    now: i64,
 ) -> ClearingHouseResult<(u128, u128, u128, u128)> {
     let fee = quote_asset_amount
         .checked_mul(fee_structure.fee_numerator)
@@ -194,7 +199,7 @@ pub fn calculate_fee_for_limit_order(
 
     let user_fee = fee.checked_sub(token_discount).ok_or_else(math_error!())?;
 
-    let filler_reward = calculate_filler_reward(user_fee, filler_reward_structure)?;
+    let filler_reward = calculate_filler_reward(user_fee, order_ts, now, filler_reward_structure)?;
     let fee_to_market = user_fee
         .checked_sub(filler_reward)
         .ok_or_else(math_error!())?;
@@ -230,11 +235,32 @@ fn calculate_token_discount_for_limit_order(
 
 fn calculate_filler_reward(
     fee: u128,
+    order_ts: i64,
+    now: i64,
     filler_reward_structure: &OrderFillerRewardStructure,
-) -> ClearingHouseResult<u128> {
-    return fee
+) -> ClearingHouseResult<u128> {    
+    let size_filler_reward = fee
         .checked_mul(filler_reward_structure.reward_numerator)
         .ok_or_else(math_error!())?
         .checked_div(filler_reward_structure.reward_denominator)
-        .ok_or_else(math_error!());
+        .ok_or_else(math_error!())?;
+
+    let min_time_filler_reward = 1000; // .001000 cents
+    let time_since_order = max(1, cast_to_u128(
+        now.checked_sub(order_ts).ok_or_else(math_error!())? 
+    )?);
+    let time_filler_reward =  U192::from(time_since_order)
+        .checked_mul(U192::from(100_000_000)) // 1e8
+        .ok_or_else(math_error!())?
+        .integer_sqrt()
+        .integer_sqrt()
+        .try_to_u128()?
+        .checked_mul(min_time_filler_reward)
+        .ok_or_else(math_error!())?
+        .checked_div(100) // 1e2 = sqrt(sqrt(1e8)) 
+        .ok_or_else(math_error!())?;
+    
+    let fee = min(size_filler_reward, time_filler_reward);
+
+    return Ok(fee);
 }
