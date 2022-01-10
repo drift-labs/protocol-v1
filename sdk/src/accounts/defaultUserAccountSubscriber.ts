@@ -91,6 +91,7 @@ export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
 		await Promise.all([
 			this.userDataAccountSubscriber.fetch(),
 			this.userPositionsAccountSubscriber.fetch(),
+			this.userOrdersAccountSubscriber.fetch(),
 		]);
 	}
 
