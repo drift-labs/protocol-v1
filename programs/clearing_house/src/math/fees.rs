@@ -238,7 +238,7 @@ fn calculate_filler_reward(
     order_ts: i64,
     now: i64,
     filler_reward_structure: &OrderFillerRewardStructure,
-) -> ClearingHouseResult<u128> {    
+) -> ClearingHouseResult<u128> {
     let size_filler_reward = fee
         .checked_mul(filler_reward_structure.reward_numerator)
         .ok_or_else(math_error!())?
@@ -246,10 +246,11 @@ fn calculate_filler_reward(
         .ok_or_else(math_error!())?;
 
     let min_time_filler_reward = 1000; // .001000 cents
-    let time_since_order = max(1, cast_to_u128(
-        now.checked_sub(order_ts).ok_or_else(math_error!())? 
-    )?);
-    let time_filler_reward =  U192::from(time_since_order)
+    let time_since_order = max(
+        1,
+        cast_to_u128(now.checked_sub(order_ts).ok_or_else(math_error!())?)?,
+    );
+    let time_filler_reward = U192::from(time_since_order)
         .checked_mul(U192::from(100_000_000)) // 1e8
         .ok_or_else(math_error!())?
         .integer_sqrt()
@@ -257,9 +258,9 @@ fn calculate_filler_reward(
         .try_to_u128()?
         .checked_mul(min_time_filler_reward)
         .ok_or_else(math_error!())?
-        .checked_div(100) // 1e2 = sqrt(sqrt(1e8)) 
+        .checked_div(100) // 1e2 = sqrt(sqrt(1e8))
         .ok_or_else(math_error!())?;
-    
+
     let fee = min(size_filler_reward, time_filler_reward);
 
     return Ok(fee);

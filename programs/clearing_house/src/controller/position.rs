@@ -241,7 +241,7 @@ pub fn reduce<'info>(
 pub fn reduce_with_base_asset_amount<'info>(
     direction: PositionDirection,
     base_asset_amount: u128,
-    user: &mut Account<'info, User>,
+    user: &mut User,
     market: &mut Market,
     market_position: &mut MarketPosition,
     now: i64,
@@ -319,7 +319,7 @@ pub fn reduce_with_base_asset_amount<'info>(
 }
 
 pub fn close(
-    user: &mut Account<User>,
+    user: &mut User,
     market: &mut Market,
     market_position: &mut MarketPosition,
     now: i64,

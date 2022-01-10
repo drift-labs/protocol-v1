@@ -1,8 +1,8 @@
-use crate::error::{*};
+use crate::error::*;
+use crate::math::constants::*;
+use crate::math_error;
 use crate::state::market::Market;
 use crate::state::user_orders::{Order, OrderType};
-use crate::math::{constants::*};
-use crate::math_error;
 
 use solana_program::msg;
 
@@ -36,7 +36,8 @@ fn validate_limit_order(order: &Order) -> ClearingHouseResult {
         return Err(ErrorCode::InvalidOrder.into());
     }
 
-    let approx_market_value = order.price
+    let approx_market_value = order
+        .price
         .checked_mul(order.base_asset_amount)
         .ok_or_else(math_error!())?
         .checked_div(AMM_RESERVE_PRECISION)
@@ -45,10 +46,10 @@ fn validate_limit_order(order: &Order) -> ClearingHouseResult {
         .ok_or_else(math_error!())?;
 
     // decide min trade size ($10?)
-    if approx_market_value < QUOTE_PRECISION/2{
+    if approx_market_value < QUOTE_PRECISION / 2 {
         msg!("Order {:?} @ {:?}", order.base_asset_amount, order.price);
         msg!("Order value < $0.50 ({:?})", approx_market_value);
-        return Err(ErrorCode::InvalidOrder.into());  
+        return Err(ErrorCode::InvalidOrder.into());
     }
 
     Ok(())

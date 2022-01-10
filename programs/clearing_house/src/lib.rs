@@ -1149,7 +1149,9 @@ pub mod clearing_house {
         )?;
 
         let user_orders = &mut ctx.accounts.user_orders.load_mut()?;
-        let order = &user_orders.orders[UserOrders::index_from_u64(order_index)];
+        // let order = &user_orders.orders[UserOrders::index_from_u64(order_index)];
+        let order = &mut user_orders.orders[UserOrders::index_from_u64(order_index)];
+
         if order.status != OrderStatus::Open {
             return Err(ErrorCode::OrderDoesNotExist.into());
         }
@@ -1172,7 +1174,6 @@ pub mod clearing_house {
         }
 
         let free_collateral: u128;
-        // let max_leverage: u128 = 5;
         let max_leverage: u128 = MARGIN_PRECISION
             .checked_div(ctx.accounts.state.margin_ratio_initial)
             .ok_or_else(math_error!())?;
@@ -1224,122 +1225,33 @@ pub mod clearing_house {
             )?;
         }
 
-        let base_asset_amount: u128;
-        {
-            let market =
-                &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
-
-            let max_user_base_asset_amount = free_collateral
-                .checked_mul(max_leverage)
-                .ok_or_else(math_error!())?
-                .checked_mul(MARK_PRICE_PRECISION / QUOTE_PRECISION)
-                .ok_or_else(math_error!())?
-                .checked_mul(AMM_RESERVE_PRECISION)
-                .ok_or_else(math_error!())?
-                .checked_div(mark_price_before)
-                .ok_or_else(math_error!())?;
-            let order_swap_direction = match order.direction {
-                PositionDirection::Long => SwapDirection::Add,
-                PositionDirection::Short => SwapDirection::Remove,
-            };
-
-            let quote_asset_reserve_amount = asset_to_reserve_amount(
-                free_collateral
-                    .checked_mul(max_leverage)
-                    .ok_or_else(math_error!())?,
-                market.amm.peg_multiplier,
-            )?;
-
-            let initial_base_asset_amount = market.amm.base_asset_reserve;
-            let (new_base_asset_amount, new_quote_asset_amount) = amm::calculate_swap_output(
-                quote_asset_reserve_amount,
-                market.amm.quote_asset_reserve,
-                order_swap_direction,
-                market.amm.sqrt_k,
-            )?;
-
-            let max_user_base_asset_amount = cast_to_i128(initial_base_asset_amount)?
-                .checked_sub(cast(new_base_asset_amount)?)
-                .ok_or_else(math_error!())?
-                .unsigned_abs();
-
-            let trade_base_asset_amount =
-                calculate_base_asset_amount_to_trade(order, market, Some(mark_price_before))?;
-
-            base_asset_amount = min(max_user_base_asset_amount, trade_base_asset_amount);
-        }
-
-        // A trade is risk increasing if it increases the users leverage
-        // If a trade is risk increasing and brings the user's margin ratio below initial requirement
-        // the trade fails
-        // If a trade is risk increasing and it pushes the mark price too far away from the oracle price
-        // the trade fails
-        let mut potentially_risk_increasing = true;
         let direction = order.direction;
-        let reduce_only = order.reduce_only;
-
-        // The trade increases the the user position if
-        // 1) the user does not have a position
-        // 2) the trade is in the same direction as the user's existing position
-        let increase_position = market_position.base_asset_amount == 0
-            || market_position.base_asset_amount > 0 && direction == PositionDirection::Long
-            || market_position.base_asset_amount < 0 && direction == PositionDirection::Short;
-        if increase_position {
+        let base_asset_amount: u128;
+        let potentially_risk_increasing: bool;
+        {
+            // TODO: combine with oracle check scope above?
             let market = &mut ctx.accounts.markets.load_mut()?.markets
                 [Markets::index_from_u64(market_index)];
 
-            controller::position::increase_with_base_asset_amount(
-                direction,
-                base_asset_amount,
-                market,
-                market_position,
-                now,
-            )?;
-        } else {
-            let market = &mut ctx.accounts.markets.load_mut()?.markets
-                [Markets::index_from_u64(market_index)];
-
-            if market_position.base_asset_amount.unsigned_abs() > base_asset_amount {
-                controller::position::reduce_with_base_asset_amount(
-                    direction,
-                    base_asset_amount,
+            let (_base_asset_amount, _potentially_risk_increasing) =
+                controller::orders::fill_order_to_market(
+                    order,
+                    market,
                     user,
-                    market,
                     market_position,
+                    free_collateral,
+                    max_leverage,
+                    mark_price_before,
                     now,
                 )?;
 
-                potentially_risk_increasing = false;
-            } else {
-                // after closing existing position, how large should trade be in opposite direction
-                let base_asset_amount_after_close = base_asset_amount
-                    .checked_sub(market_position.base_asset_amount.unsigned_abs())
-                    .ok_or_else(math_error!())?;
-
-                // If the value of the new position is less than value of the old position, consider it risk decreasing
-                if base_asset_amount_after_close < market_position.base_asset_amount.unsigned_abs()
-                {
-                    potentially_risk_increasing = false;
-                }
-
-                controller::position::close(user, market, market_position, now)?;
-
-                controller::position::increase_with_base_asset_amount(
-                    direction,
-                    base_asset_amount_after_close,
-                    market,
-                    market_position,
-                    now,
-                )?;
-            }
+            base_asset_amount = _base_asset_amount;
+            potentially_risk_increasing = _potentially_risk_increasing;
         }
 
-        if potentially_risk_increasing && reduce_only {
+        if potentially_risk_increasing && order.reduce_only {
             return Err(ErrorCode::ReduceOnlyOrderIncreasedRisk.into());
         }
-
-        let order = &mut user_orders.orders[UserOrders::index_from_u64(order_index)];
-        update_order_after_trade(order, minimum_base_asset_trade_size, base_asset_amount)?;
 
         // Collect data about position/market after trade is executed so that it can be stored in trade history
         let quote_asset_amount;
