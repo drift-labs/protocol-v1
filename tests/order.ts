@@ -203,6 +203,8 @@ describe('orders', () => {
 			discountTokenAccount.address
 		);
 
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
 		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
 		const order = userOrdersAccount.orders[0];
 		const expectedOrderId = new BN(1);
@@ -256,6 +258,8 @@ describe('orders', () => {
 		const orderIndex = new BN(0);
 		await clearingHouse.cancelOrder(orderIndex);
 
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
 		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
 		const order = userOrdersAccount.orders[orderIndex.toString()];
 
@@ -306,6 +310,10 @@ describe('orders', () => {
 			userOrdersAccountPublicKey,
 			orderIndex
 		);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+		await fillerUser.fetchAccounts();
 
 		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
 		const order = userOrdersAccount.orders[orderIndex.toString()];
@@ -401,6 +409,10 @@ describe('orders', () => {
 			userOrdersAccountPublicKey,
 			orderIndex
 		);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+		await fillerUser.fetchAccounts();
 
 		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
 		const order = userOrdersAccount.orders[orderIndex.toString()];
@@ -519,6 +531,7 @@ describe('orders', () => {
 		const orderType = OrderType.LIMIT;
 		const direction = PositionDirection.SHORT;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
+		await clearingHouse.fetchAccounts();
 		const market = clearingHouse.getMarket(marketIndex);
 		const limitPrice = calculateMarkPrice(market).sub(new BN(10000)); // 0 liquidity at current mark price
 		const [newDirection, amountToPrice, _entryPrice, newMarkPrice] =
@@ -554,6 +567,7 @@ describe('orders', () => {
 
 		const orderIndex = new BN(0);
 
+		await clearingHouseUser.fetchAccounts();
 		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
 		const order = userOrdersAccount.orders[0];
 		const amountToFill = calculateAmountToTradeForLimit(market, order);
@@ -565,6 +579,10 @@ describe('orders', () => {
 			userOrdersAccountPublicKey,
 			orderIndex
 		);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+		await fillerUser.fetchAccounts();
 
 		const market2 = clearingHouse.getMarket(marketIndex);
 		const userOrdersAccount2 = clearingHouseUser.getUserOrdersAccount();
@@ -669,6 +687,7 @@ describe('orders', () => {
 			new BN(1.45 * MARK_PRICE_PRECISION.toNumber())
 		);
 
+		await clearingHouseUser.fetchAccounts();
 		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
 		const order = userOrdersAccount.orders[0];
 		const amountToFill = calculateAmountToTradeForLimit(market, order);
@@ -680,6 +699,10 @@ describe('orders', () => {
 			userOrdersAccountPublicKey,
 			orderIndex
 		);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+		await fillerUser.fetchAccounts();
 
 		const userOrdersAccount1 = clearingHouseUser.getUserOrdersAccount();
 		const order1 = userOrdersAccount1.orders[0];
@@ -781,6 +804,10 @@ describe('orders', () => {
 			userOrdersAccountPublicKey,
 			orderIndex
 		);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+		await fillerUser.fetchAccounts();
 
 		const userOrdersAccount1 = clearingHouseUser.getUserOrdersAccount();
 		const order1 = userOrdersAccount1.orders[0];
