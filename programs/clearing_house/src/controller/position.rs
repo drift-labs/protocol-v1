@@ -30,9 +30,9 @@ pub fn increase(
     market: &mut Market,
     market_position: &mut MarketPosition,
     now: i64,
-) -> ClearingHouseResult {
+) -> ClearingHouseResult<i128> {
     if quote_asset_amount == 0 {
-        return Ok(());
+        return Ok(0);
     }
 
     // Update funding rate if this is a new position
@@ -88,7 +88,7 @@ pub fn increase(
             .ok_or_else(math_error!())?;
     }
 
-    Ok(())
+    Ok(base_asset_acquired)
 }
 
 pub fn increase_with_base_asset_amount(
@@ -165,7 +165,7 @@ pub fn reduce<'info>(
     market_position: &mut MarketPosition,
     now: i64,
     precomputed_mark_price: Option<u128>,
-) -> ClearingHouseResult {
+) -> ClearingHouseResult<i128> {
     let swap_direction = match direction {
         PositionDirection::Long => SwapDirection::Add,
         PositionDirection::Short => SwapDirection::Remove,
@@ -235,7 +235,7 @@ pub fn reduce<'info>(
 
     user.collateral = calculate_updated_collateral(user.collateral, pnl)?;
 
-    Ok(())
+    Ok(base_asset_swapped)
 }
 
 pub fn reduce_with_base_asset_amount<'info>(
@@ -323,10 +323,10 @@ pub fn close(
     market: &mut Market,
     market_position: &mut MarketPosition,
     now: i64,
-) -> ClearingHouseResult {
+) -> ClearingHouseResult<(u128, i128)> {
     // If user has no base asset, return early
     if market_position.base_asset_amount == 0 {
-        return Ok(());
+        return Ok((0, 0));
     }
 
     let swap_direction = if market_position.base_asset_amount > 0 {
@@ -375,7 +375,8 @@ pub fn close(
             .ok_or_else(math_error!())?;
     }
 
+    let base_asset_amount = market_position.base_asset_amount;
     market_position.base_asset_amount = 0;
 
-    Ok(())
+    Ok((base_asset_value, base_asset_amount))
 }

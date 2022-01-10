@@ -19,6 +19,7 @@ import { EventEmitter } from 'events';
 export interface AccountSubscriber<T> {
 	data?: T;
 	subscribe(onChange: (data: T) => void): Promise<void>;
+	fetch(): Promise<void>;
 	unsubscribe(): void;
 }
 
@@ -60,7 +61,7 @@ export interface ClearingHouseAccountSubscriber {
 	subscribe(
 		optionalSubscriptions?: ClearingHouseAccountTypes[]
 	): Promise<boolean>;
-
+	fetch(): Promise<void>;
 	unsubscribe(): Promise<void>;
 
 	getStateAccount(): StateAccount;
@@ -114,6 +115,7 @@ export interface UserAccountSubscriber {
 	isSubscribed: boolean;
 
 	subscribe(): Promise<boolean>;
+	fetch(): Promise<void>;
 	unsubscribe(): Promise<void>;
 
 	getUserAccount(): UserAccount;

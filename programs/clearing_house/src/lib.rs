@@ -519,7 +519,6 @@ pub mod clearing_house {
         let mut potentially_risk_increasing = true;
 
         // Collect data about position/market before trade is executed so that it can be stored in trade history
-        let base_asset_amount_before = market_position.base_asset_amount;
         let mark_price_before: u128;
         let oracle_mark_spread_pct_before: i128;
         let is_oracle_valid: bool;
@@ -549,6 +548,7 @@ pub mod clearing_house {
         }
 
         let mut quote_asset_amount = quote_asset_amount;
+        let base_asset_amount;
         // The trade increases the the user position if
         // 1) the user does not have a position
         // 2) the trade is in the same direction as the user's existing position
@@ -559,13 +559,14 @@ pub mod clearing_house {
             let market = &mut ctx.accounts.markets.load_mut()?.markets
                 [Markets::index_from_u64(market_index)];
 
-            controller::position::increase(
+            base_asset_amount = controller::position::increase(
                 direction,
                 quote_asset_amount,
                 market,
                 market_position,
                 now,
-            )?;
+            )?
+            .unsigned_abs();
         } else {
             let market = &mut ctx.accounts.markets.load_mut()?.markets
                 [Markets::index_from_u64(market_index)];
@@ -582,7 +583,7 @@ pub mod clearing_house {
             // we calculate what the user's position is worth if they closed to determine
             // if they are reducing or closing and reversing their position
             if base_asset_value > quote_asset_amount {
-                controller::position::reduce(
+                base_asset_amount = controller::position::reduce(
                     direction,
                     quote_asset_amount,
                     user,
@@ -590,7 +591,8 @@ pub mod clearing_house {
                     market_position,
                     now,
                     None,
-                )?;
+                )?
+                .unsigned_abs();
 
                 potentially_risk_increasing = false;
             } else {
@@ -604,24 +606,26 @@ pub mod clearing_house {
                     potentially_risk_increasing = false;
                 }
 
-                controller::position::close(user, market, market_position, now)?;
+                let (_, base_asset_amount_closed) =
+                    controller::position::close(user, market, market_position, now)?;
+                let base_asset_amount_closed = base_asset_amount_closed.unsigned_abs();
 
-                controller::position::increase(
+                let base_asset_amount_opened = controller::position::increase(
                     direction,
                     quote_asset_amount_after_close,
                     market,
                     market_position,
                     now,
-                )?;
+                )?
+                .unsigned_abs();
+
+                base_asset_amount = base_asset_amount_closed
+                    .checked_add(base_asset_amount_opened)
+                    .ok_or_else(math_error!())?;
             }
         }
 
         // Collect data about position/market after trade is executed so that it can be stored in trade history
-        let base_asset_amount_change = market_position
-            .base_asset_amount
-            .checked_sub(base_asset_amount_before)
-            .ok_or_else(math_error!())?
-            .unsigned_abs();
         let mark_price_after: u128;
         let oracle_price_after: i128;
         let oracle_mark_spread_pct_after: i128;
@@ -737,7 +741,7 @@ pub mod clearing_house {
             user_authority: *ctx.accounts.authority.to_account_info().key,
             user: *user.to_account_info().key,
             direction,
-            base_asset_amount: base_asset_amount_change,
+            base_asset_amount,
             quote_asset_amount,
             mark_price_before,
             mark_price_after,
@@ -762,7 +766,7 @@ pub mod clearing_house {
 
             let entry_price = amm::calculate_price(
                 quote_asset_reserve_amount,
-                base_asset_amount_change,
+                base_asset_amount,
                 market.amm.peg_multiplier,
             )?;
 
@@ -834,17 +838,13 @@ pub mod clearing_house {
         let market =
             &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
 
-        // base_asset_value is the base_asset_amount priced in quote_asset, so we can use this
-        // as quote_asset_amount to calculate fee and record trade size in trade history
-        let (quote_asset_amount, _pnl) =
-            calculate_base_asset_value_and_pnl(market_position, &market.amm)?;
-
         // Collect data about market before trade is executed so that it can be stored in trade history
         let mark_price_before = market.amm.mark_price()?;
         let direction_to_close =
             math::position::direction_to_close_position(market_position.base_asset_amount);
-        let base_asset_amount = market_position.base_asset_amount.unsigned_abs();
-        controller::position::close(user, market, market_position, now)?;
+        let (quote_asset_amount, base_asset_amount) =
+            controller::position::close(user, market, market_position, now)?;
+        let base_asset_amount = base_asset_amount.unsigned_abs();
 
         // Calculate the fee to charge the user
         let (discount_token, referrer) = optional_accounts::get_discount_token_and_referrer(
@@ -1489,15 +1489,12 @@ pub mod clearing_house {
 
                 let direction_to_close =
                     math::position::direction_to_close_position(market_position.base_asset_amount);
-                let (base_asset_value, _pnl) = math::position::calculate_base_asset_value_and_pnl(
-                    &market_position,
-                    &market.amm,
-                )?;
-                base_asset_value_closed += base_asset_value;
-                let base_asset_amount = market_position.base_asset_amount.unsigned_abs();
 
                 let mark_price_before = market.amm.mark_price()?;
-                controller::position::close(user, market, market_position, now)?;
+                let (base_asset_value, base_asset_amount) =
+                    controller::position::close(user, market, market_position, now)?;
+                let base_asset_amount = base_asset_amount.unsigned_abs();
+                base_asset_value_closed += base_asset_value;
                 let mark_price_after = market.amm.mark_price()?;
 
                 let record_id = trade_history.next_record_id();
@@ -1564,9 +1561,8 @@ pub mod clearing_house {
 
                 let direction_to_reduce =
                     math::position::direction_to_close_position(market_position.base_asset_amount);
-                let base_asset_amount_before = market_position.base_asset_amount;
 
-                controller::position::reduce(
+                let base_asset_amount_change = controller::position::reduce(
                     direction_to_reduce,
                     base_asset_value_to_close,
                     user,
@@ -1574,13 +1570,8 @@ pub mod clearing_house {
                     market_position,
                     now,
                     Some(mark_price_before),
-                )?;
-
-                let base_asset_amount_change = market_position
-                    .base_asset_amount
-                    .checked_sub(base_asset_amount_before)
-                    .ok_or_else(math_error!())?
-                    .unsigned_abs();
+                )?
+                .unsigned_abs();
 
                 let mark_price_after = market.amm.mark_price()?;
                 let record_id = trade_history.next_record_id();
