@@ -209,7 +209,7 @@ export type OrderRecord = {
 	action: OrderAction;
 	filler: PublicKey;
 	baseAssetAmountFilled: BN;
-	quoteAssetAmount: BN;
+	quoteAssetAmountFilled: BN;
 	fillerReward: BN;
 	tradeRecordId: BN;
 };
@@ -257,6 +257,7 @@ export type StateAccount = {
 export type OrderStateAccount = {
 	orderHistory: PublicKey;
 	orderFillerRewardStructure: OrderFillerRewardStructure;
+	minOrderQuoteAssetAmount: BN;
 };
 
 export type MarketsAccount = {
@@ -336,6 +337,7 @@ export type Order = {
 	price: BN;
 	baseAssetAmount: BN;
 	baseAssetAmountFilled: BN;
+	quoteAssetAmountFilled: BN;
 	direction: PositionDirection;
 	reduceOnly: boolean;
 	triggerPrice: BN;
@@ -399,4 +401,5 @@ export type OracleGuardRails = {
 export type OrderFillerRewardStructure = {
 	rewardNumerator: BN;
 	rewardDenominator: BN;
+	timeBasedRewardLowerbound: BN;
 };

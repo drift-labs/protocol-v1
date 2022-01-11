@@ -171,6 +171,7 @@ describe('admin', () => {
 		const newStructure: OrderFillerRewardStructure = {
 			rewardNumerator: new BN(1),
 			rewardDenominator: new BN(1),
+			timeBasedRewardLowerbound: new BN(1),
 		};
 
 		await clearingHouse.updateOrderFillerRewardStructure(newStructure);
