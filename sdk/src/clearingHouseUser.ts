@@ -124,6 +124,16 @@ export class ClearingHouseUser {
 		};
 	}
 
+	/**
+	 * @param orderId
+	 * @returns Order
+	 */
+	public getOrder(orderId: BN): Order | undefined {
+		return this.getUserOrdersAccount().orders.find((order) =>
+			order.orderId.eq(orderId)
+		);
+	}
+
 	public async getUserAccountPublicKey(): Promise<PublicKey> {
 		if (this.userAccountPublicKey) {
 			return this.userAccountPublicKey;

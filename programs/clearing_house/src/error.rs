@@ -92,6 +92,8 @@ pub enum ErrorCode {
     MaxNumberOfOrders,
     #[msg("Order does not exist")]
     OrderDoesNotExist,
+    #[msg("Order not open")]
+    OrderNotOpen,
     #[msg("Market cant fill order")]
     MarketCantFillOrder,
     #[msg("Reduce only order increased risk")]

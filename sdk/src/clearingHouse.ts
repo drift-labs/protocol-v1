@@ -759,23 +759,21 @@ export class ClearingHouse {
 		);
 	}
 
-	public async cancelOrder(orderIndex: BN): Promise<TransactionSignature> {
+	public async cancelOrder(orderId: BN): Promise<TransactionSignature> {
 		return await this.txSender.send(
-			wrapInTx(await this.getCancelOrderIx(orderIndex)),
+			wrapInTx(await this.getCancelOrderIx(orderId)),
 			[],
 			this.opts
 		);
 	}
 
-	public async getCancelOrderIx(
-		orderIndex: BN
-	): Promise<TransactionInstruction> {
+	public async getCancelOrderIx(orderId: BN): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
 		const userAccount = await this.getUserAccount();
 
 		const state = this.getStateAccount();
 		const orderState = this.getOrderStateAccount();
-		return await this.program.instruction.cancelOrder(orderIndex, {
+		return await this.program.instruction.cancelOrder(orderId, {
 			accounts: {
 				state: await this.getStatePublicKey(),
 				user: userAccountPublicKey,
@@ -794,14 +792,14 @@ export class ClearingHouse {
 	public async fillOrder(
 		userAccountPublicKey: PublicKey,
 		userOrdersAccountPublicKey: PublicKey,
-		marketIndex: BN
+		orderId: BN
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
 			wrapInTx(
 				await this.getFillOrderIx(
 					userAccountPublicKey,
 					userOrdersAccountPublicKey,
-					marketIndex
+					orderId
 				)
 			),
 			[],
@@ -812,7 +810,7 @@ export class ClearingHouse {
 	public async getFillOrderIx(
 		userAccountPublicKey: PublicKey,
 		userOrdersAccountPublicKey: PublicKey,
-		orderIndex: BN
+		orderId: BN
 	): Promise<TransactionInstruction> {
 		const fillerPublicKey = await this.getUserAccountPublicKey();
 		const userAccount: any = await this.program.account.user.fetch(
@@ -822,13 +820,18 @@ export class ClearingHouse {
 		const userOrdersAccount: any = await this.program.account.userOrders.fetch(
 			userOrdersAccountPublicKey
 		);
-		const order = userOrdersAccount.orders[orderIndex.toNumber()];
+		const order = userOrdersAccount.orders.find((order) =>
+			order.orderId.eq(orderId)
+		);
+		if (!order) {
+			throw new Error(`${orderId.toString()} does not exist`);
+		}
 		const marketIndex = order.marketIndex;
 		const oracle = this.getMarket(marketIndex).amm.oracle;
 
 		const state = this.getStateAccount();
 		const orderState = this.getOrderStateAccount();
-		return await this.program.instruction.fillOrder(orderIndex, {
+		return await this.program.instruction.fillOrder(orderId, {
 			accounts: {
 				state: await this.getStatePublicKey(),
 				filler: fillerPublicKey,

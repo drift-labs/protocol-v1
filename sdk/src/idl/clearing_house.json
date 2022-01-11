@@ -646,8 +646,8 @@
       ],
       "args": [
         {
-          "name": "orderIndex",
-          "type": "u64"
+          "name": "orderId",
+          "type": "u128"
         }
       ]
     },
@@ -722,8 +722,8 @@
       ],
       "args": [
         {
-          "name": "orderIndex",
-          "type": "u64"
+          "name": "orderId",
+          "type": "u128"
         }
       ]
     },
@@ -3540,21 +3540,26 @@
     },
     {
       "code": 6044,
+      "name": "OrderNotOpen",
+      "msg": "Order not open"
+    },
+    {
+      "code": 6045,
       "name": "MarketCantFillOrder",
       "msg": "Market cant fill order"
     },
     {
-      "code": 6045,
+      "code": 6046,
       "name": "ReduceOnlyOrderIncreasedRisk",
       "msg": "Reduce only order increased risk"
     },
     {
-      "code": 6046,
+      "code": 6047,
       "name": "OrderStateAlreadyInitialized",
       "msg": "Order state already initialized"
     },
     {
-      "code": 6047,
+      "code": 6048,
       "name": "OrderTriggerConditionNotSatisfied",
       "msg": "Order trigger condition not satisfied"
     }

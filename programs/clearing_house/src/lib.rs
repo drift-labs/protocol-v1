@@ -1080,7 +1080,7 @@ pub mod clearing_house {
     #[access_control(
         exchange_not_paused(&ctx.accounts.state)
     )]
-    pub fn cancel_order<'info>(ctx: Context<CancelOrder>, order_index: u64) -> ProgramResult {
+    pub fn cancel_order<'info>(ctx: Context<CancelOrder>, order_id: u128) -> ProgramResult {
         let user = &mut ctx.accounts.user;
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
@@ -1097,9 +1097,15 @@ pub mod clearing_house {
         )?;
 
         let user_orders = &mut ctx.accounts.user_orders.load_mut()?;
-        let order = &user_orders.orders[UserOrders::index_from_u64(order_index)];
+        let order_index = user_orders
+            .orders
+            .iter()
+            .position(|order| order.order_id == order_id)
+            .ok_or(ErrorCode::OrderDoesNotExist)?;
+        let order = &mut user_orders.orders[order_index];
+
         if order.status != OrderStatus::Open {
-            return Err(ErrorCode::OrderDoesNotExist.into());
+            return Err(ErrorCode::OrderNotOpen.into());
         }
 
         // Add to the order history account
@@ -1123,7 +1129,7 @@ pub mod clearing_house {
         let position_index = get_position_index(user_positions, order.market_index)?;
         let market_position = &mut user_positions.positions[position_index];
         market_position.open_orders -= 1;
-        user_orders.orders[UserOrders::index_from_u64(order_index)] = Order::default();
+        *order = Order::default();
 
         Ok(())
     }
@@ -1131,7 +1137,7 @@ pub mod clearing_house {
     #[access_control(
         exchange_not_paused(&ctx.accounts.state)
     )]
-    pub fn fill_order<'info>(ctx: Context<FillOrder>, order_index: u64) -> ProgramResult {
+    pub fn fill_order<'info>(ctx: Context<FillOrder>, order_id: u128) -> ProgramResult {
         let user = &mut ctx.accounts.user;
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
@@ -1149,11 +1155,15 @@ pub mod clearing_house {
         )?;
 
         let user_orders = &mut ctx.accounts.user_orders.load_mut()?;
-        // let order = &user_orders.orders[UserOrders::index_from_u64(order_index)];
-        let order = &mut user_orders.orders[UserOrders::index_from_u64(order_index)];
+        let order_index = user_orders
+            .orders
+            .iter()
+            .position(|order| order.order_id == order_id)
+            .ok_or(ErrorCode::OrderDoesNotExist)?;
+        let order = &mut user_orders.orders[order_index];
 
         if order.status != OrderStatus::Open {
-            return Err(ErrorCode::OrderDoesNotExist.into());
+            return Err(ErrorCode::OrderNotOpen.into());
         }
 
         let market_index = order.market_index;
@@ -1178,8 +1188,7 @@ pub mod clearing_house {
             .ok_or_else(math_error!())?;
         let free_collateral;
         {
-            let markets =
-                &ctx.accounts.markets.load()?;
+            let markets = &ctx.accounts.markets.load()?;
 
             free_collateral =
                 calculate_free_collateral(user, user_positions, markets, max_leverage)?;
