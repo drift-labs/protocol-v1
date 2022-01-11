@@ -226,7 +226,9 @@ pub mod clearing_house {
             order_filler_reward_structure: OrderFillerRewardStructure {
                 reward_numerator: 1,
                 reward_denominator: 10,
+                time_based_reward_lowerbound: 10_000, // 1 cent
             },
+            min_order_quote_asset_amount: 500_000, // 50 cents
         };
 
         Ok(())
@@ -1028,9 +1030,10 @@ pub mod clearing_house {
         };
 
         {
+            let order_state = &ctx.accounts.order_state;
             let market =
                 &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
-            validate_order(&new_order, market)?;
+            validate_order(&new_order, market, order_state)?;
         }
 
         user_orders.orders[new_order_idx] = new_order;

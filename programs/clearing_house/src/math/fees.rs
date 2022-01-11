@@ -239,13 +239,16 @@ fn calculate_filler_reward(
     now: i64,
     filler_reward_structure: &OrderFillerRewardStructure,
 ) -> ClearingHouseResult<u128> {
+    // incentivize keepers to prioritize filling older orders (rather than just largest orders)
+    // for sufficiently small-sized order, reward based on fraction of fee paid 
+
     let size_filler_reward = fee
         .checked_mul(filler_reward_structure.reward_numerator)
         .ok_or_else(math_error!())?
         .checked_div(filler_reward_structure.reward_denominator)
         .ok_or_else(math_error!())?;
 
-    let min_time_filler_reward = 1000; // .001000 cents
+    let min_time_filler_reward = filler_reward_structure.time_based_reward_lowerbound;
     let time_since_order = max(
         1,
         cast_to_u128(now.checked_sub(order_ts).ok_or_else(math_error!())?)?,
@@ -261,6 +264,7 @@ fn calculate_filler_reward(
         .checked_div(100) // 1e2 = sqrt(sqrt(1e8))
         .ok_or_else(math_error!())?;
 
+    // lesser of size-based and time-based reward
     let fee = min(size_filler_reward, time_filler_reward);
 
     return Ok(fee);

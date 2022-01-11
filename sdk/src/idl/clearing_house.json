@@ -1911,6 +1911,10 @@
             "type": {
               "defined": "OrderFillerRewardStructure"
             }
+          },
+          {
+            "name": "minOrderQuoteAssetAmount",
+            "type": "u128"
           }
         ]
       }
@@ -2775,6 +2779,10 @@
           },
           {
             "name": "rewardDenominator",
+            "type": "u128"
+          },
+          {
+            "name": "timeBasedRewardLowerbound",
             "type": "u128"
           }
         ]
