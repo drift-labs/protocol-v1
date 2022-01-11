@@ -1213,7 +1213,7 @@ pub mod clearing_house {
 
             quote_asset_reserve_before = market.amm.quote_asset_reserve;
             mark_price_before = market.amm.mark_price()?;
-            let (_, _, _oracle_mark_spread_pct_before) = amm::calculate_oracle_mark_spread_pct(
+            let (oracle_price, _, _oracle_mark_spread_pct_before) = amm::calculate_oracle_mark_spread_pct(
                 &market.amm,
                 &ctx.accounts.oracle,
                 0,
@@ -1227,6 +1227,9 @@ pub mod clearing_house {
                 clock_slot,
                 &ctx.accounts.state.oracle_guard_rails.validity,
             )?;
+            if is_oracle_valid {
+                amm::update_oracle_price_twap(&mut market.amm, now, oracle_price)?;
+            }
         }
 
         let direction = order.direction;
