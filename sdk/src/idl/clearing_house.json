@@ -2754,7 +2754,7 @@
             "type": "u128"
           },
           {
-            "name": "quoteAssetAmount",
+            "name": "quoteAssetAmountFilled",
             "type": "u128"
           },
           {
@@ -3121,6 +3121,10 @@
           },
           {
             "name": "baseAssetAmountFilled",
+            "type": "u128"
+          },
+          {
+            "name": "quoteAssetAmountFilled",
             "type": "u128"
           },
           {

@@ -1019,6 +1019,7 @@ pub mod clearing_house {
             price,
             base_asset_amount,
             base_asset_amount_filled: 0,
+            quote_asset_amount_filled: 0,
             direction,
             reduce_only,
             discount_tier,
@@ -1052,7 +1053,7 @@ pub mod clearing_house {
             filler: Pubkey::default(),
             trade_record_id: 0,
             base_asset_amount_filled: 0,
-            quote_asset_amount: 0,
+            quote_asset_amount_filled: 0,
             filler_reward: 0,
         });
 
@@ -1115,7 +1116,7 @@ pub mod clearing_house {
             filler: Pubkey::default(),
             trade_record_id: 0,
             base_asset_amount_filled: 0,
-            quote_asset_amount: 0,
+            quote_asset_amount_filled: 0,
             filler_reward: 0,
         });
 
@@ -1394,7 +1395,7 @@ pub mod clearing_house {
             filler: filler.key(),
             trade_record_id,
             base_asset_amount_filled: base_asset_amount,
-            quote_asset_amount,
+            quote_asset_amount_filled: quote_asset_amount,
             filler_reward,
         });
 

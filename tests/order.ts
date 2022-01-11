@@ -393,7 +393,7 @@ describe('orders', () => {
 			orderRecord.filler.equals(await fillerUser.getUserAccountPublicKey())
 		);
 		assert(orderRecord.baseAssetAmountFilled.eq(baseAssetAmount));
-		assert(orderRecord.quoteAssetAmount.eq(expectedQuoteAssetAmount));
+		assert(orderRecord.quoteAssetAmountFilled.eq(expectedQuoteAssetAmount));
 		assert(orderRecord.fillerReward.eq(expectedFillerReward));
 		assert(orderRecord.tradeRecordId.eq(expectedTradeRecordId));
 	});
@@ -493,7 +493,7 @@ describe('orders', () => {
 			orderRecord.filler.equals(await fillerUser.getUserAccountPublicKey())
 		);
 		assert(orderRecord.baseAssetAmountFilled.eq(baseAssetAmount));
-		assert(orderRecord.quoteAssetAmount.eq(expectedTradeQuoteAssetAmount));
+		assert(orderRecord.quoteAssetAmountFilled.eq(expectedTradeQuoteAssetAmount));
 		assert(orderRecord.tradeRecordId.eq(expectedTradeRecordId));
 	});
 

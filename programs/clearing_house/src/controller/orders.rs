@@ -151,6 +151,8 @@ pub fn fill_order_to_market(
         }
     }
 
+    let quote_asset_amount_before = market_position.quote_asset_amount;
+
     let potentially_risk_increasing = fill_base_amount_to_market(
         base_asset_amount,
         order.direction,
@@ -160,7 +162,25 @@ pub fn fill_order_to_market(
         now,
     )?;
 
-    update_order_after_trade(order, minimum_base_asset_trade_size, base_asset_amount)?;
+    let quote_asset_amount_after = market_position.quote_asset_amount;
+
+    let quote_asset_amount;
+    if quote_asset_amount_after > quote_asset_amount_before {
+        quote_asset_amount = quote_asset_amount_after
+            .checked_sub(quote_asset_amount_before)
+            .ok_or_else(math_error!())?;
+    } else {
+        quote_asset_amount = quote_asset_amount_before
+            .checked_sub(quote_asset_amount_after)
+            .ok_or_else(math_error!())?;
+    }
+
+    update_order_after_trade(
+        order,
+        minimum_base_asset_trade_size,
+        base_asset_amount,
+        quote_asset_amount,
+    )?;
 
     Ok((base_asset_amount, potentially_risk_increasing))
 }
@@ -169,18 +189,24 @@ pub fn update_order_after_trade(
     order: &mut Order,
     minimum_base_asset_trade_size: u128,
     base_asset_amount: u128,
+    quote_asset_amount: u128,
 ) -> ClearingHouseResult {
     order.base_asset_amount_filled = order
         .base_asset_amount_filled
         .checked_add(base_asset_amount)
         .ok_or_else(math_error!())?;
 
+    order.quote_asset_amount_filled = order
+        .quote_asset_amount_filled
+        .checked_add(quote_asset_amount)
+        .ok_or_else(math_error!())?;
+
+    // redudancy test to make sure no min trade size remaining
     let base_asset_amount_to_fill = order
         .base_asset_amount
         .checked_sub(order.base_asset_amount_filled)
         .ok_or_else(math_error!())?;
 
-    // TODO: round in favor instead?
     if base_asset_amount_to_fill > 0 && base_asset_amount_to_fill < minimum_base_asset_trade_size {
         return Err(ErrorCode::OrderAmountTooSmall.into());
     }
