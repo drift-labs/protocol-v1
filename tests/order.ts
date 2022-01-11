@@ -23,6 +23,7 @@ import {
 	convertToNumber,
 	QUOTE_PRECISION,
 	Wallet,
+  calculateTradeSlippage,
 } from '../sdk/src';
 
 import { calculateAmountToTradeForLimit } from '../sdk/src/orders';
@@ -83,7 +84,9 @@ describe('orders', () => {
 	let fillerUser: ClearingHouseUser;
 
 	const marketIndex = new BN(1);
+  const marketIndexBTC = new BN(2);
 	let solUsd;
+  let btcUsd;
 
 	before(async () => {
 		usdcMint = await mockUSDCMint(provider);
@@ -97,6 +100,7 @@ describe('orders', () => {
 		await clearingHouse.initialize(usdcMint.publicKey, true);
 		await clearingHouse.subscribeToAll();
 		solUsd = await mockOracle(1);
+		btcUsd = await mockOracle(60000);
 
 		const periodicity = new BN(60 * 60); // 1 HOUR
 
@@ -106,6 +110,15 @@ describe('orders', () => {
 			ammInitialBaseAssetReserve,
 			ammInitialQuoteAssetReserve,
 			periodicity
+		);
+
+    await clearingHouse.initializeMarket(
+			marketIndexBTC,
+			btcUsd,
+			ammInitialBaseAssetReserve.div(new BN(3000)),
+			ammInitialQuoteAssetReserve.div(new BN(3000)),
+			periodicity, 
+      new BN(60000000) // btc-ish price level
 		);
 
 		[, userAccountPublicKey] =
@@ -836,7 +849,202 @@ describe('orders', () => {
 			'user net gain:',
 			convertToNumber(userNetGain, QUOTE_PRECISION)
 		);
-
-		// await clearingHouse.cancelOrder(orderIndex);
+    await clearingHouse.closePosition(marketIndex);
+		await clearingHouse.cancelOrder(orderIndex);
 	});
+
+  it('Round up when residual base_asset_fill left is <= minimum tick size (LONG BTC)', async () => {
+		//todo, partial fill wont work on order too large
+		const userLeverage0 = clearingHouseUser.getLeverage();
+		console.log(
+			'user initial leverage:',
+			convertToNumber(userLeverage0, TEN_THOUSAND)
+		);
+
+		const orderType = OrderType.LIMIT;
+		const direction = PositionDirection.LONG;
+
+		const market = clearingHouse.getMarket(marketIndexBTC);
+		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION.div(new BN(10000)));
+    const limitPrice = calculateTradeSlippage(direction, baseAssetAmount, market, 'base')[3]
+    .sub(new BN(1000)); // tiny residual liquidity would be remaining if filled up to price
+
+		//long 50 base amount at $1 with ~$10 collateral (max leverage = 5x)
+
+		const [newDirection, amountToPrice, _entryPrice, newMarkPrice] =
+			calculateTargetPriceTrade(market, limitPrice, new BN(1000), 'base');
+
+		console.log(
+			convertToNumber(calculateMarkPrice(market)),
+			'then long',
+			convertToNumber(baseAssetAmount, AMM_RESERVE_PRECISION),
+
+			'$CRISP @',
+			convertToNumber(limitPrice),
+			newDirection,
+			convertToNumber(newMarkPrice),
+			'available liquidity',
+			convertToNumber(amountToPrice, AMM_RESERVE_PRECISION)
+		);
+
+		assert(baseAssetAmount.gt(amountToPrice)); // assert its a partial fill of liquidity
+
+		// const triggerPrice = new BN(0);
+		// const triggerCondition = OrderTriggerCondition.BELOW;
+		await clearingHouse.placeOrder(
+			orderType,
+			direction,
+			baseAssetAmount,
+			limitPrice,
+			marketIndexBTC,
+			false,
+			undefined,
+			undefined,
+			discountTokenAccount.address
+		);
+
+		const orderIndex = new BN(0);
+		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
+		const order = userOrdersAccount.orders[0];
+		const amountToFill = calculateAmountToTradeForLimit(market, order);
+
+		console.log(convertToNumber(amountToFill, AMM_RESERVE_PRECISION));
+
+    const prePosition = clearingHouseUser.getUserPosition(marketIndexBTC);
+
+		await fillerClearingHouse.fillOrder(
+			userAccountPublicKey,
+			userOrdersAccountPublicKey,
+			orderIndex
+		);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+		await fillerUser.fetchAccounts();
+
+		const userOrdersAccount1 = clearingHouseUser.getUserOrdersAccount();
+		const order1 = userOrdersAccount1.orders[0];
+		const newMarket1 = clearingHouse.getMarket(marketIndexBTC);
+		const newMarkPrice1 = calculateMarkPrice(newMarket1);
+    console.log('assert: ', convertToNumber(newMarkPrice1),'<', convertToNumber(limitPrice));
+    assert(newMarkPrice1.gt(limitPrice)) // rounded up long pushes price slightly above limit
+
+    const postPosition = clearingHouseUser.getUserPosition(marketIndexBTC);
+    console.log('User position: ',
+     convertToNumber(prePosition.baseAssetAmount, AMM_RESERVE_PRECISION),
+    '->', 
+    convertToNumber(postPosition.baseAssetAmount, AMM_RESERVE_PRECISION),
+    );
+    assert(postPosition.baseAssetAmount.abs().gt(prePosition.baseAssetAmount.abs()));
+
+    await clearingHouse.closePosition(marketIndexBTC);
+
+    // ensure order no longer exists
+    try {
+      await clearingHouse.cancelOrder(orderIndex);
+		} catch (e) {
+			return;
+		}
+
+		assert(false);
+
+    });
+  it('Round up when residual base_asset_fill left is <= minimum tick size (SHORT BTC)', async () => {
+    //todo, partial fill wont work on order too large
+    const userLeverage0 = clearingHouseUser.getLeverage();
+    console.log(
+      'user initial leverage:',
+      convertToNumber(userLeverage0, TEN_THOUSAND)
+    );
+
+    const orderType = OrderType.LIMIT;
+    const direction = PositionDirection.SHORT;
+
+    const market = clearingHouse.getMarket(marketIndexBTC);
+    const baseAssetAmount = new BN(AMM_RESERVE_PRECISION.div(new BN(10000)));
+    const limitPrice = calculateTradeSlippage(direction, baseAssetAmount, market, 'base')[3]
+    .add(new BN(1000)); // tiny residual liquidity would be remaining if filled up to price
+
+    //long 50 base amount at $1 with ~$10 collateral (max leverage = 5x)
+
+    const [newDirection, amountToPrice, _entryPrice, newMarkPrice] =
+      calculateTargetPriceTrade(market, limitPrice, new BN(1000), 'base');
+
+    console.log(
+      convertToNumber(calculateMarkPrice(market)),
+      'then long',
+      convertToNumber(baseAssetAmount, AMM_RESERVE_PRECISION),
+
+      '$CRISP @',
+      convertToNumber(limitPrice),
+      newDirection,
+      convertToNumber(newMarkPrice),
+      'available liquidity',
+      convertToNumber(amountToPrice, AMM_RESERVE_PRECISION)
+    );
+
+    assert(baseAssetAmount.gt(amountToPrice)); // assert its a partial fill of liquidity
+
+    // const triggerPrice = new BN(0);
+    // const triggerCondition = OrderTriggerCondition.BELOW;
+    await clearingHouse.placeOrder(
+      orderType,
+      direction,
+      baseAssetAmount,
+      limitPrice,
+      marketIndexBTC,
+      false,
+      undefined,
+      undefined,
+      discountTokenAccount.address
+    );
+
+    const orderIndex = new BN(0);
+    const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
+    const order = userOrdersAccount.orders[0];
+    const amountToFill = calculateAmountToTradeForLimit(market, order);
+
+    console.log(convertToNumber(amountToFill, AMM_RESERVE_PRECISION));
+
+    const prePosition = clearingHouseUser.getUserPosition(marketIndexBTC);
+
+    await fillerClearingHouse.fillOrder(
+      userAccountPublicKey,
+      userOrdersAccountPublicKey,
+      orderIndex
+    );
+
+    await clearingHouse.fetchAccounts();
+    await clearingHouseUser.fetchAccounts();
+    await fillerUser.fetchAccounts();
+
+    const userOrdersAccount1 = clearingHouseUser.getUserOrdersAccount();
+    const order1 = userOrdersAccount1.orders[0];
+    const newMarket1 = clearingHouse.getMarket(marketIndexBTC);
+    const newMarkPrice1 = calculateMarkPrice(newMarket1);
+    console.log('assert: ', convertToNumber(newMarkPrice1),'>', convertToNumber(limitPrice));
+    assert(newMarkPrice1.lt(limitPrice)) // rounded up long pushes price slightly above limit
+
+    const postPosition = clearingHouseUser.getUserPosition(marketIndexBTC);
+    console.log('User position: ',
+      convertToNumber(prePosition.baseAssetAmount, AMM_RESERVE_PRECISION),
+    '->', 
+    convertToNumber(postPosition.baseAssetAmount, AMM_RESERVE_PRECISION),
+    );
+    assert(postPosition.baseAssetAmount.abs().gt(prePosition.baseAssetAmount.abs()));
+
+    await clearingHouse.closePosition(marketIndexBTC);
+
+    // ensure order no longer exists
+    try {
+      await clearingHouse.cancelOrder(orderIndex);
+    } catch (e) {
+      return;
+    }
+
+    assert(false);
+
+    });
+
+
 });

@@ -128,7 +128,27 @@ pub fn fill_order_to_market(
         let trade_base_asset_amount =
             calculate_base_asset_amount_to_trade(order, market, Some(mark_price_before))?;
 
-        base_asset_amount = min(max_user_base_asset_amount, trade_base_asset_amount);
+        let proposed_base_asset_amount = min(max_user_base_asset_amount, trade_base_asset_amount);
+
+        let base_asset_amount_left_to_fill = order
+            .base_asset_amount
+            .checked_sub(
+                order
+                    .base_asset_amount_filled
+                    .checked_add(proposed_base_asset_amount)
+                    .ok_or_else(math_error!())?,
+            )
+            .ok_or_else(math_error!())?;
+
+        if base_asset_amount_left_to_fill > 0
+            && base_asset_amount_left_to_fill < minimum_base_asset_trade_size
+        {
+            base_asset_amount = proposed_base_asset_amount
+                .checked_add(base_asset_amount_left_to_fill)
+                .ok_or_else(math_error!())?;
+        } else {
+            base_asset_amount = proposed_base_asset_amount;
+        }
     }
 
     let potentially_risk_increasing = fill_base_amount_to_market(
