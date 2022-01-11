@@ -5,7 +5,7 @@ use anchor_lang::prelude::*;
 pub struct OrderState {
     pub order_history: Pubkey,
     pub order_filler_reward_structure: OrderFillerRewardStructure,
-    pub min_order_quote_asset_amount: u128,  // minimum est. quote_asset_amount for place_order to succeed
+    pub min_order_quote_asset_amount: u128, // minimum est. quote_asset_amount for place_order to succeed
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]

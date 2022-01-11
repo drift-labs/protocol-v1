@@ -1,21 +1,17 @@
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
-use std::cmp::min;
 
-use crate::state::user::UserPositions;
 use context::*;
-use controller::amm::SwapDirection;
-use controller::position::PositionDirection;
+use controller::position::{add_new_position, get_position_index, PositionDirection};
 use error::*;
-use math::quote_asset::asset_to_reserve_amount;
 use math::{amm, bn, constants::*, fees, margin::*, orders::*, position::*, withdrawal::*};
 
-use state::{
+use crate::state::{
     history::trade::TradeRecord,
     market::{Market, Markets, OracleSource, AMM},
     order_state::*,
     state::*,
-    user::{MarketPosition, User},
+    user::{MarketPosition, User, UserPositions},
     user_orders::*,
 };
 use std::cell::RefMut;
@@ -1174,120 +1170,113 @@ pub mod clearing_house {
                 return Err(ErrorCode::InvalidOracle.into());
             }
 
+            // TODO: currently unused
             minimum_base_asset_trade_size = market.amm.minimum_base_asset_trade_size;
         }
-
-        let free_collateral: u128;
         let max_leverage: u128 = MARGIN_PRECISION
             .checked_div(ctx.accounts.state.margin_ratio_initial)
             .ok_or_else(math_error!())?;
+        let free_collateral;
         {
-            let (
-                _total_collateral_before,
-                _unrealized_pnl_before,
-                _base_asset_value_before,
-                _margin_ratio_before,
-            ) = calculate_margin_ratio(user, user_positions, &ctx.accounts.markets.load()?)?;
+            let markets =
+                &ctx.accounts.markets.load()?;
 
-            free_collateral = _total_collateral_before
-                .checked_sub(
-                    _base_asset_value_before
-                        .checked_div(max_leverage)
-                        .ok_or_else(math_error!())?,
-                )
-                .ok_or_else(math_error!())?;
+            free_collateral =
+                calculate_free_collateral(user, user_positions, markets, max_leverage)?;
         }
 
-        // Get existing position
-        let position_index = get_position_index(user_positions, market_index)?;
-        let market_position = &mut user_positions.positions[position_index];
-
-        // Collect data about position/market before trade is executed so that it can be stored in trade history
-        let quote_asset_reserve_before;
-        let mark_price_before: u128;
-        let oracle_mark_spread_pct_before: i128;
-        let is_oracle_valid: bool;
-        {
-            let market = &mut ctx.accounts.markets.load_mut()?.markets
-                [Markets::index_from_u64(market_index)];
-
-            quote_asset_reserve_before = market.amm.quote_asset_reserve;
-            mark_price_before = market.amm.mark_price()?;
-            let (oracle_price, _, _oracle_mark_spread_pct_before) = amm::calculate_oracle_mark_spread_pct(
-                &market.amm,
-                &ctx.accounts.oracle,
-                0,
-                clock_slot,
-                None,
-            )?;
-            oracle_mark_spread_pct_before = _oracle_mark_spread_pct_before;
-            is_oracle_valid = amm::is_oracle_valid(
-                &market.amm,
-                &ctx.accounts.oracle,
-                clock_slot,
-                &ctx.accounts.state.oracle_guard_rails.validity,
-            )?;
-            if is_oracle_valid {
-                amm::update_oracle_price_twap(&mut market.amm, now, oracle_price)?;
-            }
-        }
-
-        let direction = order.direction;
-        let base_asset_amount: u128;
+        let user_fee: u128;
+        let token_discount: u128;
         let potentially_risk_increasing: bool;
         {
-            // TODO: combine with oracle check scope above?
             let market = &mut ctx.accounts.markets.load_mut()?.markets
                 [Markets::index_from_u64(market_index)];
 
-            let (_base_asset_amount, _potentially_risk_increasing) =
-                controller::orders::fill_order_to_market(
-                    order,
-                    market,
-                    user,
-                    market_position,
-                    free_collateral,
-                    max_leverage,
-                    mark_price_before,
-                    now,
-                )?;
+            // Get existing position
+            let position_index = get_position_index(user_positions, market_index)?;
+            let market_position = &mut user_positions.positions[position_index];
 
-            base_asset_amount = _base_asset_amount;
-            potentially_risk_increasing = _potentially_risk_increasing;
-        }
+            let direction = order.direction;
 
-        if potentially_risk_increasing && order.reduce_only {
-            return Err(ErrorCode::ReduceOnlyOrderIncreasedRisk.into());
-        }
-
-        // Collect data about position/market after trade is executed so that it can be stored in trade history
-        let quote_asset_amount;
-        let mark_price_after: u128;
-        let oracle_price_after: i128;
-        let oracle_mark_spread_pct_after: i128;
-        {
-            let market = &mut ctx.accounts.markets.load_mut()?.markets
-                [Markets::index_from_u64(market_index)];
-            let quote_asset_reserve_change = cast_to_i128(market.amm.quote_asset_reserve)?
-                .checked_sub(cast(quote_asset_reserve_before)?)
-                .ok_or_else(math_error!())?
-                .unsigned_abs();
-            quote_asset_amount = math::quote_asset::reserve_to_asset_amount(
-                quote_asset_reserve_change,
-                market.amm.peg_multiplier,
+            let (
+                base_asset_amount,
+                quote_asset_amount,
+                mark_price_before,
+                mark_price_after,
+                oracle_price_after,
+                _user_fee,
+                _token_discount,
+                filler_reward,
+                _potentially_risk_increasing,
+            ) = controller::orders::fill_order(
+                order,
+                market,
+                user,
+                market_position,
+                free_collateral,
+                &ctx.accounts.oracle,
+                max_leverage,
+                clock_slot,
+                now,
+                &ctx.accounts.state,
+                &ctx.accounts.order_state,
             )?;
 
-            mark_price_after = market.amm.mark_price()?;
-            let (_oracle_price_after, _oracle_mark_spread_after, _oracle_mark_spread_pct_after) =
-                amm::calculate_oracle_mark_spread_pct(
-                    &market.amm,
-                    &ctx.accounts.oracle,
-                    0,
-                    clock_slot,
-                    Some(mark_price_after),
-                )?;
-            oracle_price_after = _oracle_price_after;
-            oracle_mark_spread_pct_after = _oracle_mark_spread_pct_after;
+            // Add to the trade history account
+            let trade_history_account = &mut ctx.accounts.trade_history.load_mut()?;
+            let trade_record_id = trade_history_account.next_record_id();
+            trade_history_account.append(TradeRecord {
+                ts: now,
+                record_id: trade_record_id,
+                user_authority: *ctx.accounts.authority.to_account_info().key,
+                user: *user.to_account_info().key,
+                direction,
+                base_asset_amount,
+                quote_asset_amount,
+                mark_price_before,
+                mark_price_after,
+                fee: _user_fee,
+                token_discount: _token_discount,
+                referrer_reward: 0,
+                referee_discount: 0,
+                liquidation: false,
+                market_index,
+                oracle_price: oracle_price_after,
+            });
+
+            // Add to the order history account
+            let filler = &mut ctx.accounts.filler;
+            filler.collateral = filler
+                .collateral
+                .checked_add(cast(filler_reward)?)
+                .ok_or_else(math_error!())?;
+
+            let order_history_account = &mut ctx.accounts.order_history.load_mut()?;
+            let record_id = order_history_account.next_record_id();
+            order_history_account.append(OrderRecord {
+                ts: now,
+                record_id,
+                order: *order,
+                user: user.key(),
+                authority: user.authority,
+                action: OrderAction::Fill,
+                filler: filler.key(),
+                trade_record_id,
+                base_asset_amount_filled: base_asset_amount,
+                quote_asset_amount_filled: quote_asset_amount,
+                filler_reward,
+            });
+
+            // Cant reset order until after its been logged in order history
+            if order.base_asset_amount == order.base_asset_amount_filled {
+                *order = Order::default();
+                let market_position = &mut user_positions.positions[position_index];
+                market_position.open_orders -= 1;
+            }
+
+            user_fee = _user_fee;
+            token_discount = _token_discount;
+            potentially_risk_increasing = _potentially_risk_increasing;
         }
 
         // Trade fails if it's risk increasing and it brings the user below the initial margin ratio level
@@ -1303,33 +1292,7 @@ pub mod clearing_house {
             return Err(ErrorCode::InsufficientCollateral.into());
         }
 
-        // Don't account for referrer/discount token for now
-        let discount_tier = order.discount_tier;
-        let (user_fee, fee_to_market, token_discount, filler_reward) =
-            fees::calculate_fee_for_limit_order(
-                quote_asset_amount,
-                &ctx.accounts.state.fee_structure,
-                &ctx.accounts.order_state.order_filler_reward_structure,
-                &discount_tier,
-                order.ts,
-                now,
-            )?;
-
-        // Increment the clearing house's total fee variables
-        {
-            let market = &mut ctx.accounts.markets.load_mut()?.markets
-                [Markets::index_from_u64(market_index)];
-            market.amm.total_fee = market
-                .amm
-                .total_fee
-                .checked_add(fee_to_market)
-                .ok_or_else(math_error!())?;
-            market.amm.total_fee_minus_distributions = market
-                .amm
-                .total_fee_minus_distributions
-                .checked_add(fee_to_market)
-                .ok_or_else(math_error!())?;
-        }
+        // Note: apply fee after trade margin ratio check
 
         // Subtract the fee from user's collateral
         user.collateral = user.collateral.checked_sub(user_fee).or(Some(0)).unwrap();
@@ -1344,73 +1307,6 @@ pub mod clearing_house {
             .total_token_discount
             .checked_add(token_discount)
             .ok_or_else(math_error!())?;
-
-        let filler = &mut ctx.accounts.filler;
-        filler.collateral = filler
-            .collateral
-            .checked_add(cast(filler_reward)?)
-            .ok_or_else(math_error!())?;
-
-        // Trade fails if the trade is risk increasing and it pushes to mark price too far
-        // away from the oracle price
-        let is_oracle_mark_too_divergent = amm::is_oracle_mark_too_divergent(
-            oracle_mark_spread_pct_after,
-            &ctx.accounts.state.oracle_guard_rails.price_divergence,
-        )?;
-        if is_oracle_mark_too_divergent
-            && oracle_mark_spread_pct_after.unsigned_abs()
-                >= oracle_mark_spread_pct_before.unsigned_abs()
-            && is_oracle_valid
-            && potentially_risk_increasing
-        {
-            return Err(ErrorCode::OracleMarkSpreadLimit.into());
-        }
-
-        // Add to the trade history account
-        let trade_history_account = &mut ctx.accounts.trade_history.load_mut()?;
-        let trade_record_id = trade_history_account.next_record_id();
-        trade_history_account.append(TradeRecord {
-            ts: now,
-            record_id: trade_record_id,
-            user_authority: *ctx.accounts.authority.to_account_info().key,
-            user: *user.to_account_info().key,
-            direction,
-            base_asset_amount,
-            quote_asset_amount,
-            mark_price_before,
-            mark_price_after,
-            fee: user_fee,
-            token_discount,
-            referrer_reward: 0,
-            referee_discount: 0,
-            liquidation: false,
-            market_index,
-            oracle_price: oracle_price_after,
-        });
-
-        // Add to the order history account
-        let order_history_account = &mut ctx.accounts.order_history.load_mut()?;
-        let record_id = order_history_account.next_record_id();
-        order_history_account.append(OrderRecord {
-            ts: now,
-            record_id,
-            order: *order,
-            user: user.key(),
-            authority: user.authority,
-            action: OrderAction::Fill,
-            filler: filler.key(),
-            trade_record_id,
-            base_asset_amount_filled: base_asset_amount,
-            quote_asset_amount_filled: quote_asset_amount,
-            filler_reward,
-        });
-
-        // Cant reset order until after its been logged in order history
-        if order.base_asset_amount == order.base_asset_amount_filled {
-            *order = Order::default();
-            let market_position = &mut user_positions.positions[position_index];
-            market_position.open_orders -= 1;
-        }
 
         // Try to update the funding rate at the end of every trade
         {
@@ -2259,53 +2155,6 @@ pub mod clearing_house {
         ctx.accounts.state.funding_paused = funding_paused;
         Ok(())
     }
-}
-
-fn get_position_index(
-    user_positions: &mut RefMut<UserPositions>,
-    market_index: u64,
-) -> ClearingHouseResult<usize> {
-    let position_index = user_positions
-        .positions
-        .iter_mut()
-        .position(|market_position| market_position.is_for(market_index));
-
-    match position_index {
-        Some(position_index) => Ok(position_index),
-        None => Err(ErrorCode::UserHasNoPositionInMarket.into()),
-    }
-}
-
-fn add_new_position(
-    user_positions: &mut RefMut<UserPositions>,
-    market_index: u64,
-) -> ClearingHouseResult<usize> {
-    let new_position_index = user_positions
-        .positions
-        .iter()
-        .position(|market_position| market_position.is_available())
-        .ok_or(ErrorCode::MaxNumberOfPositions)?;
-
-    let new_market_position = MarketPosition {
-        market_index,
-        base_asset_amount: 0,
-        quote_asset_amount: 0,
-        last_cumulative_funding_rate: 0,
-        last_cumulative_repeg_rebate: 0,
-        last_funding_rate_ts: 0,
-        open_orders: 0,
-        padding0: 0,
-        padding1: 0,
-        padding2: 0,
-        padding3: 0,
-        padding4: 0,
-        padding5: 0,
-        padding6: 0,
-    };
-
-    user_positions.positions[new_position_index] = new_market_position;
-
-    return Ok(new_position_index);
 }
 
 fn market_initialized(markets: &AccountLoader<Markets>, market_index: u64) -> Result<()> {

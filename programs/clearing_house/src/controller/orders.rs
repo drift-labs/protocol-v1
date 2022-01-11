@@ -1,3 +1,4 @@
+use crate::controller::position::get_position_index;
 use crate::error::ClearingHouseResult;
 use crate::error::*;
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
@@ -10,14 +11,164 @@ use std::cmp::min;
 
 use crate::context::*;
 use crate::error::*;
-use crate::math::quote_asset::asset_to_reserve_amount;
+use crate::math::quote_asset::{asset_to_reserve_amount, reserve_to_asset_amount};
 use crate::math::{amm, bn, constants::*, fees, margin::*, orders::*, position::*, withdrawal::*};
-use crate::state::user::UserPositions;
+use crate::state::{
+    history::order_history::{OrderHistory, OrderRecord},
+    history::trade::{TradeHistory, TradeRecord},
+    market::{Market, Markets, OracleSource, AMM},
+    order_state::*,
+    state::*,
+    user::{MarketPosition, User, UserPositions},
+    user_orders::*,
+};
 use controller::amm::SwapDirection;
 use controller::position::PositionDirection;
 
 use crate::controller;
-use crate::{Market, MarketPosition, User};
+
+pub fn fill_order(
+    order: &mut Order,
+    market: &mut Market,
+    user: &mut User,
+    market_position: &mut MarketPosition,
+    free_collateral: u128,
+    oracle_account_info: &AccountInfo,
+    max_leverage: u128,
+    clock_slot: u64,
+    now: i64,
+    clearinghouse_state: &State,
+    order_state: &OrderState,
+) -> ClearingHouseResult<(u128, u128, u128, u128, i128, u128, u128, u128, bool)> {
+    // Collect data about position/market before trade is executed so that it can be stored in trade history
+    let quote_asset_reserve_before;
+    let mark_price_before: u128;
+    let oracle_mark_spread_pct_before: i128;
+    let is_oracle_valid: bool;
+    {
+        quote_asset_reserve_before = market.amm.quote_asset_reserve;
+        mark_price_before = market.amm.mark_price()?;
+        let (oracle_price, _, _oracle_mark_spread_pct_before) =
+            amm::calculate_oracle_mark_spread_pct(
+                &market.amm,
+                oracle_account_info,
+                0,
+                clock_slot,
+                None,
+            )?;
+        oracle_mark_spread_pct_before = _oracle_mark_spread_pct_before;
+        is_oracle_valid = amm::is_oracle_valid(
+            &market.amm,
+            oracle_account_info,
+            clock_slot,
+            &clearinghouse_state.oracle_guard_rails.validity,
+        )?;
+        if is_oracle_valid {
+            amm::update_oracle_price_twap(&mut market.amm, now, oracle_price)?;
+        }
+    }
+
+    let base_asset_amount: u128;
+    let potentially_risk_increasing: bool;
+    {
+        let (_base_asset_amount, _potentially_risk_increasing) = fill_order_to_market(
+            order,
+            market,
+            user,
+            market_position,
+            free_collateral,
+            max_leverage,
+            mark_price_before,
+            now,
+        )?;
+
+        base_asset_amount = _base_asset_amount;
+        potentially_risk_increasing = _potentially_risk_increasing;
+    }
+
+    if potentially_risk_increasing && order.reduce_only {
+        return Err(ErrorCode::ReduceOnlyOrderIncreasedRisk.into());
+    }
+
+    // Collect data about position/market after trade is executed so that it can be stored in trade history
+    let quote_asset_amount;
+    let mark_price_after: u128;
+    let oracle_price_after: i128;
+    let oracle_mark_spread_pct_after: i128;
+    {
+        let quote_asset_reserve_change = cast_to_i128(market.amm.quote_asset_reserve)?
+            .checked_sub(cast(quote_asset_reserve_before)?)
+            .ok_or_else(math_error!())?
+            .unsigned_abs();
+        quote_asset_amount =
+            reserve_to_asset_amount(quote_asset_reserve_change, market.amm.peg_multiplier)?;
+
+        mark_price_after = market.amm.mark_price()?;
+        let (_oracle_price_after, _oracle_mark_spread_after, _oracle_mark_spread_pct_after) =
+            amm::calculate_oracle_mark_spread_pct(
+                &market.amm,
+                oracle_account_info,
+                0,
+                clock_slot,
+                Some(mark_price_after),
+            )?;
+        oracle_price_after = _oracle_price_after;
+        oracle_mark_spread_pct_after = _oracle_mark_spread_pct_after;
+    }
+
+    // Don't account for referrer/discount token for now
+    let discount_tier = order.discount_tier;
+    let (user_fee, fee_to_market, token_discount, filler_reward) =
+        fees::calculate_fee_for_limit_order(
+            quote_asset_amount,
+            &clearinghouse_state.fee_structure,
+            &order_state.order_filler_reward_structure,
+            &discount_tier,
+            order.ts,
+            now,
+        )?;
+
+    // Increment the clearing house's total fee variables
+    {
+        market.amm.total_fee = market
+            .amm
+            .total_fee
+            .checked_add(fee_to_market)
+            .ok_or_else(math_error!())?;
+        market.amm.total_fee_minus_distributions = market
+            .amm
+            .total_fee_minus_distributions
+            .checked_add(fee_to_market)
+            .ok_or_else(math_error!())?;
+    }
+
+    // Trade fails if the trade is risk increasing and it pushes to mark price too far
+    // away from the oracle price
+    let is_oracle_mark_too_divergent = amm::is_oracle_mark_too_divergent(
+        oracle_mark_spread_pct_after,
+        &clearinghouse_state.oracle_guard_rails.price_divergence,
+    )?;
+    if is_oracle_mark_too_divergent
+        && oracle_mark_spread_pct_after.unsigned_abs()
+            >= oracle_mark_spread_pct_before.unsigned_abs()
+        && is_oracle_valid
+        && potentially_risk_increasing
+    {
+        return Err(ErrorCode::OracleMarkSpreadLimit.into());
+    }
+
+    Ok((
+        base_asset_amount,
+        quote_asset_amount,
+        mark_price_before,
+        mark_price_after,
+        oracle_price_after,
+        user_fee,
+        token_discount,
+        filler_reward,
+        potentially_risk_increasing,
+    ))
+}
 
 pub fn fill_base_amount_to_market(
     base_asset_amount: u128,

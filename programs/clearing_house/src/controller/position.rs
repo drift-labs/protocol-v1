@@ -8,8 +8,9 @@ use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math::pnl::calculate_pnl;
 use crate::math_error;
-use crate::{Market, MarketPosition, User};
+use crate::{Market, MarketPosition, User, UserPositions};
 use solana_program::msg;
+use std::cell::RefMut;
 
 #[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq)]
 pub enum PositionDirection {
@@ -21,6 +22,53 @@ impl Default for PositionDirection {
     // UpOnly
     fn default() -> Self {
         PositionDirection::Long
+    }
+}
+
+pub fn add_new_position(
+    user_positions: &mut RefMut<UserPositions>,
+    market_index: u64,
+) -> ClearingHouseResult<usize> {
+    let new_position_index = user_positions
+        .positions
+        .iter()
+        .position(|market_position| market_position.is_available())
+        .ok_or(ErrorCode::MaxNumberOfPositions)?;
+
+    let new_market_position = MarketPosition {
+        market_index,
+        base_asset_amount: 0,
+        quote_asset_amount: 0,
+        last_cumulative_funding_rate: 0,
+        last_cumulative_repeg_rebate: 0,
+        last_funding_rate_ts: 0,
+        open_orders: 0,
+        padding0: 0,
+        padding1: 0,
+        padding2: 0,
+        padding3: 0,
+        padding4: 0,
+        padding5: 0,
+        padding6: 0,
+    };
+
+    user_positions.positions[new_position_index] = new_market_position;
+
+    return Ok(new_position_index);
+}
+
+pub fn get_position_index(
+    user_positions: &mut RefMut<UserPositions>,
+    market_index: u64,
+) -> ClearingHouseResult<usize> {
+    let position_index = user_positions
+        .positions
+        .iter_mut()
+        .position(|market_position| market_position.is_for(market_index));
+
+    match position_index {
+        Some(position_index) => Ok(position_index),
+        None => Err(ErrorCode::UserHasNoPositionInMarket.into()),
     }
 }
 

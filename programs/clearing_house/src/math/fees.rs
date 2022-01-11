@@ -240,7 +240,7 @@ fn calculate_filler_reward(
     filler_reward_structure: &OrderFillerRewardStructure,
 ) -> ClearingHouseResult<u128> {
     // incentivize keepers to prioritize filling older orders (rather than just largest orders)
-    // for sufficiently small-sized order, reward based on fraction of fee paid 
+    // for sufficiently small-sized order, reward based on fraction of fee paid
 
     let size_filler_reward = fee
         .checked_mul(filler_reward_structure.reward_numerator)
