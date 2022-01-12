@@ -24,6 +24,14 @@ impl Markets {
     pub fn index_from_u64(index: u64) -> usize {
         return std::convert::TryInto::try_into(index).unwrap();
     }
+
+    pub fn get_market(&self, index: u64) -> &Market {
+        return &self.markets[Markets::index_from_u64(index)];
+    }
+
+    pub fn get_market_mut(&mut self, index: u64) -> &mut Market {
+        return &mut self.markets[Markets::index_from_u64(index)];
+    }
 }
 
 #[zero_copy]

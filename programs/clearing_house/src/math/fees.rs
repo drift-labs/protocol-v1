@@ -187,6 +187,7 @@ pub fn calculate_fee_for_limit_order(
     order_fee_tier: &OrderDiscountTier,
     order_ts: i64,
     now: i64,
+    filler_is_taker: bool,
 ) -> ClearingHouseResult<(u128, u128, u128, u128)> {
     let fee = quote_asset_amount
         .checked_mul(fee_structure.fee_numerator)
@@ -199,7 +200,12 @@ pub fn calculate_fee_for_limit_order(
 
     let user_fee = fee.checked_sub(token_discount).ok_or_else(math_error!())?;
 
-    let filler_reward = calculate_filler_reward(user_fee, order_ts, now, filler_reward_structure)?;
+    let filler_reward: u128 = if filler_is_taker {
+        0
+    } else {
+        calculate_filler_reward(user_fee, order_ts, now, filler_reward_structure)?
+    };
+
     let fee_to_market = user_fee
         .checked_sub(filler_reward)
         .ok_or_else(math_error!())?;

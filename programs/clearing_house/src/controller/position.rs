@@ -428,3 +428,75 @@ pub fn close(
 
     Ok((base_asset_value, base_asset_amount))
 }
+
+pub fn update_position_with_base_asset_amount(
+    base_asset_amount: u128,
+    direction: PositionDirection,
+    market: &mut Market,
+    user: &mut User,
+    market_position: &mut MarketPosition,
+    now: i64,
+) -> ClearingHouseResult<(bool, u128)> {
+    // A trade is risk increasing if it increases the users leverage
+    // If a trade is risk increasing and brings the user's margin ratio below initial requirement
+    // the trade fails
+    // If a trade is risk increasing and it pushes the mark price too far away from the oracle price
+    // the trade fails
+    let mut potentially_risk_increasing = true;
+
+    // The trade increases the the user position if
+    // 1) the user does not have a position
+    // 2) the trade is in the same direction as the user's existing position
+    let quote_asset_amount;
+    let increase_position = market_position.base_asset_amount == 0
+        || market_position.base_asset_amount > 0 && direction == PositionDirection::Long
+        || market_position.base_asset_amount < 0 && direction == PositionDirection::Short;
+    if increase_position {
+        quote_asset_amount = increase_with_base_asset_amount(
+            direction,
+            base_asset_amount,
+            market,
+            market_position,
+            now,
+        )?;
+    } else {
+        if market_position.base_asset_amount.unsigned_abs() > base_asset_amount {
+            quote_asset_amount = reduce_with_base_asset_amount(
+                direction,
+                base_asset_amount,
+                user,
+                market,
+                market_position,
+                now,
+            )?;
+
+            potentially_risk_increasing = false;
+        } else {
+            // after closing existing position, how large should trade be in opposite direction
+            let base_asset_amount_after_close = base_asset_amount
+                .checked_sub(market_position.base_asset_amount.unsigned_abs())
+                .ok_or_else(math_error!())?;
+
+            // If the value of the new position is less than value of the old position, consider it risk decreasing
+            if base_asset_amount_after_close < market_position.base_asset_amount.unsigned_abs() {
+                potentially_risk_increasing = false;
+            }
+
+            let (quote_asset_amount_closed, _) = close(user, market, market_position, now)?;
+
+            let quote_asset_amount_opened = increase_with_base_asset_amount(
+                direction,
+                base_asset_amount_after_close,
+                market,
+                market_position,
+                now,
+            )?;
+
+            quote_asset_amount = quote_asset_amount_closed
+                .checked_add(quote_asset_amount_opened)
+                .ok_or_else(math_error!())?;
+        }
+    }
+
+    Ok((potentially_risk_increasing, quote_asset_amount))
+}
