@@ -41,12 +41,10 @@ pub fn fill_order(
     order_state: &OrderState,
 ) -> ClearingHouseResult<(u128, u128, u128, u128, i128, u128, u128, u128, bool)> {
     // Collect data about position/market before trade is executed so that it can be stored in trade history
-    let quote_asset_reserve_before;
     let mark_price_before: u128;
     let oracle_mark_spread_pct_before: i128;
     let is_oracle_valid: bool;
     {
-        quote_asset_reserve_before = market.amm.quote_asset_reserve;
         mark_price_before = market.amm.mark_price()?;
         let (oracle_price, _, _oracle_mark_spread_pct_before) =
             amm::calculate_oracle_mark_spread_pct(
@@ -68,10 +66,8 @@ pub fn fill_order(
         }
     }
 
-    let base_asset_amount: u128;
-    let potentially_risk_increasing: bool;
-    {
-        let (_base_asset_amount, _potentially_risk_increasing) = fill_order_to_market(
+    let (base_asset_amount, quote_asset_amount, potentially_risk_increasing) =
+        fill_order_to_market(
             order,
             market,
             user,
@@ -82,27 +78,15 @@ pub fn fill_order(
             now,
         )?;
 
-        base_asset_amount = _base_asset_amount;
-        potentially_risk_increasing = _potentially_risk_increasing;
-    }
-
     if potentially_risk_increasing && order.reduce_only {
         return Err(ErrorCode::ReduceOnlyOrderIncreasedRisk.into());
     }
 
     // Collect data about position/market after trade is executed so that it can be stored in trade history
-    let quote_asset_amount;
     let mark_price_after: u128;
     let oracle_price_after: i128;
     let oracle_mark_spread_pct_after: i128;
     {
-        let quote_asset_reserve_change = cast_to_i128(market.amm.quote_asset_reserve)?
-            .checked_sub(cast(quote_asset_reserve_before)?)
-            .ok_or_else(math_error!())?
-            .unsigned_abs();
-        quote_asset_amount =
-            reserve_to_asset_amount(quote_asset_reserve_change, market.amm.peg_multiplier)?;
-
         mark_price_after = market.amm.mark_price()?;
         let (_oracle_price_after, _oracle_mark_spread_after, _oracle_mark_spread_pct_after) =
             amm::calculate_oracle_mark_spread_pct(
@@ -177,7 +161,7 @@ pub fn fill_base_amount_to_market(
     user: &mut User,
     market_position: &mut MarketPosition,
     now: i64,
-) -> ClearingHouseResult<bool> {
+) -> ClearingHouseResult<(bool, u128)> {
     // A trade is risk increasing if it increases the users leverage
     // If a trade is risk increasing and brings the user's margin ratio below initial requirement
     // the trade fails
@@ -188,11 +172,12 @@ pub fn fill_base_amount_to_market(
     // The trade increases the the user position if
     // 1) the user does not have a position
     // 2) the trade is in the same direction as the user's existing position
+    let quote_asset_amount;
     let increase_position = market_position.base_asset_amount == 0
         || market_position.base_asset_amount > 0 && direction == PositionDirection::Long
         || market_position.base_asset_amount < 0 && direction == PositionDirection::Short;
     if increase_position {
-        controller::position::increase_with_base_asset_amount(
+        quote_asset_amount = controller::position::increase_with_base_asset_amount(
             direction,
             base_asset_amount,
             market,
@@ -201,7 +186,7 @@ pub fn fill_base_amount_to_market(
         )?;
     } else {
         if market_position.base_asset_amount.unsigned_abs() > base_asset_amount {
-            controller::position::reduce_with_base_asset_amount(
+            quote_asset_amount = controller::position::reduce_with_base_asset_amount(
                 direction,
                 base_asset_amount,
                 user,
@@ -222,19 +207,24 @@ pub fn fill_base_amount_to_market(
                 potentially_risk_increasing = false;
             }
 
-            controller::position::close(user, market, market_position, now)?;
+            let (quote_asset_amount_closed, _) =
+                controller::position::close(user, market, market_position, now)?;
 
-            controller::position::increase_with_base_asset_amount(
+            let quote_asset_amount_opened = controller::position::increase_with_base_asset_amount(
                 direction,
                 base_asset_amount_after_close,
                 market,
                 market_position,
                 now,
             )?;
+
+            quote_asset_amount = quote_asset_amount_closed
+                .checked_add(quote_asset_amount_opened)
+                .ok_or_else(math_error!())?;
         }
     }
 
-    Ok(potentially_risk_increasing)
+    Ok((potentially_risk_increasing, quote_asset_amount))
 }
 
 pub fn fill_order_to_market(
@@ -246,7 +236,7 @@ pub fn fill_order_to_market(
     max_leverage: u128,
     mark_price_before: u128,
     now: i64,
-) -> ClearingHouseResult<(u128, bool)> {
+) -> ClearingHouseResult<(u128, u128, bool)> {
     let minimum_base_asset_trade_size = market.amm.minimum_base_asset_trade_size;
 
     let base_asset_amount: u128;
@@ -302,9 +292,7 @@ pub fn fill_order_to_market(
         }
     }
 
-    let quote_asset_amount_before = market_position.quote_asset_amount;
-
-    let potentially_risk_increasing = fill_base_amount_to_market(
+    let (potentially_risk_increasing, quote_asset_amount) = fill_base_amount_to_market(
         base_asset_amount,
         order.direction,
         market,
@@ -313,19 +301,6 @@ pub fn fill_order_to_market(
         now,
     )?;
 
-    let quote_asset_amount_after = market_position.quote_asset_amount;
-
-    let quote_asset_amount;
-    if quote_asset_amount_after > quote_asset_amount_before {
-        quote_asset_amount = quote_asset_amount_after
-            .checked_sub(quote_asset_amount_before)
-            .ok_or_else(math_error!())?;
-    } else {
-        quote_asset_amount = quote_asset_amount_before
-            .checked_sub(quote_asset_amount_after)
-            .ok_or_else(math_error!())?;
-    }
-
     update_order_after_trade(
         order,
         minimum_base_asset_trade_size,
@@ -333,7 +308,11 @@ pub fn fill_order_to_market(
         quote_asset_amount,
     )?;
 
-    Ok((base_asset_amount, potentially_risk_increasing))
+    Ok((
+        base_asset_amount,
+        quote_asset_amount,
+        potentially_risk_increasing,
+    ))
 }
 
 pub fn update_order_after_trade(
