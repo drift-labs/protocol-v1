@@ -950,7 +950,6 @@ export class ClearingHouse {
 		);
 	}
 
-
 	/**
 	 * Close an entire position. If you want to reduce a position, use the {@link openPosition} method in the opposite direction of the current position.
 	 * @param marketIndex
