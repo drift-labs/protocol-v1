@@ -491,7 +491,6 @@ pub struct PlaceOrder<'info> {
     pub user: Box<Account<'info, User>>,
     pub authority: Signer<'info>,
     #[account(
-        mut,
         constraint = &state.markets.eq(&markets.key())
     )]
     pub markets: AccountLoader<'info, Markets>,
@@ -530,23 +529,17 @@ pub struct PlaceOrderOptionalAccounts {
 
 #[derive(Accounts)]
 pub struct PlaceAndFillOrder<'info> {
-    #[account(mut)]
     pub state: Box<Account<'info, State>>,
     #[account(
         constraint = &state.order_state.eq(&order_state.key())
     )]
     pub order_state: Box<Account<'info, OrderState>>,
-    pub authority: Signer<'info>,
     #[account(
-        mut,
-        has_one = authority
-    )]
-    pub filler: Box<Account<'info, User>>,
-    #[account(
-        mut,
+        has_one = authority,
         constraint = &user.positions.eq(&user_positions.key())
     )]
     pub user: Box<Account<'info, User>>,
+    pub authority: Signer<'info>,
     #[account(
         mut,
         constraint = &state.markets.eq(&markets.key())
@@ -564,14 +557,14 @@ pub struct PlaceAndFillOrder<'info> {
     pub user_orders: AccountLoader<'info, UserOrders>,
     #[account(
         mut,
-        constraint = &state.trade_history.eq(&trade_history.key())
-    )]
-    pub trade_history: AccountLoader<'info, TradeHistory>,
-    #[account(
-        mut,
         constraint = &state.funding_payment_history.eq(&funding_payment_history.key())
     )]
     pub funding_payment_history: AccountLoader<'info, FundingPaymentHistory>,
+    #[account(
+        mut,
+        constraint = &state.trade_history.eq(&trade_history.key())
+    )]
+    pub trade_history: AccountLoader<'info, TradeHistory>,
     #[account(
         mut,
         constraint = &state.funding_rate_history.eq(&funding_rate_history.key())

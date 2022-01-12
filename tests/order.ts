@@ -1068,4 +1068,162 @@ describe('orders', () => {
 
 		assert(false);
 	});
+
+	it('PlaceAndFill LONG Order 100% filled', async() => {
+		const orderType = OrderType.LIMIT;
+		const direction = PositionDirection.LONG;
+		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
+		const price = MARK_PRICE_PRECISION.mul(new BN(2));
+
+		const prePosition = clearingHouseUser.getUserPosition(marketIndex);
+		console.log(prePosition);
+		assert(prePosition==undefined); // no existing position
+
+		const fillerUserAccount0 = fillerUser.getUserAccount();
+
+		await clearingHouse.placeAndFillOrder(
+			orderType,
+			direction,
+			baseAssetAmount,
+			price,
+			marketIndex,
+			false,
+			undefined,
+			undefined,
+			discountTokenAccount.address
+		);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+		await fillerUser.fetchAccounts();
+
+		const postPosition = clearingHouseUser.getUserPosition(marketIndex);
+		console.log(
+			'User position: ',
+			convertToNumber(new BN(0), AMM_RESERVE_PRECISION),
+			'->',
+			convertToNumber(postPosition.baseAssetAmount, AMM_RESERVE_PRECISION)
+		);
+		assert(
+			postPosition.baseAssetAmount.abs().gt(new BN(0))
+		);
+		assert(postPosition.baseAssetAmount.eq(baseAssetAmount)); // 100% filled
+
+		// zero filler reward
+		const fillerUserAccount = fillerUser.getUserAccount();
+		const fillerReward = fillerUserAccount0.collateral.sub(fillerUserAccount.collateral);
+		console.log(
+			'FillerReward: $',
+			convertToNumber(
+				fillerReward,
+				QUOTE_PRECISION
+			)
+		);
+		assert(fillerReward.eq(new BN(0)));
+
+		await clearingHouse.closePosition(marketIndex);
+	});
+
+	it('PlaceAndFill LONG Order multiple fills', async() => {
+
+		// todo: check order/trade account history and make sure they match expectations
+
+		const orderType = OrderType.LIMIT;
+		const direction = PositionDirection.LONG;
+		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
+
+		const market = clearingHouse.getMarket(marketIndex);
+		const limitPrice = calculateTradeSlippage(
+			direction,
+			baseAssetAmount,
+			market,
+			'base'
+		)[2]; // set entryPrice as limit
+
+		const prePosition = clearingHouseUser.getUserPosition(marketIndex);
+		console.log(prePosition);
+		// assert(prePosition==undefined); // no existing position
+
+		const fillerUserAccount0 = fillerUser.getUserAccount();
+
+		await clearingHouse.placeAndFillOrder(
+			orderType,
+			direction,
+			baseAssetAmount,
+			limitPrice,
+			marketIndex,
+			false,
+			undefined,
+			undefined,
+			discountTokenAccount.address
+		);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+		await fillerUser.fetchAccounts();
+
+		const postPosition = clearingHouseUser.getUserPosition(marketIndex);
+		console.log(
+			'User position: ',
+			convertToNumber(new BN(0), AMM_RESERVE_PRECISION),
+			'->',
+			convertToNumber(postPosition.baseAssetAmount, AMM_RESERVE_PRECISION)
+		);
+		assert(
+			postPosition.baseAssetAmount.abs().gt(new BN(0))
+		);
+
+		// fill again
+
+		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
+		const order = userOrdersAccount.orders[0];
+		const amountToFill = calculateAmountToTradeForLimit(market, order);
+
+		console.log(convertToNumber(amountToFill, AMM_RESERVE_PRECISION));
+		const market2 = clearingHouse.getMarket(marketIndex);
+
+		const markPrice2 = calculateMarkPrice(market2)
+		// move price to make liquidity for order @ $1.05 (5%)
+		setFeedPrice(anchor.workspace.Pyth, .7, solUsd);
+		await clearingHouse.moveAmmToPrice(
+			marketIndex,
+			new BN(.7 * MARK_PRICE_PRECISION.toNumber())
+		);
+		const market3 = clearingHouse.getMarket(marketIndex);
+
+		const markPrice3 = calculateMarkPrice(market3)
+		console.log('Market Price:', convertToNumber(markPrice2),'->', convertToNumber(markPrice3));
+
+
+		const orderId = order.orderId;
+		await fillerClearingHouse.fillOrder(
+			userAccountPublicKey,
+			userOrdersAccountPublicKey,
+			orderId
+		);
+
+		const postPosition2 = clearingHouseUser.getUserPosition(marketIndex);
+		console.log(
+			'Filler: User position: ',
+			convertToNumber(postPosition.baseAssetAmount, AMM_RESERVE_PRECISION),
+			'->',
+			convertToNumber(postPosition2.baseAssetAmount, AMM_RESERVE_PRECISION)
+		);
+
+		assert(postPosition2.baseAssetAmount.eq(baseAssetAmount)); // 100% filled
+
+		// other part filler reward
+		const fillerUserAccount = fillerUser.getUserAccount();
+		const fillerReward = fillerUserAccount.collateral.sub(fillerUserAccount0.collateral);
+		console.log(
+			'FillerReward: $',
+			convertToNumber(
+				fillerReward,
+				QUOTE_PRECISION
+			)
+		);
+		assert(fillerReward.gt(new BN(0)));
+		await clearingHouse.closePosition(marketIndex);
+
+	});
 });

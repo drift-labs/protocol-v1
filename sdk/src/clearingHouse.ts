@@ -850,6 +850,107 @@ export class ClearingHouse {
 		});
 	}
 
+	public async placeAndFillOrder(
+		orderType: OrderType,
+		direction: PositionDirection,
+		baseAssetAmount: BN,
+		price: BN,
+		marketIndex: BN,
+		reduceOnly: boolean,
+		triggerPrice?: BN,
+		triggerCondition?: OrderTriggerCondition,
+		discountToken?: PublicKey
+	): Promise<TransactionSignature> {
+		return await this.txSender.send(
+			wrapInTx(
+				await this.getPlaceAndFillOrderIx(
+					orderType,
+					direction,
+					baseAssetAmount,
+					price,
+					marketIndex,
+					reduceOnly,
+					triggerPrice,
+					triggerCondition,
+					discountToken
+				)
+			),
+			[],
+			this.opts
+		);
+	}
+
+	public async getPlaceAndFillOrderIx(
+		orderType: OrderType,
+		direction: PositionDirection,
+		baseAssetAmount: BN,
+		price: BN,
+		marketIndex: BN,
+		reduceOnly: boolean,
+		triggerPrice?: BN,
+		triggerCondition?: OrderTriggerCondition,
+		discountToken?: PublicKey
+	): Promise<TransactionInstruction> {
+		const userAccountPublicKey = await this.getUserAccountPublicKey();
+		const userAccount = await this.getUserAccount();
+
+		const priceOracle =
+			this.getMarketsAccount().markets[marketIndex.toNumber()].amm.oracle;
+
+		const optionalAccounts = {
+			discountToken: false,
+		};
+		const remainingAccounts = [];
+		if (discountToken) {
+			optionalAccounts.discountToken = true;
+			remainingAccounts.push({
+				pubkey: discountToken,
+				isWritable: false,
+				isSigner: false,
+			});
+		}
+
+		if (!triggerPrice) {
+			triggerPrice = new BN(0);
+		}
+
+		if (!triggerCondition) {
+			triggerCondition = OrderTriggerCondition.ABOVE;
+		}
+
+		const state = this.getStateAccount();
+		const orderState = this.getOrderStateAccount();
+		return await this.program.instruction.placeAndFillOrder(
+			orderType,
+			direction,
+			baseAssetAmount,
+			price,
+			marketIndex,
+			reduceOnly,
+			triggerPrice,
+			triggerCondition,
+			optionalAccounts,
+			{
+				accounts: {
+					state: await this.getStatePublicKey(),
+					user: userAccountPublicKey,
+					authority: this.wallet.publicKey,
+					markets: state.markets,
+					userOrders: await this.getUserOrdersAccountPublicKey(),
+					userPositions: userAccount.positions,
+					tradeHistory: state.tradeHistory,
+					fundingPaymentHistory: state.fundingPaymentHistory,
+					fundingRateHistory: state.fundingRateHistory,
+					orderState: await this.getOrderStatePublicKey(),
+					orderHistory: orderState.orderHistory,
+					oracle: priceOracle,
+				},
+				remainingAccounts,
+			}
+		);
+	}
+
+
 	/**
 	 * Close an entire position. If you want to reduce a position, use the {@link openPosition} method in the opposite direction of the current position.
 	 * @param marketIndex

@@ -514,7 +514,7 @@
         },
         {
           "name": "markets",
-          "isMut": true,
+          "isMut": false,
           "isSigner": false
         },
         {
@@ -724,6 +724,117 @@
         {
           "name": "orderId",
           "type": "u128"
+        }
+      ]
+    },
+    {
+      "name": "placeAndFillOrder",
+      "accounts": [
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orderState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "markets",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userOrders",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fundingPaymentHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tradeHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fundingRateHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "orderHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracle",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "orderType",
+          "type": {
+            "defined": "OrderType"
+          }
+        },
+        {
+          "name": "direction",
+          "type": {
+            "defined": "PositionDirection"
+          }
+        },
+        {
+          "name": "baseAssetAmount",
+          "type": "u128"
+        },
+        {
+          "name": "price",
+          "type": "u128"
+        },
+        {
+          "name": "marketIndex",
+          "type": "u64"
+        },
+        {
+          "name": "reduceOnly",
+          "type": "bool"
+        },
+        {
+          "name": "triggerPrice",
+          "type": "u128"
+        },
+        {
+          "name": "triggerCondition",
+          "type": {
+            "defined": "OrderTriggerCondition"
+          }
+        },
+        {
+          "name": "optionalAccounts",
+          "type": {
+            "defined": "PlaceOrderOptionalAccounts"
+          }
         }
       ]
     },
