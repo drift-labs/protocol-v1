@@ -207,21 +207,32 @@ pub fn fill_order(
     order_history: &AccountLoader<OrderHistory>,
     funding_rate_history: &AccountLoader<FundingRateHistory>,
     clock: &Clock,
-) -> ProgramResult {
+) -> ClearingHouseResult<(u128)> {
     let now = clock.unix_timestamp;
     let clock_slot = clock.slot;
 
-    let user_positions = &mut user_positions.load_mut()?;
-    let funding_payment_history = &mut funding_payment_history.load_mut()?;
-    controller::funding::settle_funding_payment(
-        user,
-        user_positions,
-        &markets.load()?,
-        funding_payment_history,
-        now,
-    )?;
+    let user_positions = &mut user_positions
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+    let funding_payment_history = &mut funding_payment_history
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+    {
+        let markets = &markets
+            .load()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        controller::funding::settle_funding_payment(
+            user,
+            user_positions,
+            markets,
+            funding_payment_history,
+            now,
+        )?;
+    }
 
-    let user_orders = &mut user_orders.load_mut()?;
+    let user_orders = &mut user_orders
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
     let order_index = user_orders
         .orders
         .iter()
@@ -235,7 +246,9 @@ pub fn fill_order(
 
     let market_index = order.market_index;
     {
-        let markets = &markets.load()?;
+        let markets = &markets
+            .load()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
         let market = markets.get_market(market_index);
 
         if !market.initialized {
@@ -251,7 +264,9 @@ pub fn fill_order(
     let oracle_mark_spread_pct_before: i128;
     let is_oracle_valid: bool;
     {
-        let markets = &mut markets.load_mut()?;
+        let markets = &mut markets
+            .load_mut()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
         let market = markets.get_market_mut(market_index);
         mark_price_before = market.amm.mark_price()?;
         let (oracle_price, _, _oracle_mark_spread_pct_before) =
@@ -274,18 +289,25 @@ pub fn fill_order(
             user,
             user_positions,
             order,
-            &mut markets.load_mut()?,
+            &mut markets
+                .load_mut()
+                .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?,
             market_index,
-            // market_position,
             mark_price_before,
             now,
         )?;
+
+    if base_asset_amount == 0 {
+        return Ok(0);
+    }
 
     let mark_price_after: u128;
     let oracle_price_after: i128;
     let oracle_mark_spread_pct_after: i128;
     {
-        let markets = &mut markets.load_mut()?;
+        let markets = &mut markets
+            .load_mut()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
         let market = markets.get_market_mut(market_index);
         mark_price_after = market.amm.mark_price()?;
         let (_oracle_price_after, _oracle_mark_spread_after, _oracle_mark_spread_pct_after) =
@@ -321,7 +343,13 @@ pub fn fill_order(
         _unrealized_pnl_after,
         _base_asset_value_after,
         margin_ratio_after,
-    ) = calculate_margin_ratio(user, user_positions, &markets.load()?)?;
+    ) = calculate_margin_ratio(
+        user,
+        user_positions,
+        &markets
+            .load()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?,
+    )?;
     if margin_ratio_after < state.margin_ratio_initial && potentially_risk_increasing {
         return Err(ErrorCode::InsufficientCollateral.into());
     }
@@ -340,7 +368,9 @@ pub fn fill_order(
 
     // Increment the clearing house's total fee variables
     {
-        let markets = &mut markets.load_mut()?;
+        let markets = &mut markets
+            .load_mut()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
         let market = markets.get_market_mut(market_index);
         market.amm.total_fee = market
             .amm
@@ -373,7 +403,9 @@ pub fn fill_order(
         .checked_add(cast(filler_reward)?)
         .ok_or_else(math_error!())?;
 
-    let trade_history_account = &mut trade_history.load_mut()?;
+    let trade_history_account = &mut trade_history
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
     let trade_record_id = trade_history_account.next_record_id();
     trade_history_account.append(TradeRecord {
         ts: now,
@@ -394,7 +426,9 @@ pub fn fill_order(
         oracle_price: oracle_price_after,
     });
 
-    let order_history_account = &mut order_history.load_mut()?;
+    let order_history_account = &mut order_history
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
     let record_id = order_history_account.next_record_id();
     order_history_account.append(OrderRecord {
         ts: now,
@@ -420,9 +454,13 @@ pub fn fill_order(
 
     // Try to update the funding rate at the end of every trade
     {
-        let markets = &mut markets.load_mut()?;
+        let markets = &mut markets
+            .load_mut()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
         let market = markets.get_market_mut(market_index);
-        let funding_rate_history = &mut funding_rate_history.load_mut()?;
+        let funding_rate_history = &mut funding_rate_history
+            .load_mut()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
         controller::funding::update_funding_rate(
             market_index,
             market,
@@ -435,7 +473,7 @@ pub fn fill_order(
         )?;
     }
 
-    Ok(())
+    Ok(base_asset_amount)
 }
 
 pub fn execute_order_to_market(
@@ -510,6 +548,10 @@ pub fn execute_order_to_market(
         } else {
             base_asset_amount = proposed_base_asset_amount;
         }
+    }
+
+    if base_asset_amount == 0 {
+        return Ok((0, 0, false));
     }
 
     let (potentially_risk_increasing, quote_asset_amount) =

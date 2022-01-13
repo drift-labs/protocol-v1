@@ -94,14 +94,14 @@ pub enum ErrorCode {
     OrderDoesNotExist,
     #[msg("Order not open")]
     OrderNotOpen,
-    #[msg("Market cant fill order")]
-    MarketCantFillOrder,
+    #[msg("CouldNotFillOrder")]
+    CouldNotFillOrder,
     #[msg("Reduce only order increased risk")]
     ReduceOnlyOrderIncreasedRisk,
     #[msg("Order state already initialized")]
     OrderStateAlreadyInitialized,
-    #[msg("Order trigger condition not satisfied")]
-    OrderTriggerConditionNotSatisfied,
+    #[msg("Unable to load AccountLoader")]
+    UnableToLoadAccountLoader,
 }
 
 #[macro_export]

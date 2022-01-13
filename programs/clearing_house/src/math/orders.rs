@@ -31,7 +31,7 @@ fn calculate_base_asset_amount_to_trade_for_limit(
     let (max_trade_base_asset_amount, max_trade_direction) =
         math::amm::calculate_max_base_asset_amount_to_trade(&market.amm, order.price)?;
     if max_trade_direction != order.direction || max_trade_base_asset_amount == 0 {
-        return Err(ErrorCode::MarketCantFillOrder.into());
+        return Ok(0);
     }
 
     let base_asset_amount_to_trade = min(base_asset_amount_to_fill, max_trade_base_asset_amount);
@@ -52,12 +52,12 @@ fn calculate_base_asset_amount_to_trade_for_stop(
     match order.trigger_condition {
         OrderTriggerCondition::Above => {
             if mark_price <= order.trigger_price {
-                return Err(ErrorCode::OrderTriggerConditionNotSatisfied.into());
+                return Ok(0);
             }
         }
         OrderTriggerCondition::Below => {
             if mark_price >= order.trigger_price {
-                return Err(ErrorCode::OrderTriggerConditionNotSatisfied.into());
+                return Ok(0);
             }
         }
     }

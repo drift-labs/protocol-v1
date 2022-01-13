@@ -3646,8 +3646,8 @@
     },
     {
       "code": 6045,
-      "name": "MarketCantFillOrder",
-      "msg": "Market cant fill order"
+      "name": "CouldNotFillOrder",
+      "msg": "CouldNotFillOrder"
     },
     {
       "code": 6046,
@@ -3661,8 +3661,8 @@
     },
     {
       "code": 6048,
-      "name": "OrderTriggerConditionNotSatisfied",
-      "msg": "Order trigger condition not satisfied"
+      "name": "UnableToLoadAccountLoader",
+      "msg": "Unable to load AccountLoader"
     }
   ]
 }

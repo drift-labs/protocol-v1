@@ -993,7 +993,9 @@ pub mod clearing_house {
             trigger_price,
             trigger_condition,
             optional_accounts,
-        )
+        )?;
+
+        Ok(())
     }
 
     pub fn cancel_order<'info>(ctx: Context<CancelOrder>, order_id: u128) -> ProgramResult {
@@ -1013,7 +1015,7 @@ pub mod clearing_house {
         exchange_not_paused(&ctx.accounts.state)
     )]
     pub fn fill_order<'info>(ctx: Context<FillOrder>, order_id: u128) -> ProgramResult {
-        controller::orders::fill_order(
+        let base_asset_amount = controller::orders::fill_order(
             order_id,
             &ctx.accounts.state,
             &ctx.accounts.order_state,
@@ -1028,7 +1030,13 @@ pub mod clearing_house {
             &ctx.accounts.order_history,
             &ctx.accounts.funding_rate_history,
             &Clock::get()?,
-        )
+        )?;
+
+        if base_asset_amount == 0 {
+            return Err(ErrorCode::CouldNotFillOrder.into());
+        }
+
+        Ok(())
     }
 
     #[access_control(
@@ -1091,7 +1099,9 @@ pub mod clearing_house {
             &ctx.accounts.order_history,
             &ctx.accounts.funding_rate_history,
             &Clock::get()?,
-        )
+        )?;
+
+        Ok(())
     }
 
     #[access_control(
