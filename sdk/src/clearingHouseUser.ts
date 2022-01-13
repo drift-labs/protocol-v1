@@ -895,8 +895,6 @@ export class ClearingHouseUser {
 			.mul(TEN_THOUSAND)
 			.div(totalPositionValue);
 
-		console.log(marginRatioAfter.toString());
-
 		const marginRatioInitial =
 			this.clearingHouse.getStateAccount().marginRatioInitial;
 		return marginRatioAfter.gte(marginRatioInitial);
