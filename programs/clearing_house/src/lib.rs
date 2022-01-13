@@ -996,61 +996,17 @@ pub mod clearing_house {
         )
     }
 
-    // #[access_control(
-    //     exchange_not_paused(&ctx.accounts.state)
-    // )]
     pub fn cancel_order<'info>(ctx: Context<CancelOrder>, order_id: u128) -> ProgramResult {
-        let user = &mut ctx.accounts.user;
-        let clock = Clock::get()?;
-        let now = clock.unix_timestamp;
-
-        // Settle user's funding payments so that collateral is up to date
-        let user_positions = &mut ctx.accounts.user_positions.load_mut()?;
-        let funding_payment_history = &mut ctx.accounts.funding_payment_history.load_mut()?;
-        controller::funding::settle_funding_payment(
-            user,
-            user_positions,
-            &ctx.accounts.markets.load()?,
-            funding_payment_history,
-            now,
-        )?;
-
-        let user_orders = &mut ctx.accounts.user_orders.load_mut()?;
-        let order_index = user_orders
-            .orders
-            .iter()
-            .position(|order| order.order_id == order_id)
-            .ok_or(ErrorCode::OrderDoesNotExist)?;
-        let order = &mut user_orders.orders[order_index];
-
-        if order.status != OrderStatus::Open {
-            return Err(ErrorCode::OrderNotOpen.into());
-        }
-
-        // Add to the order history account
-        let order_history_account = &mut ctx.accounts.order_history.load_mut()?;
-        let record_id = order_history_account.next_record_id();
-        order_history_account.append(OrderRecord {
-            ts: now,
-            record_id,
-            order: *order,
-            user: user.key(),
-            authority: ctx.accounts.authority.key(),
-            action: OrderAction::Cancel,
-            filler: Pubkey::default(),
-            trade_record_id: 0,
-            base_asset_amount_filled: 0,
-            quote_asset_amount_filled: 0,
-            filler_reward: 0,
-        });
-
-        // Decrement open orders for existing position
-        let position_index = get_position_index(user_positions, order.market_index)?;
-        let market_position = &mut user_positions.positions[position_index];
-        market_position.open_orders -= 1;
-        *order = Order::default();
-
-        Ok(())
+        controller::orders::cancel_order(
+            order_id,
+            &mut ctx.accounts.user,
+            &ctx.accounts.user_positions,
+            &ctx.accounts.markets,
+            &ctx.accounts.user_orders,
+            &ctx.accounts.funding_payment_history,
+            &ctx.accounts.order_history,
+            &Clock::get()?,
+        )
     }
 
     #[access_control(

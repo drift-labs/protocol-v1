@@ -132,6 +132,66 @@ pub fn place_order(
     Ok(())
 }
 
+pub fn cancel_order(
+    order_id: u128,
+    user: &mut Box<Account<User>>,
+    user_positions: &AccountLoader<UserPositions>,
+    markets: &AccountLoader<Markets>,
+    user_orders: &AccountLoader<UserOrders>,
+    funding_payment_history: &AccountLoader<FundingPaymentHistory>,
+    order_history: &AccountLoader<OrderHistory>,
+    clock: &Clock,
+) -> ProgramResult {
+    let now = clock.unix_timestamp;
+
+    let user_positions = &mut user_positions.load_mut()?;
+    let funding_payment_history = &mut funding_payment_history.load_mut()?;
+    controller::funding::settle_funding_payment(
+        user,
+        user_positions,
+        &markets.load()?,
+        funding_payment_history,
+        now,
+    )?;
+
+    let user_orders = &mut user_orders.load_mut()?;
+    let order_index = user_orders
+        .orders
+        .iter()
+        .position(|order| order.order_id == order_id)
+        .ok_or(ErrorCode::OrderDoesNotExist)?;
+    let order = &mut user_orders.orders[order_index];
+
+    if order.status != OrderStatus::Open {
+        return Err(ErrorCode::OrderNotOpen.into());
+    }
+
+    // Add to the order history account
+    let order_history_account = &mut order_history.load_mut()?;
+    let record_id = order_history_account.next_record_id();
+    order_history_account.append(OrderRecord {
+        ts: now,
+        record_id,
+        order: *order,
+        user: user.key(),
+        authority: user.authority,
+        action: OrderAction::Cancel,
+        filler: Pubkey::default(),
+        trade_record_id: 0,
+        base_asset_amount_filled: 0,
+        quote_asset_amount_filled: 0,
+        filler_reward: 0,
+    });
+
+    // Decrement open orders for existing position
+    let position_index = get_position_index(user_positions, order.market_index)?;
+    let market_position = &mut user_positions.positions[position_index];
+    market_position.open_orders -= 1;
+    *order = Order::default();
+
+    Ok(())
+}
+
 pub fn fill_order(
     order_id: u128,
     state: &State,
