@@ -79,11 +79,11 @@ fn validate_stop_order(order: &Order, order_state: &OrderState) -> ClearingHouse
 
     // decide min trade size ($10?)
     if approx_market_value < order_state.min_order_quote_asset_amount {
-        msg!(
-            "Stop Order {:?} @ {:?}",
-            order.base_asset_amount,
-            order.trigger_price
-        );
+        // msg!(
+        //     "Stop Order {:?} @ {:?}",
+        //     order.base_asset_amount,
+        //     order.trigger_price
+        // );
         msg!("Order value < $0.50 ({:?})", approx_market_value);
         return Err(ErrorCode::InvalidOrder.into());
     }

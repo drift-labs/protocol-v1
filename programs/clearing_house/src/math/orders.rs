@@ -4,7 +4,17 @@ use crate::math_error;
 use crate::state::market::Market;
 use crate::state::user_orders::{Order, OrderTriggerCondition, OrderType};
 use solana_program::msg;
+use std::cell::{Ref, RefMut};
 use std::cmp::min;
+
+use crate::controller::position::PositionDirection;
+use crate::controller::position::{add_new_position, get_position_index};
+use crate::error::*;
+use crate::math::collateral::calculate_updated_collateral;
+use crate::math::constants::MARGIN_PRECISION;
+use crate::math::margin::calculate_free_collateral;
+use crate::state::market::Markets;
+use crate::state::user::{MarketPosition, User, UserPositions};
 
 pub fn calculate_base_asset_amount_to_trade(
     order: &Order,
@@ -63,4 +73,43 @@ fn calculate_base_asset_amount_to_trade_for_stop(
     }
 
     Ok(order.base_asset_amount)
+}
+
+pub fn calculate_available_quote_asset_for_order(
+    user: &User,
+    order: &Order,
+    position_index: usize,
+    user_positions: &mut UserPositions,
+    markets: &Markets,
+    margin_ratio_initial: u128,
+) -> ClearingHouseResult<u128> {
+    let market_position = user_positions.positions[position_index];
+
+    let max_leverage = MARGIN_PRECISION
+        .checked_div(margin_ratio_initial)
+        .ok_or_else(math_error!())?;
+
+    let risk_increasing = market_position.base_asset_amount == 0
+        || market_position.base_asset_amount > 0 && order.direction == PositionDirection::Long
+        || market_position.base_asset_amount < 0 && order.direction == PositionDirection::Short;
+
+    let (total_collateral, base_asset_value, free_collateral) =
+        calculate_free_collateral(user, user_positions, markets, max_leverage)?;
+
+    let available_quote_asset_for_order: u128;
+    if risk_increasing {
+        available_quote_asset_for_order = free_collateral
+            .checked_mul(max_leverage)
+            .ok_or_else(math_error!())?;
+    } else {
+        let max_flipped_size = total_collateral
+            .checked_mul(max_leverage)
+            .ok_or_else(math_error!())?;
+
+        available_quote_asset_for_order = max_flipped_size
+            .checked_add(base_asset_value)
+            .ok_or_else(math_error!())?;
+    }
+
+    Ok(available_quote_asset_for_order)
 }

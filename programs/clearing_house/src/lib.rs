@@ -40,8 +40,6 @@ pub mod clearing_house {
 
     use super::*;
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
-    use crate::math::fees::calculate_order_fee_tier;
-    use crate::order_validation::validate_order;
     use crate::state::history::order_history::{OrderAction, OrderRecord};
     use crate::state::order_state::{OrderFillerRewardStructure, OrderState};
 

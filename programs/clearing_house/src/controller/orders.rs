@@ -505,68 +505,67 @@ pub fn execute_order_to_market(
     mark_price_before: u128,
     now: i64,
 ) -> ClearingHouseResult<(u128, u128, bool)> {
-    let max_leverage = MARGIN_PRECISION
-        .checked_div(state.margin_ratio_initial)
-        .ok_or_else(math_error!())?;
-    let free_collateral = calculate_free_collateral(user, user_positions, markets, max_leverage)?;
-
     let position_index = get_position_index(user_positions, market_index)?;
-    let market_position = &mut user_positions.positions[position_index];
 
+    let available_quote_asset_for_order = calculate_available_quote_asset_for_order(
+        user,
+        order,
+        position_index,
+        user_positions,
+        markets,
+        state.margin_ratio_initial,
+    )?;
+
+    let market_position = &mut user_positions.positions[position_index];
     let market = markets.get_market_mut(market_index);
     let minimum_base_asset_trade_size = market.amm.minimum_base_asset_trade_size;
 
     let base_asset_amount: u128;
-    {
-        let order_swap_direction = match order.direction {
-            PositionDirection::Long => SwapDirection::Add,
-            PositionDirection::Short => SwapDirection::Remove,
-        };
 
-        let quote_asset_reserve_amount = asset_to_reserve_amount(
-            free_collateral
-                .checked_mul(max_leverage)
+    let order_swap_direction = match order.direction {
+        PositionDirection::Long => SwapDirection::Add,
+        PositionDirection::Short => SwapDirection::Remove,
+    };
+
+    let quote_asset_reserve_amount =
+        asset_to_reserve_amount(available_quote_asset_for_order, market.amm.peg_multiplier)?;
+
+    let initial_base_asset_amount = market.amm.base_asset_reserve;
+    let (new_base_asset_amount, _new_quote_asset_amount) = amm::calculate_swap_output(
+        quote_asset_reserve_amount,
+        market.amm.quote_asset_reserve,
+        order_swap_direction,
+        market.amm.sqrt_k,
+    )?;
+
+    let max_user_base_asset_amount = cast_to_i128(initial_base_asset_amount)?
+        .checked_sub(cast(new_base_asset_amount)?)
+        .ok_or_else(math_error!())?
+        .unsigned_abs();
+
+    let trade_base_asset_amount =
+        calculate_base_asset_amount_to_trade(order, market, Some(mark_price_before))?;
+
+    let proposed_base_asset_amount = min(max_user_base_asset_amount, trade_base_asset_amount);
+
+    let base_asset_amount_left_to_fill = order
+        .base_asset_amount
+        .checked_sub(
+            order
+                .base_asset_amount_filled
+                .checked_add(proposed_base_asset_amount)
                 .ok_or_else(math_error!())?,
-            market.amm.peg_multiplier,
-        )?;
+        )
+        .ok_or_else(math_error!())?;
 
-        let initial_base_asset_amount = market.amm.base_asset_reserve;
-        let (new_base_asset_amount, new_quote_asset_amount) = amm::calculate_swap_output(
-            quote_asset_reserve_amount,
-            market.amm.quote_asset_reserve,
-            order_swap_direction,
-            market.amm.sqrt_k,
-        )?;
-
-        let max_user_base_asset_amount = cast_to_i128(initial_base_asset_amount)?
-            .checked_sub(cast(new_base_asset_amount)?)
-            .ok_or_else(math_error!())?
-            .unsigned_abs();
-
-        let trade_base_asset_amount =
-            calculate_base_asset_amount_to_trade(order, market, Some(mark_price_before))?;
-
-        let proposed_base_asset_amount = min(max_user_base_asset_amount, trade_base_asset_amount);
-
-        let base_asset_amount_left_to_fill = order
-            .base_asset_amount
-            .checked_sub(
-                order
-                    .base_asset_amount_filled
-                    .checked_add(proposed_base_asset_amount)
-                    .ok_or_else(math_error!())?,
-            )
+    if base_asset_amount_left_to_fill > 0
+        && base_asset_amount_left_to_fill < minimum_base_asset_trade_size
+    {
+        base_asset_amount = proposed_base_asset_amount
+            .checked_add(base_asset_amount_left_to_fill)
             .ok_or_else(math_error!())?;
-
-        if base_asset_amount_left_to_fill > 0
-            && base_asset_amount_left_to_fill < minimum_base_asset_trade_size
-        {
-            base_asset_amount = proposed_base_asset_amount
-                .checked_add(base_asset_amount_left_to_fill)
-                .ok_or_else(math_error!())?;
-        } else {
-            base_asset_amount = proposed_base_asset_amount;
-        }
+    } else {
+        base_asset_amount = proposed_base_asset_amount;
     }
 
     if base_asset_amount == 0 {

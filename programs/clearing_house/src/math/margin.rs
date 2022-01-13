@@ -1,5 +1,3 @@
-use std::cell::{Ref, RefMut};
-
 use crate::error::*;
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math::constants::MARGIN_PRECISION;
@@ -7,6 +5,8 @@ use crate::math::position::calculate_base_asset_value_and_pnl;
 use crate::math_error;
 use crate::state::market::Markets;
 use crate::state::user::{User, UserPositions};
+use std::cell::{Ref, RefMut};
+
 use solana_program::msg;
 
 pub fn calculate_margin_ratio(
@@ -63,7 +63,7 @@ pub fn calculate_free_collateral(
     user_positions: &mut UserPositions,
     markets: &Markets,
     max_leverage: u128,
-) -> ClearingHouseResult<u128> {
+) -> ClearingHouseResult<(u128, u128, u128)> {
     let mut base_asset_value: u128 = 0;
     let mut unrealized_pnl: i128 = 0;
 
@@ -86,26 +86,30 @@ pub fn calculate_free_collateral(
     }
 
     let total_collateral: u128;
-    let margin_ratio: u128;
+    // let margin_ratio: u128;
     if base_asset_value == 0 {
         total_collateral = user.collateral;
-        margin_ratio = u128::MAX;
+        // margin_ratio = u128::MAX;
     } else {
         total_collateral = calculate_updated_collateral(user.collateral, unrealized_pnl)?;
-        margin_ratio = total_collateral
-            .checked_mul(MARGIN_PRECISION)
-            .ok_or_else(math_error!())?
-            .checked_div(base_asset_value)
-            .ok_or_else(math_error!())?;
+        // margin_ratio = total_collateral
+        //     .checked_mul(MARGIN_PRECISION)
+        //     .ok_or_else(math_error!())?
+        //     .checked_div(base_asset_value)
+        //     .ok_or_else(math_error!())?;
     }
-
-    let free_collateral = total_collateral
-        .checked_sub(
-            base_asset_value
-                .checked_div(max_leverage)
-                .ok_or_else(math_error!())?,
-        )
+    let initial_margin_req_collateral = base_asset_value
+        .checked_div(max_leverage)
         .ok_or_else(math_error!())?;
 
-    Ok(free_collateral)
+    let free_collateral: u128;
+    if initial_margin_req_collateral < total_collateral {
+        free_collateral = total_collateral
+            .checked_sub(initial_margin_req_collateral)
+            .ok_or_else(math_error!())?;
+    } else {
+        free_collateral = 0;
+    }
+
+    Ok((total_collateral, base_asset_value, free_collateral))
 }
