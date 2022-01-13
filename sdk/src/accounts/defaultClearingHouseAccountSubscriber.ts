@@ -31,10 +31,16 @@ export class DefaultClearingHouseAccountSubscriber
 
 	subscribers: Map<
 		SubscribableClearingHouseAccountTypes,
-		PollingWebSocketAccountSubscriber<SubscribableAccount, SubscribableClearingHouseAccountTypes>
+		PollingWebSocketAccountSubscriber<
+			SubscribableAccount,
+			SubscribableClearingHouseAccountTypes
+		>
 	> = new Map<
 		SubscribableClearingHouseAccountTypes,
-		PollingWebSocketAccountSubscriber<SubscribableAccount, SubscribableClearingHouseAccountTypes>
+		PollingWebSocketAccountSubscriber<
+			SubscribableAccount,
+			SubscribableClearingHouseAccountTypes
+		>
 	>();
 
 	private isSubscribing = false;
@@ -48,7 +54,6 @@ export class DefaultClearingHouseAccountSubscriber
 	}
 
 	startPolling(account: SubscribableClearingHouseAccountTypes): boolean {
-
 		if (!this.subscribers.has(account)) {
 			throw new Error('could not find subscriber ' + account);
 		}
@@ -59,12 +64,10 @@ export class DefaultClearingHouseAccountSubscriber
 		return this.subscribers.get(account).startPolling((accountType) => {
 			this.eventEmitter.emit('fetchedAccount', accountType);
 		});
-		
 	}
 
 	stopPolling(account: SubscribableClearingHouseAccountTypes): boolean {
 		return this.subscribers.get(account).stopPolling();
-
 	}
 
 	setPollingRate(
@@ -98,7 +101,12 @@ export class DefaultClearingHouseAccountSubscriber
 		// create and activate main state account subscription
 		this.subscribers.set(
 			'stateAccount',
-			new PollingWebSocketAccountSubscriber('stateAccount', 'state', this.program, statePublicKey)
+			new PollingWebSocketAccountSubscriber(
+				'stateAccount',
+				'state',
+				this.program,
+				statePublicKey
+			)
 		);
 		await this.subscribers
 			.get('stateAccount')
@@ -111,7 +119,12 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'marketsAccount',
-			new PollingWebSocketAccountSubscriber('marketsAccount', 'markets', this.program, state.markets)
+			new PollingWebSocketAccountSubscriber(
+				'marketsAccount',
+				'markets',
+				this.program,
+				state.markets
+			)
 		);
 
 		await this.subscribers
@@ -125,7 +138,8 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'tradeHistoryAccount',
-			new PollingWebSocketAccountSubscriber('tradeHistoryAccount',
+			new PollingWebSocketAccountSubscriber(
+				'tradeHistoryAccount',
 				'tradeHistory',
 				this.program,
 				state.tradeHistory
@@ -134,7 +148,8 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'depositHistoryAccount',
-			new PollingWebSocketAccountSubscriber('depositHistoryAccount',
+			new PollingWebSocketAccountSubscriber(
+				'depositHistoryAccount',
 				'depositHistory',
 				this.program,
 				state.depositHistory
@@ -143,7 +158,8 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'fundingPaymentHistoryAccount',
-			new PollingWebSocketAccountSubscriber('fundingPaymentHistoryAccount',
+			new PollingWebSocketAccountSubscriber(
+				'fundingPaymentHistoryAccount',
 				'fundingPaymentHistory',
 				this.program,
 				state.fundingPaymentHistory
@@ -152,7 +168,8 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'fundingRateHistoryAccount',
-			new PollingWebSocketAccountSubscriber('fundingRateHistoryAccount',
+			new PollingWebSocketAccountSubscriber(
+				'fundingRateHistoryAccount',
 				'fundingRateHistory',
 				this.program,
 				state.fundingRateHistory
@@ -161,7 +178,8 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'liquidationHistoryAccount',
-			new PollingWebSocketAccountSubscriber('liquidationHistoryAccount',
+			new PollingWebSocketAccountSubscriber(
+				'liquidationHistoryAccount',
 				'liquidationHistory',
 				this.program,
 				state.liquidationHistory
@@ -170,7 +188,8 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'curveHistoryAccount',
-			new PollingWebSocketAccountSubscriber('curveHistoryAccount',
+			new PollingWebSocketAccountSubscriber(
+				'curveHistoryAccount',
 				'curveHistory',
 				this.program,
 				state.curveHistory
@@ -179,7 +198,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		await Promise.all(
 			optionalSubscriptions.map((accountType) => {
-				switch(accountType) {
+				switch (accountType) {
 					case 'curveHistoryAccount':
 						return this.subscribers.get(accountType).subscribe((data) => {
 							this.eventEmitter.emit(

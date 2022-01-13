@@ -25,10 +25,16 @@ export class DefaultUserAccountSubscriber
 
 	subscribers: Map<
 		SubscribableUserAccountTypes,
-		PollingWebSocketAccountSubscriber<OptionalSubscribableUserAccount, SubscribableUserAccountTypes>
+		PollingWebSocketAccountSubscriber<
+			OptionalSubscribableUserAccount,
+			SubscribableUserAccountTypes
+		>
 	> = new Map<
 		SubscribableUserAccountTypes,
-		PollingWebSocketAccountSubscriber<OptionalSubscribableUserAccount, SubscribableUserAccountTypes>
+		PollingWebSocketAccountSubscriber<
+			OptionalSubscribableUserAccount,
+			SubscribableUserAccountTypes
+		>
 	>();
 
 	public constructor(program: Program, authority: PublicKey) {
@@ -39,14 +45,12 @@ export class DefaultUserAccountSubscriber
 	}
 
 	startPolling(account: SubscribableUserAccountTypes): boolean {
-
 		if (!this.subscribers.has(account)) {
 			throw new Error('could not find subscriber ' + account);
 		}
 		if (!this.subscribers.get(account).isSubscribed) {
 			throw new Error('account is not subscribed ' + account);
 		}
-
 
 		return this.subscribers.get(account).startPolling((accountType) => {
 			this.eventEmitter.emit('fetchedAccount', accountType);
@@ -55,13 +59,9 @@ export class DefaultUserAccountSubscriber
 
 	stopPolling(account: SubscribableUserAccountTypes): boolean {
 		return this.subscribers.get(account).stopPolling();
-
 	}
 
-	setPollingRate(
-		account: SubscribableUserAccountTypes,
-		rate: number
-	): void {
+	setPollingRate(account: SubscribableUserAccountTypes, rate: number): void {
 		this.subscribers.get(account).setPollingRate(rate);
 	}
 
@@ -78,8 +78,8 @@ export class DefaultUserAccountSubscriber
 			'userAccount',
 			new PollingWebSocketAccountSubscriber(
 				'userAccount',
-				'user', 
-				this.program, 
+				'user',
+				this.program,
 				userPublicKey
 			)
 		);
