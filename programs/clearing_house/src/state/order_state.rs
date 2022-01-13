@@ -12,5 +12,5 @@ pub struct OrderState {
 pub struct OrderFillerRewardStructure {
     pub reward_numerator: u128,
     pub reward_denominator: u128,
-    pub time_based_reward_lowerbound: u128, // minimum filler reward for time-based reward
+    pub time_based_reward_lower_bound: u128, // minimum filler reward for time-based reward
 }

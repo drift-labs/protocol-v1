@@ -401,5 +401,5 @@ export type OracleGuardRails = {
 export type OrderFillerRewardStructure = {
 	rewardNumerator: BN;
 	rewardDenominator: BN;
-	timeBasedRewardLowerbound: BN;
+	timeBasedRewardLowerBound: BN;
 };

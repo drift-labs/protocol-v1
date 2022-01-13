@@ -254,7 +254,7 @@ fn calculate_filler_reward(
         .checked_div(filler_reward_structure.reward_denominator)
         .ok_or_else(math_error!())?;
 
-    let min_time_filler_reward = filler_reward_structure.time_based_reward_lowerbound;
+    let min_time_filler_reward = filler_reward_structure.time_based_reward_lower_bound;
     let time_since_order = max(
         1,
         cast_to_u128(now.checked_sub(order_ts).ok_or_else(math_error!())?)?,
