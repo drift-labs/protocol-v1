@@ -36,6 +36,8 @@ export class ClearingHouseUser {
 	userAccountPublicKey?: PublicKey;
 	isSubscribed = false;
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
+	pollingInterval: NodeJS.Timer
+	pollRate: BN
 
 	public static from(
 		clearingHouse: ClearingHouse,
@@ -69,6 +71,64 @@ export class ClearingHouseUser {
 
 		this.isSubscribed = await this.accountSubscriber.subscribe();
 		return this.isSubscribed;
+	}
+
+
+	/**
+	 * Used to set the polling rate of new data acquisition
+	 * @param pollRate - the rate in milliseconds at which to check for new data for the user
+	 * @param restartPool - if there is already a polling timer setup for this user, should we restart it with the new poll rate?
+	 */
+	public setPollingRate(pollRate: BN, restartPoll = true) : Promise<boolean> {
+		return new Promise((resolve) => {
+			// set the poll rate for this user
+			this.pollRate = pollRate;
+			// if there is already a polling fetch for this user
+			if (this.pollingInterval && restartPoll) {
+				clearInterval(this.pollingInterval);
+				this.pollingInterval = setInterval(() => {
+					this.accountSubscriber.fetch();
+				}, this.pollRate.toNumber());
+			}
+			resolve(true);
+		});
+	}
+
+	/**
+	 * Used to enable polling for new user data every pollRate milliseconds
+	 * @param pollRate - the rate in milliseconds at which to check for new data for the user
+	 */
+	 public enablePolling(pollRate: BN) : Promise<boolean> {
+		return new Promise((resolve) => {
+			// clear the existing polling interval
+			if (this.pollingInterval) {
+				clearInterval(this.pollingInterval);
+			}
+			// update the poll rate
+			this.pollRate = pollRate;
+			// start the polling
+			this.pollingInterval = setInterval(() => {
+				this.accountSubscriber.fetch();
+			}, this.pollRate.toNumber());
+			resolve(true);
+		});
+	}
+
+	/**
+	 * Disables the current polling interval for this user
+	 * @returns boolean - whether or not the polling was disabled - false if there was no polling to disable
+	 */
+	 public disablePolling() : Promise<boolean> {
+		return new Promise((resolve) => {
+			// clear the polling interval if it exists
+			if (this.pollingInterval) {
+				clearInterval(this.pollingInterval);
+				resolve(true);
+				return;
+			}
+			resolve(false);
+		});
+		
 	}
 
 	/**
