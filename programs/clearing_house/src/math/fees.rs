@@ -7,6 +7,7 @@ use crate::state::state::{DiscountTokenTier, FeeStructure};
 use crate::state::user::User;
 use crate::state::user_orders::OrderDiscountTier;
 use anchor_lang::Account;
+use num_integer::Roots;
 use solana_program::msg;
 use spl_token::state::Account as TokenAccount;
 use std::cmp::{max, min};
@@ -259,12 +260,10 @@ fn calculate_filler_reward(
         1,
         cast_to_u128(now.checked_sub(order_ts).ok_or_else(math_error!())?)?,
     );
-    let time_filler_reward = U192::from(time_since_order)
-        .checked_mul(U192::from(100_000_000)) // 1e8
+    let time_filler_reward = time_since_order
+        .checked_mul(100_000_000) // 1e8
         .ok_or_else(math_error!())?
-        .integer_sqrt()
-        .integer_sqrt()
-        .try_to_u128()?
+        .nth_root(4)
         .checked_mul(min_time_filler_reward)
         .ok_or_else(math_error!())?
         .checked_div(100) // 1e2 = sqrt(sqrt(1e8))
