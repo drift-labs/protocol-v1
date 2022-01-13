@@ -533,18 +533,8 @@
           "isSigner": false
         },
         {
-          "name": "fundingRateHistory",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
           "name": "orderHistory",
           "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "oracle",
-          "isMut": false,
           "isSigner": false
         }
       ],

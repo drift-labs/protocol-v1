@@ -39,7 +39,6 @@ pub mod clearing_house {
     use crate::state::history::liquidation::LiquidationRecord;
 
     use super::*;
-    use crate::controller::orders::update_order_after_trade;
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
     use crate::math::fees::calculate_order_fee_tier;
     use crate::order_validation::validate_order;
@@ -960,9 +959,7 @@ pub mod clearing_house {
 
     #[allow(unused_must_use)]
     #[access_control(
-        market_initialized(&ctx.accounts.markets, market_index) &&
-        // exchange_not_paused(&ctx.accounts.state) &&
-        valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
+        market_initialized(&ctx.accounts.markets, market_index)
     )]
     pub fn place_order<'info>(
         ctx: Context<PlaceOrder>,
@@ -976,87 +973,27 @@ pub mod clearing_house {
         trigger_condition: OrderTriggerCondition,
         optional_accounts: PlaceOrderOptionalAccounts,
     ) -> ProgramResult {
-        let user = &mut ctx.accounts.user;
-        let clock = Clock::get()?;
-        let now = clock.unix_timestamp;
-        let clock_slot = clock.slot;
-
-        // Settle user's funding payments so that collateral is up to date
-        let user_positions = &mut ctx.accounts.user_positions.load_mut()?;
-        let funding_payment_history = &mut ctx.accounts.funding_payment_history.load_mut()?;
-        controller::funding::settle_funding_payment(
-            user,
-            user_positions,
-            &ctx.accounts.markets.load()?,
-            funding_payment_history,
-            now,
-        )?;
-
-        let user_orders = &mut ctx.accounts.user_orders.load_mut()?;
-        let new_order_idx = user_orders
-            .orders
-            .iter()
-            .position(|order| order.status.eq(&OrderStatus::Init))
-            .ok_or(ErrorCode::MaxNumberOfOrders)?;
-        let discount_token = get_discount_token(
-            optional_accounts.discount_token,
-            &mut ctx.remaining_accounts.iter(),
-            &ctx.accounts.state.discount_mint,
-            &ctx.accounts.authority.key(),
-        )?;
-        let discount_tier =
-            calculate_order_fee_tier(&ctx.accounts.state.fee_structure, discount_token)?;
-        let order_history_account = &mut ctx.accounts.order_history.load_mut()?;
-        let order_id = order_history_account.next_order_id();
-        let new_order = Order {
-            status: OrderStatus::Open,
+        controller::orders::place_order(
+            &ctx.accounts.state,
+            &ctx.accounts.order_state,
+            &mut ctx.accounts.user,
+            &ctx.accounts.user_positions,
+            &ctx.accounts.markets,
+            &ctx.accounts.user_orders,
+            &ctx.accounts.funding_payment_history,
+            &ctx.accounts.order_history,
+            &ctx.remaining_accounts,
+            &Clock::get()?,
             order_type,
-            ts: now,
-            order_id,
-            market_index,
-            price,
-            base_asset_amount,
-            base_asset_amount_filled: 0,
-            quote_asset_amount_filled: 0,
             direction,
+            base_asset_amount,
+            price,
+            market_index,
             reduce_only,
-            discount_tier,
             trigger_price,
             trigger_condition,
-        };
-
-        {
-            let order_state = &ctx.accounts.order_state;
-            let market =
-                &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
-            validate_order(&new_order, market, order_state)?;
-        }
-
-        user_orders.orders[new_order_idx] = new_order;
-
-        // Increment open orders for existing position
-        let position_index = get_position_index(user_positions, market_index)
-            .or_else(|_| add_new_position(user_positions, market_index))?;
-        let market_position = &mut user_positions.positions[position_index];
-        market_position.open_orders += 1;
-
-        // Add to the order history account
-        let record_id = order_history_account.next_record_id();
-        order_history_account.append(OrderRecord {
-            ts: now,
-            record_id,
-            order: new_order,
-            user: user.key(),
-            authority: ctx.accounts.authority.key(),
-            action: OrderAction::Place,
-            filler: Pubkey::default(),
-            trade_record_id: 0,
-            base_asset_amount_filled: 0,
-            quote_asset_amount_filled: 0,
-            filler_reward: 0,
-        });
-
-        Ok(())
+            optional_accounts,
+        )
     }
 
     // #[access_control(
@@ -1138,11 +1075,10 @@ pub mod clearing_house {
         )
     }
 
-    // #[access_control(
-    //     market_initialized(&ctx.accounts.markets, market_index) &&
-    //     // exchange_not_paused(&ctx.accounts.state) &&
-    //     valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
-    // )]
+    #[access_control(
+        market_initialized(&ctx.accounts.markets, market_index) &&
+        valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
+    )]
     pub fn place_and_fill_order<'info>(
         ctx: Context<PlaceAndFillOrder>,
         order_type: OrderType,
@@ -1155,259 +1091,51 @@ pub mod clearing_house {
         trigger_condition: OrderTriggerCondition,
         optional_accounts: PlaceOrderOptionalAccounts,
     ) -> ProgramResult {
-        let user = &mut ctx.accounts.user;
-        let clock = Clock::get()?;
-        let now = clock.unix_timestamp;
-        let clock_slot = clock.slot;
-
-        // Settle user's funding payments so that collateral is up to date
-        let user_positions = &mut ctx.accounts.user_positions.load_mut()?;
-        let funding_payment_history = &mut ctx.accounts.funding_payment_history.load_mut()?;
-        controller::funding::settle_funding_payment(
-            user,
-            user_positions,
-            &ctx.accounts.markets.load()?,
-            funding_payment_history,
-            now,
-        )?;
-
-        let user_orders = &mut ctx.accounts.user_orders.load_mut()?;
-        let new_order_idx = user_orders
-            .orders
-            .iter()
-            .position(|order| order.status.eq(&OrderStatus::Init))
-            .ok_or(ErrorCode::MaxNumberOfOrders)?;
-        let discount_token = get_discount_token(
-            optional_accounts.discount_token,
-            &mut ctx.remaining_accounts.iter(),
-            &ctx.accounts.state.discount_mint,
-            &ctx.accounts.authority.key(),
-        )?;
-        let discount_tier =
-            calculate_order_fee_tier(&ctx.accounts.state.fee_structure, discount_token)?;
-        let order_history_account = &mut ctx.accounts.order_history.load_mut()?;
-        let order_id = order_history_account.next_order_id();
-        let new_order = Order {
-            status: OrderStatus::Open,
+        controller::orders::place_order(
+            &ctx.accounts.state,
+            &ctx.accounts.order_state,
+            &mut ctx.accounts.user,
+            &ctx.accounts.user_positions,
+            &ctx.accounts.markets,
+            &ctx.accounts.user_orders,
+            &ctx.accounts.funding_payment_history,
+            &ctx.accounts.order_history,
+            &ctx.remaining_accounts,
+            &Clock::get()?,
             order_type,
-            ts: now,
-            order_id,
-            market_index,
-            price,
-            base_asset_amount,
-            base_asset_amount_filled: 0,
-            quote_asset_amount_filled: 0,
             direction,
+            base_asset_amount,
+            price,
+            market_index,
             reduce_only,
-            discount_tier,
             trigger_price,
             trigger_condition,
-        };
+            optional_accounts,
+        )?;
 
+        let order_id;
         {
-            let order_state = &ctx.accounts.order_state;
-            let market =
-                &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
-            validate_order(&new_order, market, order_state)?;
+            let order_history = &ctx.accounts.order_history.load()?;
+            order_id = order_history.last_order_id;
         }
 
-        user_orders.orders[new_order_idx] = new_order;
-
-        // Increment open orders for existing position
-        let position_index = get_position_index(user_positions, market_index)
-            .or_else(|_| add_new_position(user_positions, market_index))?;
-        let market_position = &mut user_positions.positions[position_index];
-        market_position.open_orders += 1;
-
-        // Add to the order history account
-        let record_id = order_history_account.next_record_id();
-        order_history_account.append(OrderRecord {
-            ts: now,
-            record_id,
-            order: new_order,
-            user: user.key(),
-            authority: ctx.accounts.authority.key(),
-            action: OrderAction::Place,
-            filler: Pubkey::default(),
-            trade_record_id: 0,
-            base_asset_amount_filled: 0,
-            quote_asset_amount_filled: 0,
-            filler_reward: 0,
-        });
-        let order_index = user_orders
-            .orders
-            .iter()
-            .position(|order| order.order_id == order_id)
-            .ok_or(ErrorCode::OrderDoesNotExist)?;
-        let order = &mut user_orders.orders[order_index];
-
-        if order.status != OrderStatus::Open {
-            return Err(ErrorCode::OrderNotOpen.into());
-        }
-
-        let market_index = order.market_index;
-        let minimum_base_asset_trade_size: u128;
-        {
-            let market =
-                &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
-
-            if !market.initialized {
-                return Err(ErrorCode::MarketIndexNotInitialized.into());
-            }
-
-            if !market.amm.oracle.eq(&ctx.accounts.oracle.key) {
-                return Err(ErrorCode::InvalidOracle.into());
-            }
-
-            // TODO: currently unused
-            minimum_base_asset_trade_size = market.amm.minimum_base_asset_trade_size;
-        }
-        let max_leverage: u128 = MARGIN_PRECISION
-            .checked_div(ctx.accounts.state.margin_ratio_initial)
-            .ok_or_else(math_error!())?;
-        let free_collateral;
-        {
-            let markets = &ctx.accounts.markets.load()?;
-
-            free_collateral =
-                calculate_free_collateral(user, user_positions, markets, max_leverage)?;
-        }
-
-        let user_fee: u128;
-        let token_discount: u128;
-        let potentially_risk_increasing: bool;
-        {
-            let market = &mut ctx.accounts.markets.load_mut()?.markets
-                [Markets::index_from_u64(market_index)];
-
-            // Get existing position
-            let position_index = get_position_index(user_positions, market_index)?;
-            let market_position = &mut user_positions.positions[position_index];
-
-            let direction = order.direction;
-
-            let (
-                base_asset_amount,
-                quote_asset_amount,
-                mark_price_before,
-                mark_price_after,
-                oracle_price_after,
-                _user_fee,
-                _token_discount,
-                _filler_reward,
-                _potentially_risk_increasing,
-            ) = controller::orders::fill_order_old(
-                order,
-                market,
-                user,
-                market_position,
-                free_collateral,
-                &ctx.accounts.oracle,
-                max_leverage,
-                clock_slot,
-                now,
-                &ctx.accounts.state,
-                &ctx.accounts.order_state,
-            )?;
-
-            // Add to the trade history account
-            let trade_history_account = &mut ctx.accounts.trade_history.load_mut()?;
-            let trade_record_id = trade_history_account.next_record_id();
-            trade_history_account.append(TradeRecord {
-                ts: now,
-                record_id: trade_record_id,
-                user_authority: *ctx.accounts.authority.to_account_info().key,
-                user: *user.to_account_info().key,
-                direction,
-                base_asset_amount,
-                quote_asset_amount,
-                mark_price_before,
-                mark_price_after,
-                fee: _user_fee,
-                token_discount: _token_discount,
-                referrer_reward: 0,
-                referee_discount: 0,
-                liquidation: false,
-                market_index,
-                oracle_price: oracle_price_after,
-            });
-
-            // let order_history_account = &mut ctx.accounts.order_history.load_mut()?;
-            let record_id = order_history_account.next_record_id();
-            order_history_account.append(OrderRecord {
-                ts: now,
-                record_id,
-                order: *order,
-                user: user.key(),
-                authority: user.authority,
-                action: OrderAction::Fill,
-                filler: user.key(), // user fills this part of own order
-                trade_record_id,
-                base_asset_amount_filled: base_asset_amount,
-                quote_asset_amount_filled: quote_asset_amount,
-                filler_reward: 0,
-            });
-
-            // Cant reset order until after its been logged in order history
-            if order.base_asset_amount == order.base_asset_amount_filled {
-                *order = Order::default();
-                let market_position = &mut user_positions.positions[position_index];
-                market_position.open_orders -= 1;
-            }
-
-            user_fee = _user_fee;
-            token_discount = _token_discount;
-            potentially_risk_increasing = _potentially_risk_increasing;
-        }
-
-        // Trade fails if it's risk increasing and it brings the user below the initial margin ratio level
-        let (
-            _total_collateral_after,
-            _unrealized_pnl_after,
-            _base_asset_value_after,
-            margin_ratio_after,
-        ) = calculate_margin_ratio(user, user_positions, &ctx.accounts.markets.load()?)?;
-        if margin_ratio_after < ctx.accounts.state.margin_ratio_initial
-            && potentially_risk_increasing
-        {
-            return Err(ErrorCode::InsufficientCollateral.into());
-        }
-
-        // Note: apply fee after trade margin ratio check
-
-        // Subtract the fee from user's collateral
-        user.collateral = user.collateral.checked_sub(user_fee).or(Some(0)).unwrap();
-
-        // Increment the user's total fee variables
-        user.total_fee_paid = user
-            .total_fee_paid
-            .checked_add(user_fee)
-            .ok_or_else(math_error!())?;
-
-        user.total_token_discount = user
-            .total_token_discount
-            .checked_add(token_discount)
-            .ok_or_else(math_error!())?;
-
-        // Try to update the funding rate at the end of every trade
-        {
-            let market = &mut ctx.accounts.markets.load_mut()?.markets
-                [Markets::index_from_u64(market_index)];
-            let price_oracle = &ctx.accounts.oracle;
-            let funding_rate_history = &mut ctx.accounts.funding_rate_history.load_mut()?;
-            controller::funding::update_funding_rate(
-                market_index,
-                market,
-                &price_oracle,
-                now,
-                clock_slot,
-                funding_rate_history,
-                &ctx.accounts.state.oracle_guard_rails,
-                ctx.accounts.state.funding_paused,
-            )?;
-        }
-
-        Ok(())
+        let user = &mut ctx.accounts.user;
+        controller::orders::fill_order(
+            order_id,
+            &ctx.accounts.state,
+            &ctx.accounts.order_state,
+            user,
+            &ctx.accounts.user_positions,
+            &ctx.accounts.markets,
+            &ctx.accounts.oracle,
+            &ctx.accounts.user_orders,
+            &mut user.clone(),
+            &ctx.accounts.funding_payment_history,
+            &ctx.accounts.trade_history,
+            &ctx.accounts.order_history,
+            &ctx.accounts.funding_rate_history,
+            &Clock::get()?,
+        )
     }
 
     #[access_control(

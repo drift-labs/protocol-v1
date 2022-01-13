@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[account(zero_copy)]
 pub struct OrderHistory {
     head: u64,
-    last_order_id: u128,
+    pub last_order_id: u128,
     order_records: [OrderRecord; 1024],
 }
 

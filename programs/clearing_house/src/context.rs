@@ -511,15 +511,9 @@ pub struct PlaceOrder<'info> {
     pub funding_payment_history: AccountLoader<'info, FundingPaymentHistory>,
     #[account(
         mut,
-        constraint = &state.funding_rate_history.eq(&funding_rate_history.key())
-    )]
-    pub funding_rate_history: AccountLoader<'info, FundingRateHistory>,
-    #[account(
-        mut,
         constraint = &order_state.order_history.eq(&order_history.key())
     )]
     pub order_history: AccountLoader<'info, OrderHistory>,
-    pub oracle: AccountInfo<'info>,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
