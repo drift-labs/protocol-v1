@@ -79,8 +79,8 @@ export interface ClearingHouseAccountSubscriber {
 }
 
 export interface UserAccountEvents {
-	userAccountData: (payload: UserAccount) => void;
-	userPositionsData: (payload: UserPositionsAccount) => void;
+	userAccountUpdate: (payload: UserAccount) => void;
+	userPositionsAccountUpdate: (payload: UserPositionsAccount) => void;
 	update: void;
 	fetched: void;
 	fetchedAccount: SubscribableUserAccountTypes;

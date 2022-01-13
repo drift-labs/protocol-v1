@@ -4,7 +4,7 @@ import {
 	OptionalSubscribableClearingHouseAccountTypes,
 	SubscribableClearingHouseAccountTypes,
 } from './types';
-import { AccountSubscriber, NotSubscribedError } from './types';
+import { NotSubscribedError } from './types';
 import {
 	CurveHistoryAccount,
 	DepositHistoryAccount,
@@ -20,8 +20,7 @@ import { Program } from '@project-serum/anchor';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import { EventEmitter } from 'events';
 import { getClearingHouseStateAccountPublicKey } from '../addresses';
-import { WebSocketAccountSubscriber } from './webSocketAccountSubscriber';
-import { OptionalSubscribableAccount } from '..';
+import { PollingWebSocketAccountSubscriber } from './pollingWebSocketAccountSubscriber';
 
 export class DefaultClearingHouseAccountSubscriber
 	implements PollingClearingHouseAccountSubscriber
@@ -30,18 +29,12 @@ export class DefaultClearingHouseAccountSubscriber
 	program: Program;
 	eventEmitter: StrictEventEmitter<EventEmitter, ClearingHouseAccountEvents>;
 
-	pollRate: Map<SubscribableClearingHouseAccountTypes, number> = new Map<
-		SubscribableClearingHouseAccountTypes,
-		number
-	>();
-	pollInterval: Map<SubscribableClearingHouseAccountTypes, NodeJS.Timer> =
-		new Map<SubscribableClearingHouseAccountTypes, NodeJS.Timer>();
 	subscribers: Map<
 		SubscribableClearingHouseAccountTypes,
-		AccountSubscriber<SubscribableAccount>
+		PollingWebSocketAccountSubscriber<SubscribableAccount>
 	> = new Map<
 		SubscribableClearingHouseAccountTypes,
-		AccountSubscriber<SubscribableAccount>
+		PollingWebSocketAccountSubscriber<SubscribableAccount>
 	>();
 
 	private isSubscribing = false;
@@ -55,46 +48,30 @@ export class DefaultClearingHouseAccountSubscriber
 	}
 
 	startPolling(account: SubscribableClearingHouseAccountTypes): boolean {
-		if (this.pollInterval.has(account)) {
-			throw new Error('already polling ' + account);
-		}
-		if (!this.pollRate.has(account)) {
-			throw new Error('no poll rate set for ' + account);
-		}
+
 		if (!this.subscribers.has(account)) {
 			throw new Error('could not find subscriber ' + account);
 		}
 		if (!this.subscribers.get(account).isSubscribed) {
 			throw new Error('account is not subscribed ' + account);
 		}
-		this.pollInterval.set(
-			account,
-			setInterval(() => {
-				this.subscribers
-					.get(account)
-					.fetch()
-					.then(() => {
-						this.eventEmitter.emit('fetchedAccount', account);
-					});
-			}, this.pollRate.get(account))
-		);
-		return true;
+
+		return this.subscribers.get(account).startPolling(() => {
+			this.eventEmitter.emit('fetchedAccount', account);
+		});
+		
 	}
 
 	stopPolling(account: SubscribableClearingHouseAccountTypes): boolean {
-		if (this.pollInterval.has(account)) {
-			clearInterval(this.pollInterval.get(account));
-			this.pollInterval.delete(account);
-			return true;
-		}
-		return false;
+		return this.subscribers.get(account).stopPolling();
+
 	}
 
 	setPollingRate(
 		account: SubscribableClearingHouseAccountTypes,
 		rate: number
 	): void {
-		this.pollRate.set(account, rate);
+		this.subscribers.get(account).setPollingRate(rate);
 	}
 
 	public async subscribe(
@@ -121,7 +98,7 @@ export class DefaultClearingHouseAccountSubscriber
 		// create and activate main state account subscription
 		this.subscribers.set(
 			'stateAccount',
-			new WebSocketAccountSubscriber('state', this.program, statePublicKey)
+			new PollingWebSocketAccountSubscriber('state', this.program, statePublicKey)
 		);
 		await this.subscribers
 			.get('stateAccount')
@@ -134,7 +111,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'marketsAccount',
-			new WebSocketAccountSubscriber('markets', this.program, state.markets)
+			new PollingWebSocketAccountSubscriber('markets', this.program, state.markets)
 		);
 
 		await this.subscribers
@@ -148,7 +125,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'tradeHistoryAccount',
-			new WebSocketAccountSubscriber(
+			new PollingWebSocketAccountSubscriber(
 				'tradeHistory',
 				this.program,
 				state.tradeHistory
@@ -157,7 +134,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'depositHistoryAccount',
-			new WebSocketAccountSubscriber(
+			new PollingWebSocketAccountSubscriber(
 				'depositHistory',
 				this.program,
 				state.depositHistory
@@ -166,7 +143,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'fundingPaymentHistoryAccount',
-			new WebSocketAccountSubscriber(
+			new PollingWebSocketAccountSubscriber(
 				'fundingPaymentHistory',
 				this.program,
 				state.fundingPaymentHistory
@@ -175,7 +152,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'fundingRateHistoryAccount',
-			new WebSocketAccountSubscriber(
+			new PollingWebSocketAccountSubscriber(
 				'fundingRateHistory',
 				this.program,
 				state.fundingRateHistory
@@ -184,7 +161,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'liquidationHistoryAccount',
-			new WebSocketAccountSubscriber(
+			new PollingWebSocketAccountSubscriber(
 				'liquidationHistory',
 				this.program,
 				state.liquidationHistory
@@ -193,7 +170,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'curveHistoryAccount',
-			new WebSocketAccountSubscriber(
+			new PollingWebSocketAccountSubscriber(
 				'curveHistory',
 				this.program,
 				state.curveHistory
@@ -202,13 +179,57 @@ export class DefaultClearingHouseAccountSubscriber
 
 		await Promise.all(
 			optionalSubscriptions.map((accountType) => {
-				return this.subscribers.get(accountType).subscribe((data) => {
-					this.eventEmitter.emit(
-						(accountType + 'Update') as keyof OptionalSubscribableAccount,
-						data
-					);
-					this.eventEmitter.emit('update');
-				});
+				switch(accountType) {
+					case 'curveHistoryAccount':
+						return this.subscribers.get(accountType).subscribe((data) => {
+							this.eventEmitter.emit(
+								'curveHistoryAccountUpdate',
+								data as CurveHistoryAccount
+							);
+							this.eventEmitter.emit('update');
+						});
+					case 'depositHistoryAccount':
+						return this.subscribers.get(accountType).subscribe((data) => {
+							this.eventEmitter.emit(
+								'depositHistoryAccountUpdate',
+								data as DepositHistoryAccount
+							);
+							this.eventEmitter.emit('update');
+						});
+
+					case 'fundingPaymentHistoryAccount':
+						return this.subscribers.get(accountType).subscribe((data) => {
+							this.eventEmitter.emit(
+								'fundingPaymentHistoryAccountUpdate',
+								data as FundingPaymentHistoryAccount
+							);
+							this.eventEmitter.emit('update');
+						});
+					case 'fundingRateHistoryAccount':
+						return this.subscribers.get(accountType).subscribe((data) => {
+							this.eventEmitter.emit(
+								'fundingRateHistoryAccountUpdate',
+								data as FundingRateHistoryAccount
+							);
+							this.eventEmitter.emit('update');
+						});
+					case 'liquidationHistoryAccount':
+						return this.subscribers.get(accountType).subscribe((data) => {
+							this.eventEmitter.emit(
+								'liquidationHistoryAccountUpdate',
+								data as LiquidationHistoryAccount
+							);
+							this.eventEmitter.emit('update');
+						});
+					case 'tradeHistoryAccount':
+						return this.subscribers.get(accountType).subscribe((data) => {
+							this.eventEmitter.emit(
+								'tradeHistoryAccountUpdate',
+								data as TradeHistoryAccount
+							);
+							this.eventEmitter.emit('update');
+						});
+				}
 			})
 		);
 

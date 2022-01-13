@@ -1,5 +1,4 @@
 import {
-	AccountSubscriber,
 	NotSubscribedError,
 	PollingUserAccountSubscriber,
 	UserAccountEvents,
@@ -9,12 +8,12 @@ import StrictEventEmitter from 'strict-event-emitter-types';
 import { EventEmitter } from 'events';
 import { PublicKey } from '@solana/web3.js';
 import { getUserAccountPublicKey } from '../addresses';
-import { WebSocketAccountSubscriber } from './webSocketAccountSubscriber';
 import { UserAccount, UserPositionsAccount } from '../types';
 import {
 	OptionalSubscribableUserAccount,
 	SubscribableUserAccountTypes,
 } from '..';
+import { PollingWebSocketAccountSubscriber } from './pollingWebSocketAccountSubscriber';
 
 export class DefaultUserAccountSubscriber
 	implements PollingUserAccountSubscriber
@@ -24,20 +23,12 @@ export class DefaultUserAccountSubscriber
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
 	authority: PublicKey;
 
-	pollRate: Map<SubscribableUserAccountTypes, number> = new Map<
-		SubscribableUserAccountTypes,
-		number
-	>();
-	pollInterval: Map<SubscribableUserAccountTypes, NodeJS.Timer> = new Map<
-		SubscribableUserAccountTypes,
-		NodeJS.Timer
-	>();
 	subscribers: Map<
 		SubscribableUserAccountTypes,
-		AccountSubscriber<OptionalSubscribableUserAccount>
+		PollingWebSocketAccountSubscriber<OptionalSubscribableUserAccount>
 	> = new Map<
 		SubscribableUserAccountTypes,
-		AccountSubscriber<OptionalSubscribableUserAccount>
+		PollingWebSocketAccountSubscriber<OptionalSubscribableUserAccount>
 	>();
 
 	public constructor(program: Program, authority: PublicKey) {
@@ -48,43 +39,30 @@ export class DefaultUserAccountSubscriber
 	}
 
 	startPolling(account: SubscribableUserAccountTypes): boolean {
-		if (this.pollInterval.has(account)) {
-			throw new Error('already polling ' + account);
-		}
-		if (!this.pollRate.has(account)) {
-			throw new Error('no poll rate set for ' + account);
-		}
+
 		if (!this.subscribers.has(account)) {
 			throw new Error('could not find subscriber ' + account);
 		}
 		if (!this.subscribers.get(account).isSubscribed) {
 			throw new Error('account is not subscribed ' + account);
 		}
-		this.pollInterval.set(
-			account,
-			setInterval(() => {
-				this.subscribers
-					.get(account)
-					.fetch()
-					.then(() => {
-						this.eventEmitter.emit('fetchedAccount', account);
-					});
-			}, this.pollRate.get(account))
-		);
-		return true;
+
+
+		return this.subscribers.get(account).startPolling(() => {
+			this.eventEmitter.emit('fetchedAccount', account);
+		});
 	}
 
 	stopPolling(account: SubscribableUserAccountTypes): boolean {
-		if (this.pollInterval.has(account)) {
-			clearInterval(this.pollInterval.get(account));
-			this.pollInterval.delete(account);
-			return true;
-		}
-		return false;
+		return this.subscribers.get(account).stopPolling();
+
 	}
 
-	setPollingRate(account: SubscribableUserAccountTypes, rate: number): void {
-		this.pollRate.set(account, rate);
+	setPollingRate(
+		account: SubscribableUserAccountTypes,
+		rate: number
+	): void {
+		this.subscribers.get(account).setPollingRate(rate);
 	}
 
 	async subscribe(): Promise<boolean> {
@@ -98,10 +76,10 @@ export class DefaultUserAccountSubscriber
 		);
 		this.subscribers.set(
 			'userAccount',
-			new WebSocketAccountSubscriber('user', this.program, userPublicKey)
+			new PollingWebSocketAccountSubscriber('user', this.program, userPublicKey)
 		);
 		await this.subscribers.get('userAccount').subscribe((data: UserAccount) => {
-			this.eventEmitter.emit('userAccountData', data);
+			this.eventEmitter.emit('userAccountUpdate', data);
 			this.eventEmitter.emit('update');
 		});
 
@@ -110,7 +88,7 @@ export class DefaultUserAccountSubscriber
 
 		this.subscribers.set(
 			'userPositionsAccount',
-			new WebSocketAccountSubscriber(
+			new PollingWebSocketAccountSubscriber(
 				'userPositions',
 				this.program,
 				userAccountData.positions
@@ -120,7 +98,7 @@ export class DefaultUserAccountSubscriber
 		await this.subscribers
 			.get('userPositionsAccount')
 			.subscribe((data: UserPositionsAccount) => {
-				this.eventEmitter.emit('userPositionsData', data);
+				this.eventEmitter.emit('userPositionsAccountUpdate', data);
 				this.eventEmitter.emit('update');
 			});
 
