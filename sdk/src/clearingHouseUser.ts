@@ -17,7 +17,7 @@ import {
 	AMM_RESERVE_PRECISION,
 	PRICE_TO_QUOTE_PRECISION,
 } from './constants/numericConstants';
-import { UserAccountSubscriber, UserAccountEvents } from './accounts/types';
+import { UserAccountEvents, PollingUserAccountSubscriber, SubscribableUserAccountTypes } from './accounts/types';
 import { DefaultUserAccountSubscriber } from './accounts/defaultUserAccountSubscriber';
 import {
 	calculateMarkPrice,
@@ -32,12 +32,10 @@ import { getUserAccountPublicKey } from './addresses';
 export class ClearingHouseUser {
 	clearingHouse: ClearingHouse;
 	authority: PublicKey;
-	accountSubscriber: UserAccountSubscriber;
+	accountSubscriber: PollingUserAccountSubscriber;
 	userAccountPublicKey?: PublicKey;
 	isSubscribed = false;
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
-	pollingInterval: NodeJS.Timer
-	pollRate: BN
 
 	public static from(
 		clearingHouse: ClearingHouse,
@@ -53,7 +51,7 @@ export class ClearingHouseUser {
 	public constructor(
 		clearingHouse: ClearingHouse,
 		authority: PublicKey,
-		accountSubscriber: UserAccountSubscriber
+		accountSubscriber: PollingUserAccountSubscriber
 	) {
 		this.clearingHouse = clearingHouse;
 		this.authority = authority;
@@ -73,63 +71,33 @@ export class ClearingHouseUser {
 		return this.isSubscribed;
 	}
 
-
 	/**
 	 * Used to set the polling rate of new data acquisition
-	 * @param pollRate - the rate in milliseconds at which to check for new data for the user
-	 * @param restartPool - if there is already a polling timer setup for this user, should we restart it with the new poll rate?
+	 * @param account - which optional user account type's poll rate to set
+	 * @param pollRate - the rate at which the optional user account data will be fetched
 	 */
-	public setPollingRate(pollRate: BN, restartPoll = true) : Promise<boolean> {
-		return new Promise((resolve) => {
-			// set the poll rate for this user
-			this.pollRate = pollRate;
-			// if there is already a polling fetch for this user
-			if (this.pollingInterval && restartPoll) {
-				clearInterval(this.pollingInterval);
-				this.pollingInterval = setInterval(() => {
-					this.accountSubscriber.fetch();
-				}, this.pollRate.toNumber());
-			}
-			resolve(true);
-		});
-	}
-
-	/**
-	 * Used to enable polling for new user data every pollRate milliseconds
-	 * @param pollRate - the rate in milliseconds at which to check for new data for the user
-	 */
-	 public enablePolling(pollRate: BN) : Promise<boolean> {
-		return new Promise((resolve) => {
-			// clear the existing polling interval
-			if (this.pollingInterval) {
-				clearInterval(this.pollingInterval);
-			}
-			// update the poll rate
-			this.pollRate = pollRate;
-			// start the polling
-			this.pollingInterval = setInterval(() => {
-				this.accountSubscriber.fetch();
-			}, this.pollRate.toNumber());
-			resolve(true);
-		});
-	}
-
-	/**
-	 * Disables the current polling interval for this user
-	 * @returns boolean - whether or not the polling was disabled - false if there was no polling to disable
-	 */
-	 public disablePolling() : Promise<boolean> {
-		return new Promise((resolve) => {
-			// clear the polling interval if it exists
-			if (this.pollingInterval) {
-				clearInterval(this.pollingInterval);
-				resolve(true);
-				return;
-			}
-			resolve(false);
-		});
+	public setPollingRate(account: SubscribableUserAccountTypes, pollRate: number): void {
+		return this.accountSubscriber.setPollingRate(account, pollRate);
 		
 	}
+
+	/**
+	 * Used to enable polling for new user account type data, set the poll rate with `setPollingRate`
+	 * @param account - which optional user account type to start polling
+	 * @return boolean - whether or not the polling was started, will return false if it was already started 
+	 */
+	public startPolling(account : SubscribableUserAccountTypes): boolean {
+		return this.accountSubscriber.startPolling(account);
+	}
+
+	/**
+	 * Disables the polling interval for the optional user account type
+	 * @returns boolean - whether or not the polling was disabled - false if there was no polling to disable
+	 */
+	public stopPolling(account : SubscribableUserAccountTypes): boolean {
+		return this.accountSubscriber.stopPolling(account);
+	}
+	
 
 	/**
 	 *	Forces the accountSubscriber to fetch account updates from rpc
@@ -639,34 +607,35 @@ export class ClearingHouseUser {
 
 		let priceDelt;
 		if (proposedBaseAssetAmount.lt(ZERO)) {
-			priceDelt = (tc
+			priceDelt = tc
 				.mul(thisLev)
-				.sub(tpv))
+				.sub(tpv)
 				.mul(PRICE_TO_QUOTE_PRECISION)
 				.div(thisLev.add(new BN(1)));
 		} else {
-			priceDelt = (tc
+			priceDelt = tc
 				.mul(thisLev)
-				.sub(tpv))
+				.sub(tpv)
 				.mul(PRICE_TO_QUOTE_PRECISION)
 				.div(thisLev.sub(new BN(1)));
 		}
 
 		let currentPrice;
-		if(positionBaseSizeChange.eq(ZERO)){
+		if (positionBaseSizeChange.eq(ZERO)) {
 			currentPrice = calculateMarkPrice(
 				this.clearingHouse.getMarket(targetMarket.marketIndex)
 			);
-		} else{
-			const direction = positionBaseSizeChange.gt(ZERO) ? PositionDirection.LONG : PositionDirection.SHORT;
+		} else {
+			const direction = positionBaseSizeChange.gt(ZERO)
+				? PositionDirection.LONG
+				: PositionDirection.SHORT;
 			currentPrice = calculateTradeSlippage(
 				direction,
 				positionBaseSizeChange.abs(),
 				this.clearingHouse.getMarket(targetMarket.marketIndex),
-				'base',
+				'base'
 			)[3]; // newPrice after swap
 		}
-		
 
 		// if the position value after the trade is less than total collateral, there is no liq price
 		if (
@@ -682,7 +651,7 @@ export class ClearingHouseUser {
 			.mul(AMM_RESERVE_PRECISION)
 			.div(proposedBaseAssetAmount);
 
-		if(eatMargin2.gt(currentPrice)){
+		if (eatMargin2.gt(currentPrice)) {
 			return new BN(-1);
 		}
 

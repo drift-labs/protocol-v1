@@ -3,6 +3,7 @@ import { Program } from '@project-serum/anchor';
 import { PublicKey } from '@solana/web3.js';
 
 export class WebSocketAccountSubscriber<T> implements AccountSubscriber<T> {
+	isSubscribed: boolean;
 	data?: T;
 	accountName: string;
 	program: Program;
@@ -18,11 +19,12 @@ export class WebSocketAccountSubscriber<T> implements AccountSubscriber<T> {
 		this.program = program;
 		this.accountPublicKey = accountPublicKey;
 	}
+	
 
 	async subscribe(onChange: (data: T) => void): Promise<void> {
 		this.onChange = onChange;
 		await this.fetch();
-
+		this.isSubscribed = true;
 		this.program.account[this.accountName]
 			.subscribe(this.accountPublicKey, this.program.provider.opts.commitment)
 			.on('change', async (data: T) => {
@@ -44,8 +46,10 @@ export class WebSocketAccountSubscriber<T> implements AccountSubscriber<T> {
 	}
 
 	unsubscribe(): Promise<void> {
-		return this.program.account[this.accountName].unsubscribe(
+		const unsubscribed = this.program.account[this.accountName].unsubscribe(
 			this.accountPublicKey
 		);
+		this.isSubscribed = false;
+		return unsubscribed;
 	}
 }

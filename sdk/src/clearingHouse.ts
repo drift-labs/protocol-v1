@@ -40,9 +40,10 @@ import {
 	getUserAccountPublicKeyAndNonce,
 } from './addresses';
 import {
-	ClearingHouseAccountSubscriber,
 	ClearingHouseAccountEvents,
-	ClearingHouseAccountTypes,
+	OptionalSubscribableClearingHouseAccountTypes,
+	SubscribableClearingHouseAccountTypes,
+	PollingClearingHouseAccountSubscriber,
 } from './accounts/types';
 import { DefaultClearingHouseAccountSubscriber } from './accounts/defaultClearingHouseAccountSubscriber';
 import { TxSender } from './tx/types';
@@ -62,7 +63,7 @@ export class ClearingHouse {
 	public program: Program;
 	provider: Provider;
 	opts?: ConfirmOptions;
-	accountSubscriber: ClearingHouseAccountSubscriber;
+	accountSubscriber: PollingClearingHouseAccountSubscriber;
 	eventEmitter: StrictEventEmitter<EventEmitter, ClearingHouseAccountEvents>;
 	isSubscribed = false;
 	txSender: TxSender;
@@ -97,7 +98,7 @@ export class ClearingHouse {
 		connection: Connection,
 		wallet: IWallet,
 		program: Program,
-		accountSubscriber: ClearingHouseAccountSubscriber,
+		accountSubscriber: PollingClearingHouseAccountSubscriber,
 		txSender: TxSender,
 		opts: ConfirmOptions
 	) {
@@ -116,7 +117,7 @@ export class ClearingHouse {
 	 * @returns Promise<boolean> : SubscriptionSuccess
 	 */
 	public async subscribe(
-		optionalSubscriptions?: ClearingHouseAccountTypes[]
+		optionalSubscriptions?: OptionalSubscribableClearingHouseAccountTypes[]
 	): Promise<boolean> {
 		this.isSubscribed = await this.accountSubscriber.subscribe(
 			optionalSubscriptions
@@ -138,6 +139,36 @@ export class ClearingHouse {
 			'tradeHistoryAccount',
 		]);
 	}
+
+
+	/**
+	 * Used to set the polling rate of new data acquisition
+	 * @param account - which optional user account type's poll rate to set
+	 * @param pollRate - the rate at which the optional user account data will be fetched
+	 */
+	 public setPollingRate(account: SubscribableClearingHouseAccountTypes, pollRate: number): void {
+		return this.accountSubscriber.setPollingRate(account, pollRate);
+		
+	}
+
+	/**
+	 * Used to enable polling for new user account type data, set the poll rate with `setPollingRate`
+	 * @param account - which optional user account type to start polling
+	 * @return boolean - whether or not the polling was started, will return false if it was already started 
+	 */
+	public startPolling(account : SubscribableClearingHouseAccountTypes): boolean {
+		return this.accountSubscriber.startPolling(account);
+	}
+
+	/**
+	 * Disables the polling interval for the optional user account type
+	 * @returns boolean - whether or not the polling was disabled - false if there was no polling to disable
+	 */
+	public stopPolling(account : SubscribableClearingHouseAccountTypes): boolean {
+		return this.accountSubscriber.stopPolling(account);
+	}
+
+
 
 	/**
 	 *	Forces the accountSubscriber to fetch account updates from rpc

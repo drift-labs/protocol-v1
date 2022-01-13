@@ -14,6 +14,7 @@ import StrictEventEmitter from 'strict-event-emitter-types';
 import { EventEmitter } from 'events';
 
 export interface AccountSubscriber<T> {
+	isSubscribed: boolean;
 	data?: T;
 	subscribe(onChange: (data: T) => void): Promise<void>;
 	fetch(): Promise<void>;
@@ -36,24 +37,27 @@ export interface ClearingHouseAccountEvents {
 	depositHistoryAccountUpdate: (payload: DepositHistoryAccount) => void;
 	curveHistoryAccountUpdate: (payload: CurveHistoryAccount) => void;
 	update: void;
+	fetched: void;
+	fetchedAccount: SubscribableClearingHouseAccountTypes;
 }
 
-export type ClearingHouseAccountTypes =
-	| 'tradeHistoryAccount'
+export type OptionalSubscribableClearingHouseAccountTypes = 'tradeHistoryAccount'
 	| 'depositHistoryAccount'
 	| 'fundingPaymentHistoryAccount'
 	| 'fundingRateHistoryAccount'
 	| 'curveHistoryAccount'
 	| 'liquidationHistoryAccount';
 
+export type SubscribableClearingHouseAccountTypes = 'stateAccount' | 'marketsAccount' | & OptionalSubscribableClearingHouseAccountTypes;
+
+export type SubscribableUserAccountTypes = 'userAccount' | 'userPositionsAccount';
+
 export interface ClearingHouseAccountSubscriber {
 	eventEmitter: StrictEventEmitter<EventEmitter, ClearingHouseAccountEvents>;
 	isSubscribed: boolean;
 
-	optionalExtraSubscriptions: ClearingHouseAccountTypes[];
-
 	subscribe(
-		optionalSubscriptions?: ClearingHouseAccountTypes[]
+		optionalSubscriptions?: OptionalSubscribableClearingHouseAccountTypes[]
 	): Promise<boolean>;
 	fetch(): Promise<void>;
 	unsubscribe(): Promise<void>;
@@ -69,10 +73,11 @@ export interface ClearingHouseAccountSubscriber {
 }
 
 export interface UserAccountEvents {
-	fetched: void;
 	userAccountData: (payload: UserAccount) => void;
 	userPositionsData: (payload: UserPositionsAccount) => void;
 	update: void;
+	fetched: void;
+	fetchedAccount: SubscribableUserAccountTypes;
 }
 
 export interface UserAccountSubscriber {
@@ -85,4 +90,19 @@ export interface UserAccountSubscriber {
 
 	getUserAccount(): UserAccount;
 	getUserPositionsAccount(): UserPositionsAccount;
+}
+
+export interface PollingUserAccountSubscriber extends UserAccountSubscriber {
+
+	startPolling(account: SubscribableUserAccountTypes): boolean
+	stopPolling(account: SubscribableUserAccountTypes): boolean
+	setPollingRate(account: SubscribableUserAccountTypes, rate: number): void
+}
+
+
+export interface PollingClearingHouseAccountSubscriber extends ClearingHouseAccountSubscriber {
+
+	startPolling(account: SubscribableClearingHouseAccountTypes): boolean
+	stopPolling(account: SubscribableClearingHouseAccountTypes): boolean
+	setPollingRate(account: SubscribableClearingHouseAccountTypes, rate: number): void
 }
