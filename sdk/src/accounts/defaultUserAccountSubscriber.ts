@@ -71,6 +71,7 @@ export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
 			this.userDataAccountSubscriber.fetch(),
 			this.userPositionsAccountSubscriber.fetch(),
 		]);
+		this.eventEmitter.emit('fetched');
 	}
 
 	async unsubscribe(): Promise<void> {
