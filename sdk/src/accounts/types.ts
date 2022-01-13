@@ -41,16 +41,22 @@ export interface ClearingHouseAccountEvents {
 	fetchedAccount: SubscribableClearingHouseAccountTypes;
 }
 
-export type OptionalSubscribableClearingHouseAccountTypes = 'tradeHistoryAccount'
+export type OptionalSubscribableClearingHouseAccountTypes =
+	| 'tradeHistoryAccount'
 	| 'depositHistoryAccount'
 	| 'fundingPaymentHistoryAccount'
 	| 'fundingRateHistoryAccount'
 	| 'curveHistoryAccount'
 	| 'liquidationHistoryAccount';
 
-export type SubscribableClearingHouseAccountTypes = 'stateAccount' | 'marketsAccount' | & OptionalSubscribableClearingHouseAccountTypes;
+export type SubscribableClearingHouseAccountTypes =
+	| 'stateAccount'
+	| 'marketsAccount'
+	| OptionalSubscribableClearingHouseAccountTypes;
 
-export type SubscribableUserAccountTypes = 'userAccount' | 'userPositionsAccount';
+export type SubscribableUserAccountTypes =
+	| 'userAccount'
+	| 'userPositionsAccount';
 
 export interface ClearingHouseAccountSubscriber {
 	eventEmitter: StrictEventEmitter<EventEmitter, ClearingHouseAccountEvents>;
@@ -93,16 +99,17 @@ export interface UserAccountSubscriber {
 }
 
 export interface PollingUserAccountSubscriber extends UserAccountSubscriber {
-
-	startPolling(account: SubscribableUserAccountTypes): boolean
-	stopPolling(account: SubscribableUserAccountTypes): boolean
-	setPollingRate(account: SubscribableUserAccountTypes, rate: number): void
+	startPolling(account: SubscribableUserAccountTypes): boolean;
+	stopPolling(account: SubscribableUserAccountTypes): boolean;
+	setPollingRate(account: SubscribableUserAccountTypes, rate: number): void;
 }
 
-
-export interface PollingClearingHouseAccountSubscriber extends ClearingHouseAccountSubscriber {
-
-	startPolling(account: SubscribableClearingHouseAccountTypes): boolean
-	stopPolling(account: SubscribableClearingHouseAccountTypes): boolean
-	setPollingRate(account: SubscribableClearingHouseAccountTypes, rate: number): void
+export interface PollingClearingHouseAccountSubscriber
+	extends ClearingHouseAccountSubscriber {
+	startPolling(account: SubscribableClearingHouseAccountTypes): boolean;
+	stopPolling(account: SubscribableClearingHouseAccountTypes): boolean;
+	setPollingRate(
+		account: SubscribableClearingHouseAccountTypes,
+		rate: number
+	): void;
 }

@@ -19,7 +19,6 @@ export class WebSocketAccountSubscriber<T> implements AccountSubscriber<T> {
 		this.program = program;
 		this.accountPublicKey = accountPublicKey;
 	}
-	
 
 	async subscribe(onChange: (data: T) => void): Promise<void> {
 		this.onChange = onChange;

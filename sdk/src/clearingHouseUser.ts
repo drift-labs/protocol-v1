@@ -17,7 +17,11 @@ import {
 	AMM_RESERVE_PRECISION,
 	PRICE_TO_QUOTE_PRECISION,
 } from './constants/numericConstants';
-import { UserAccountEvents, PollingUserAccountSubscriber, SubscribableUserAccountTypes } from './accounts/types';
+import {
+	UserAccountEvents,
+	PollingUserAccountSubscriber,
+	SubscribableUserAccountTypes,
+} from './accounts/types';
 import { DefaultUserAccountSubscriber } from './accounts/defaultUserAccountSubscriber';
 import {
 	calculateMarkPrice,
@@ -76,17 +80,19 @@ export class ClearingHouseUser {
 	 * @param account - which optional user account type's poll rate to set
 	 * @param pollRate - the rate at which the optional user account data will be fetched
 	 */
-	public setPollingRate(account: SubscribableUserAccountTypes, pollRate: number): void {
+	public setPollingRate(
+		account: SubscribableUserAccountTypes,
+		pollRate: number
+	): void {
 		return this.accountSubscriber.setPollingRate(account, pollRate);
-		
 	}
 
 	/**
 	 * Used to enable polling for new user account type data, set the poll rate with `setPollingRate`
 	 * @param account - which optional user account type to start polling
-	 * @return boolean - whether or not the polling was started, will return false if it was already started 
+	 * @return boolean - whether or not the polling was started, will return false if it was already started
 	 */
-	public startPolling(account : SubscribableUserAccountTypes): boolean {
+	public startPolling(account: SubscribableUserAccountTypes): boolean {
 		return this.accountSubscriber.startPolling(account);
 	}
 
@@ -94,10 +100,9 @@ export class ClearingHouseUser {
 	 * Disables the polling interval for the optional user account type
 	 * @returns boolean - whether or not the polling was disabled - false if there was no polling to disable
 	 */
-	public stopPolling(account : SubscribableUserAccountTypes): boolean {
+	public stopPolling(account: SubscribableUserAccountTypes): boolean {
 		return this.accountSubscriber.stopPolling(account);
 	}
-	
 
 	/**
 	 *	Forces the accountSubscriber to fetch account updates from rpc

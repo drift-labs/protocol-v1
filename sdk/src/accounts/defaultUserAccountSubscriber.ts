@@ -2,7 +2,7 @@ import {
 	AccountSubscriber,
 	NotSubscribedError,
 	PollingUserAccountSubscriber,
-	UserAccountEvents
+	UserAccountEvents,
 } from './types';
 import { Program } from '@project-serum/anchor';
 import StrictEventEmitter from 'strict-event-emitter-types';
@@ -11,17 +11,34 @@ import { PublicKey } from '@solana/web3.js';
 import { getUserAccountPublicKey } from '../addresses';
 import { WebSocketAccountSubscriber } from './webSocketAccountSubscriber';
 import { UserAccount, UserPositionsAccount } from '../types';
-import { OptionalSubscribableUserAccount, SubscribableUserAccountTypes } from '..';
+import {
+	OptionalSubscribableUserAccount,
+	SubscribableUserAccountTypes,
+} from '..';
 
-export class DefaultUserAccountSubscriber implements PollingUserAccountSubscriber {
+export class DefaultUserAccountSubscriber
+	implements PollingUserAccountSubscriber
+{
 	isSubscribed: boolean;
 	program: Program;
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
 	authority: PublicKey;
 
-	pollRate: Map<SubscribableUserAccountTypes, number> = new Map<SubscribableUserAccountTypes, number>();
-	pollInterval: Map<SubscribableUserAccountTypes, NodeJS.Timer> = new Map<SubscribableUserAccountTypes, NodeJS.Timer>();
-	subscribers: Map<SubscribableUserAccountTypes, AccountSubscriber<OptionalSubscribableUserAccount>> = new Map<SubscribableUserAccountTypes, AccountSubscriber<OptionalSubscribableUserAccount>>();
+	pollRate: Map<SubscribableUserAccountTypes, number> = new Map<
+		SubscribableUserAccountTypes,
+		number
+	>();
+	pollInterval: Map<SubscribableUserAccountTypes, NodeJS.Timer> = new Map<
+		SubscribableUserAccountTypes,
+		NodeJS.Timer
+	>();
+	subscribers: Map<
+		SubscribableUserAccountTypes,
+		AccountSubscriber<OptionalSubscribableUserAccount>
+	> = new Map<
+		SubscribableUserAccountTypes,
+		AccountSubscriber<OptionalSubscribableUserAccount>
+	>();
 
 	public constructor(program: Program, authority: PublicKey) {
 		this.isSubscribed = false;
@@ -31,7 +48,7 @@ export class DefaultUserAccountSubscriber implements PollingUserAccountSubscribe
 	}
 
 	startPolling(account: SubscribableUserAccountTypes): boolean {
-		if (this.pollInterval.has(account)) {	
+		if (this.pollInterval.has(account)) {
 			throw new Error('already polling ' + account);
 		}
 		if (!this.pollRate.has(account)) {
@@ -43,13 +60,18 @@ export class DefaultUserAccountSubscriber implements PollingUserAccountSubscribe
 		if (!this.subscribers.get(account).isSubscribed) {
 			throw new Error('account is not subscribed ' + account);
 		}
-		this.pollInterval.set(account, setInterval(() => {
-			this.subscribers.get(account).fetch().then(() => {
-				this.eventEmitter.emit('fetchedAccount', account);
-			});
-		}, this.pollRate.get(account)));
+		this.pollInterval.set(
+			account,
+			setInterval(() => {
+				this.subscribers
+					.get(account)
+					.fetch()
+					.then(() => {
+						this.eventEmitter.emit('fetchedAccount', account);
+					});
+			}, this.pollRate.get(account))
+		);
 		return true;
-		
 	}
 
 	stopPolling(account: SubscribableUserAccountTypes): boolean {
@@ -59,7 +81,6 @@ export class DefaultUserAccountSubscriber implements PollingUserAccountSubscribe
 			return true;
 		}
 		return false;
-		
 	}
 
 	setPollingRate(account: SubscribableUserAccountTypes, rate: number): void {
@@ -75,30 +96,33 @@ export class DefaultUserAccountSubscriber implements PollingUserAccountSubscribe
 			this.program.programId,
 			this.authority
 		);
-		this.subscribers.set('userAccount', new WebSocketAccountSubscriber(
-			'user',
-			this.program,
-			userPublicKey
-		));
+		this.subscribers.set(
+			'userAccount',
+			new WebSocketAccountSubscriber('user', this.program, userPublicKey)
+		);
 		await this.subscribers.get('userAccount').subscribe((data: UserAccount) => {
 			this.eventEmitter.emit('userAccountData', data);
 			this.eventEmitter.emit('update');
 		});
 
-		const userAccountData = this.subscribers.get('userAccount').data as UserAccount;
+		const userAccountData = this.subscribers.get('userAccount')
+			.data as UserAccount;
 
-		this.subscribers.set('userPositionsAccount', new WebSocketAccountSubscriber(
-			'userPositions',
-			this.program,
-			userAccountData.positions
-		));
+		this.subscribers.set(
+			'userPositionsAccount',
+			new WebSocketAccountSubscriber(
+				'userPositions',
+				this.program,
+				userAccountData.positions
+			)
+		);
 
-		await this.subscribers.get('userPositionsAccount').subscribe(
-			(data: UserPositionsAccount) => {
+		await this.subscribers
+			.get('userPositionsAccount')
+			.subscribe((data: UserPositionsAccount) => {
 				this.eventEmitter.emit('userPositionsData', data);
 				this.eventEmitter.emit('update');
-			}
-		);
+			});
 
 		this.eventEmitter.emit('update');
 		this.isSubscribed = true;
@@ -106,9 +130,13 @@ export class DefaultUserAccountSubscriber implements PollingUserAccountSubscribe
 	}
 
 	async fetch(): Promise<void> {
-		await Promise.all([...this.subscribers.values()].filter(accountSubscriber => accountSubscriber.isSubscribed).map(accountSubscriber => {
-			return accountSubscriber.fetch();
-		}));
+		await Promise.all(
+			[...this.subscribers.values()]
+				.filter((accountSubscriber) => accountSubscriber.isSubscribed)
+				.map((accountSubscriber) => {
+					return accountSubscriber.fetch();
+				})
+		);
 		this.eventEmitter.emit('fetched');
 	}
 
@@ -117,11 +145,15 @@ export class DefaultUserAccountSubscriber implements PollingUserAccountSubscribe
 			return;
 		}
 
-		await Promise.all([...this.subscribers.values()].filter(accountSubscriber => {
-			return accountSubscriber.isSubscribed;
-		}).map(accountSubscriber => {
-			return accountSubscriber.unsubscribe();
-		}));
+		await Promise.all(
+			[...this.subscribers.values()]
+				.filter((accountSubscriber) => {
+					return accountSubscriber.isSubscribed;
+				})
+				.map((accountSubscriber) => {
+					return accountSubscriber.unsubscribe();
+				})
+		);
 
 		this.isSubscribed = false;
 	}
@@ -145,6 +177,7 @@ export class DefaultUserAccountSubscriber implements PollingUserAccountSubscribe
 
 	public getUserPositionsAccount(): UserPositionsAccount {
 		this.assertIsSubscribed('userPositionsAccount');
-		return this.subscribers.get('userPositionsAccount').data as UserPositionsAccount;
+		return this.subscribers.get('userPositionsAccount')
+			.data as UserPositionsAccount;
 	}
 }
