@@ -32,6 +32,24 @@ export type CandleResolution =
 	| 'W'
 	| 'M';
 
+export type SubscribableAccount =
+	| StateAccount
+	| MarketsAccount
+	| OptionalSubscribableAccount;
+
+export type OptionalSubscribableAccount =
+	| TradeHistoryAccount
+	| DepositHistoryAccount
+	| CurveHistoryAccount
+	| FundingRateHistoryAccount
+	| FundingPaymentHistoryAccount
+	| LiquidationHistoryAccount
+	| OptionalSubscribableUserAccount;
+
+export type OptionalSubscribableUserAccount =
+	| UserPositionsAccount
+	| UserAccount;
+
 // # ClearingHouse Account Types
 export type TradeHistoryAccount = {
 	head: BN;
