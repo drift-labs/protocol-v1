@@ -54,20 +54,29 @@ pub fn place_order(
     trigger_price: u128,
     trigger_condition: OrderTriggerCondition,
     optional_accounts: PlaceOrderOptionalAccounts,
-) -> ProgramResult {
+) -> ClearingHouseResult {
     let now = clock.unix_timestamp;
 
-    let user_positions = &mut user_positions.load_mut()?;
-    let funding_payment_history = &mut funding_payment_history.load_mut()?;
+    let user_positions = &mut user_positions
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+    let funding_payment_history = &mut funding_payment_history
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+    let markets = &markets
+        .load()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
     controller::funding::settle_funding_payment(
         user,
         user_positions,
-        &markets.load()?,
+        markets,
         funding_payment_history,
         now,
     )?;
 
-    let user_orders = &mut user_orders.load_mut()?;
+    let user_orders = &mut user_orders
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
     let new_order_idx = user_orders
         .orders
         .iter()
@@ -80,7 +89,9 @@ pub fn place_order(
         &user.authority.key(),
     )?;
     let discount_tier = calculate_order_fee_tier(&state.fee_structure, discount_token)?;
-    let order_history_account = &mut order_history.load_mut()?;
+    let order_history_account = &mut order_history
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
     let order_id = order_history_account.next_order_id();
     let new_order = Order {
         status: OrderStatus::Open,
@@ -99,11 +110,8 @@ pub fn place_order(
         trigger_condition,
     };
 
-    {
-        let markets = &markets.load()?;
-        let market = markets.get_market(market_index);
-        validate_order(&new_order, market, order_state)?;
-    }
+    let market = markets.get_market(market_index);
+    validate_order(&new_order, market, order_state)?;
 
     user_orders.orders[new_order_idx] = new_order;
 
@@ -141,20 +149,29 @@ pub fn cancel_order(
     funding_payment_history: &AccountLoader<FundingPaymentHistory>,
     order_history: &AccountLoader<OrderHistory>,
     clock: &Clock,
-) -> ProgramResult {
+) -> ClearingHouseResult {
     let now = clock.unix_timestamp;
 
-    let user_positions = &mut user_positions.load_mut()?;
-    let funding_payment_history = &mut funding_payment_history.load_mut()?;
+    let user_positions = &mut user_positions
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+    let funding_payment_history = &mut funding_payment_history
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+    let markets = &markets
+        .load()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
     controller::funding::settle_funding_payment(
         user,
         user_positions,
-        &markets.load()?,
+        markets,
         funding_payment_history,
         now,
     )?;
 
-    let user_orders = &mut user_orders.load_mut()?;
+    let user_orders = &mut user_orders
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
     let order_index = user_orders
         .orders
         .iter()
@@ -167,7 +184,9 @@ pub fn cancel_order(
     }
 
     // Add to the order history account
-    let order_history_account = &mut order_history.load_mut()?;
+    let order_history_account = &mut order_history
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
     let record_id = order_history_account.next_record_id();
     order_history_account.append(OrderRecord {
         ts: now,

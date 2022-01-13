@@ -1008,7 +1008,9 @@ pub mod clearing_house {
             &ctx.accounts.funding_payment_history,
             &ctx.accounts.order_history,
             &Clock::get()?,
-        )
+        )?;
+
+        Ok(())
     }
 
     #[access_control(
