@@ -25,10 +25,10 @@ export class DefaultUserAccountSubscriber
 
 	subscribers: Map<
 		SubscribableUserAccountTypes,
-		PollingWebSocketAccountSubscriber<OptionalSubscribableUserAccount>
+		PollingWebSocketAccountSubscriber<OptionalSubscribableUserAccount, SubscribableUserAccountTypes>
 	> = new Map<
 		SubscribableUserAccountTypes,
-		PollingWebSocketAccountSubscriber<OptionalSubscribableUserAccount>
+		PollingWebSocketAccountSubscriber<OptionalSubscribableUserAccount, SubscribableUserAccountTypes>
 	>();
 
 	public constructor(program: Program, authority: PublicKey) {
@@ -48,8 +48,8 @@ export class DefaultUserAccountSubscriber
 		}
 
 
-		return this.subscribers.get(account).startPolling(() => {
-			this.eventEmitter.emit('fetchedAccount', account);
+		return this.subscribers.get(account).startPolling((accountType) => {
+			this.eventEmitter.emit('fetchedAccount', accountType);
 		});
 	}
 
@@ -76,7 +76,12 @@ export class DefaultUserAccountSubscriber
 		);
 		this.subscribers.set(
 			'userAccount',
-			new PollingWebSocketAccountSubscriber('user', this.program, userPublicKey)
+			new PollingWebSocketAccountSubscriber(
+				'userAccount',
+				'user', 
+				this.program, 
+				userPublicKey
+			)
 		);
 		await this.subscribers.get('userAccount').subscribe((data: UserAccount) => {
 			this.eventEmitter.emit('userAccountUpdate', data);
@@ -89,6 +94,7 @@ export class DefaultUserAccountSubscriber
 		this.subscribers.set(
 			'userPositionsAccount',
 			new PollingWebSocketAccountSubscriber(
+				'userPositionsAccount',
 				'userPositions',
 				this.program,
 				userAccountData.positions

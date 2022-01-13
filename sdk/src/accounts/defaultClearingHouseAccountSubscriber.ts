@@ -31,10 +31,10 @@ export class DefaultClearingHouseAccountSubscriber
 
 	subscribers: Map<
 		SubscribableClearingHouseAccountTypes,
-		PollingWebSocketAccountSubscriber<SubscribableAccount>
+		PollingWebSocketAccountSubscriber<SubscribableAccount, SubscribableClearingHouseAccountTypes>
 	> = new Map<
 		SubscribableClearingHouseAccountTypes,
-		PollingWebSocketAccountSubscriber<SubscribableAccount>
+		PollingWebSocketAccountSubscriber<SubscribableAccount, SubscribableClearingHouseAccountTypes>
 	>();
 
 	private isSubscribing = false;
@@ -56,8 +56,8 @@ export class DefaultClearingHouseAccountSubscriber
 			throw new Error('account is not subscribed ' + account);
 		}
 
-		return this.subscribers.get(account).startPolling(() => {
-			this.eventEmitter.emit('fetchedAccount', account);
+		return this.subscribers.get(account).startPolling((accountType) => {
+			this.eventEmitter.emit('fetchedAccount', accountType);
 		});
 		
 	}
@@ -98,7 +98,7 @@ export class DefaultClearingHouseAccountSubscriber
 		// create and activate main state account subscription
 		this.subscribers.set(
 			'stateAccount',
-			new PollingWebSocketAccountSubscriber('state', this.program, statePublicKey)
+			new PollingWebSocketAccountSubscriber('stateAccount', 'state', this.program, statePublicKey)
 		);
 		await this.subscribers
 			.get('stateAccount')
@@ -111,7 +111,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'marketsAccount',
-			new PollingWebSocketAccountSubscriber('markets', this.program, state.markets)
+			new PollingWebSocketAccountSubscriber('marketsAccount', 'markets', this.program, state.markets)
 		);
 
 		await this.subscribers
@@ -125,7 +125,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'tradeHistoryAccount',
-			new PollingWebSocketAccountSubscriber(
+			new PollingWebSocketAccountSubscriber('tradeHistoryAccount',
 				'tradeHistory',
 				this.program,
 				state.tradeHistory
@@ -134,7 +134,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'depositHistoryAccount',
-			new PollingWebSocketAccountSubscriber(
+			new PollingWebSocketAccountSubscriber('depositHistoryAccount',
 				'depositHistory',
 				this.program,
 				state.depositHistory
@@ -143,7 +143,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'fundingPaymentHistoryAccount',
-			new PollingWebSocketAccountSubscriber(
+			new PollingWebSocketAccountSubscriber('fundingPaymentHistoryAccount',
 				'fundingPaymentHistory',
 				this.program,
 				state.fundingPaymentHistory
@@ -152,7 +152,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'fundingRateHistoryAccount',
-			new PollingWebSocketAccountSubscriber(
+			new PollingWebSocketAccountSubscriber('fundingRateHistoryAccount',
 				'fundingRateHistory',
 				this.program,
 				state.fundingRateHistory
@@ -161,7 +161,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'liquidationHistoryAccount',
-			new PollingWebSocketAccountSubscriber(
+			new PollingWebSocketAccountSubscriber('liquidationHistoryAccount',
 				'liquidationHistory',
 				this.program,
 				state.liquidationHistory
@@ -170,7 +170,7 @@ export class DefaultClearingHouseAccountSubscriber
 
 		this.subscribers.set(
 			'curveHistoryAccount',
-			new PollingWebSocketAccountSubscriber(
+			new PollingWebSocketAccountSubscriber('curveHistoryAccount',
 				'curveHistory',
 				this.program,
 				state.curveHistory
