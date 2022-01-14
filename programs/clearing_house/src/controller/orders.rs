@@ -45,15 +45,7 @@ pub fn place_order(
     order_history: &AccountLoader<OrderHistory>,
     remaining_accounts: &[AccountInfo],
     clock: &Clock,
-    order_type: OrderType,
-    direction: PositionDirection,
-    base_asset_amount: u128,
-    price: u128,
-    market_index: u64,
-    reduce_only: bool,
-    trigger_price: u128,
-    trigger_condition: OrderTriggerCondition,
-    optional_accounts: PlaceOrderOptionalAccounts,
+    params: OrderParams,
 ) -> ClearingHouseResult {
     let now = clock.unix_timestamp;
 
@@ -83,7 +75,7 @@ pub fn place_order(
         .position(|order| order.status.eq(&OrderStatus::Init))
         .ok_or(ErrorCode::MaxNumberOfOrders)?;
     let discount_token = get_discount_token(
-        optional_accounts.discount_token,
+        params.optional_accounts.discount_token,
         &mut remaining_accounts.iter(),
         &state.discount_mint,
         &user.authority.key(),
@@ -95,21 +87,22 @@ pub fn place_order(
     let order_id = order_history_account.next_order_id();
     let new_order = Order {
         status: OrderStatus::Open,
-        order_type,
+        order_type: params.order_type,
         ts: now,
         order_id,
-        market_index,
-        price,
-        base_asset_amount,
+        market_index: params.market_index,
+        price: params.price,
+        base_asset_amount: params.base_asset_amount,
         base_asset_amount_filled: 0,
         quote_asset_amount_filled: 0,
-        direction,
-        reduce_only,
+        direction: params.direction,
+        reduce_only: params.reduce_only,
         discount_tier,
-        trigger_price,
-        trigger_condition,
+        trigger_price: params.trigger_price,
+        trigger_condition: params.trigger_condition,
     };
 
+    let market_index = params.market_index;
     let market = markets.get_market(market_index);
     validate_order(&new_order, market, order_state)?;
 

@@ -540,47 +540,9 @@
       ],
       "args": [
         {
-          "name": "orderType",
+          "name": "params",
           "type": {
-            "defined": "OrderType"
-          }
-        },
-        {
-          "name": "direction",
-          "type": {
-            "defined": "PositionDirection"
-          }
-        },
-        {
-          "name": "baseAssetAmount",
-          "type": "u128"
-        },
-        {
-          "name": "price",
-          "type": "u128"
-        },
-        {
-          "name": "marketIndex",
-          "type": "u64"
-        },
-        {
-          "name": "reduceOnly",
-          "type": "bool"
-        },
-        {
-          "name": "triggerPrice",
-          "type": "u128"
-        },
-        {
-          "name": "triggerCondition",
-          "type": {
-            "defined": "OrderTriggerCondition"
-          }
-        },
-        {
-          "name": "optionalAccounts",
-          "type": {
-            "defined": "PlaceOrderOptionalAccounts"
+            "defined": "OrderParams"
           }
         }
       ]
@@ -783,47 +745,9 @@
       ],
       "args": [
         {
-          "name": "orderType",
+          "name": "params",
           "type": {
-            "defined": "OrderType"
-          }
-        },
-        {
-          "name": "direction",
-          "type": {
-            "defined": "PositionDirection"
-          }
-        },
-        {
-          "name": "baseAssetAmount",
-          "type": "u128"
-        },
-        {
-          "name": "price",
-          "type": "u128"
-        },
-        {
-          "name": "marketIndex",
-          "type": "u64"
-        },
-        {
-          "name": "reduceOnly",
-          "type": "bool"
-        },
-        {
-          "name": "triggerPrice",
-          "type": "u128"
-        },
-        {
-          "name": "triggerCondition",
-          "type": {
-            "defined": "OrderTriggerCondition"
-          }
-        },
-        {
-          "name": "optionalAccounts",
-          "type": {
-            "defined": "PlaceOrderOptionalAccounts"
+            "defined": "OrderParams"
           }
         }
       ]
@@ -2347,6 +2271,58 @@
           {
             "name": "referrer",
             "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OrderParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "orderType",
+            "type": {
+              "defined": "OrderType"
+            }
+          },
+          {
+            "name": "direction",
+            "type": {
+              "defined": "PositionDirection"
+            }
+          },
+          {
+            "name": "baseAssetAmount",
+            "type": "u128"
+          },
+          {
+            "name": "price",
+            "type": "u128"
+          },
+          {
+            "name": "marketIndex",
+            "type": "u64"
+          },
+          {
+            "name": "reduceOnly",
+            "type": "bool"
+          },
+          {
+            "name": "triggerPrice",
+            "type": "u128"
+          },
+          {
+            "name": "triggerCondition",
+            "type": {
+              "defined": "OrderTriggerCondition"
+            }
+          },
+          {
+            "name": "optionalAccounts",
+            "type": {
+              "defined": "PlaceOrderOptionalAccounts"
+            }
           }
         ]
       }

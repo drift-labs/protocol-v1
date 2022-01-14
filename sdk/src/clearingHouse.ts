@@ -21,6 +21,7 @@ import {
 	OrderHistoryAccount,
 	OrderStateAccount,
 	OrderTriggerCondition,
+	OrderParams,
 } from './types';
 import * as anchor from '@project-serum/anchor';
 import clearingHouseIDL from './idl/clearing_house.json';
@@ -661,58 +662,35 @@ export class ClearingHouse {
 	}
 
 	public async placeOrder(
-		orderType: OrderType,
-		direction: PositionDirection,
-		baseAssetAmount: BN,
-		price: BN,
-		marketIndex: BN,
-		reduceOnly: boolean,
-		triggerPrice?: BN,
-		triggerCondition?: OrderTriggerCondition,
+		orderParams: OrderParams,
 		discountToken?: PublicKey
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
-			wrapInTx(
-				await this.getPlaceOrderIx(
-					orderType,
-					direction,
-					baseAssetAmount,
-					price,
-					marketIndex,
-					reduceOnly,
-					triggerPrice,
-					triggerCondition,
-					discountToken
-				)
-			),
+			wrapInTx(await this.getPlaceOrderIx(orderParams, discountToken)),
 			[],
 			this.opts
 		);
 	}
 
 	public async getPlaceOrderIx(
-		orderType: OrderType,
-		direction: PositionDirection,
-		baseAssetAmount: BN,
-		price: BN,
-		marketIndex: BN,
-		reduceOnly: boolean,
-		triggerPrice?: BN,
-		triggerCondition?: OrderTriggerCondition,
+		orderParams: OrderParams,
 		discountToken?: PublicKey
 	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
 		const userAccount = await this.getUserAccount();
 
 		const priceOracle =
-			this.getMarketsAccount().markets[marketIndex.toNumber()].amm.oracle;
+			this.getMarketsAccount().markets[orderParams.marketIndex.toNumber()].amm
+				.oracle;
 
-		const optionalAccounts = {
-			discountToken: false,
-		};
 		const remainingAccounts = [];
-		if (discountToken) {
-			optionalAccounts.discountToken = true;
+		if (orderParams.optionalAccounts.discountToken) {
+			if (!discountToken) {
+				throw Error(
+					'Optional accounts specified discount token but no discount token present'
+				);
+			}
+
 			remainingAccounts.push({
 				pubkey: discountToken,
 				isWritable: false,
@@ -720,43 +698,24 @@ export class ClearingHouse {
 			});
 		}
 
-		if (!triggerPrice) {
-			triggerPrice = new BN(0);
-		}
-
-		if (!triggerCondition) {
-			triggerCondition = OrderTriggerCondition.ABOVE;
-		}
-
 		const state = this.getStateAccount();
 		const orderState = this.getOrderStateAccount();
-		return await this.program.instruction.placeOrder(
-			orderType,
-			direction,
-			baseAssetAmount,
-			price,
-			marketIndex,
-			reduceOnly,
-			triggerPrice,
-			triggerCondition,
-			optionalAccounts,
-			{
-				accounts: {
-					state: await this.getStatePublicKey(),
-					user: userAccountPublicKey,
-					authority: this.wallet.publicKey,
-					markets: state.markets,
-					userOrders: await this.getUserOrdersAccountPublicKey(),
-					userPositions: userAccount.positions,
-					fundingPaymentHistory: state.fundingPaymentHistory,
-					fundingRateHistory: state.fundingRateHistory,
-					orderState: await this.getOrderStatePublicKey(),
-					orderHistory: orderState.orderHistory,
-					oracle: priceOracle,
-				},
-				remainingAccounts,
-			}
-		);
+		return await this.program.instruction.placeOrder(orderParams, {
+			accounts: {
+				state: await this.getStatePublicKey(),
+				user: userAccountPublicKey,
+				authority: this.wallet.publicKey,
+				markets: state.markets,
+				userOrders: await this.getUserOrdersAccountPublicKey(),
+				userPositions: userAccount.positions,
+				fundingPaymentHistory: state.fundingPaymentHistory,
+				fundingRateHistory: state.fundingRateHistory,
+				orderState: await this.getOrderStatePublicKey(),
+				orderHistory: orderState.orderHistory,
+				oracle: priceOracle,
+			},
+			remainingAccounts,
+		});
 	}
 
 	public async cancelOrder(orderId: BN): Promise<TransactionSignature> {
@@ -851,58 +810,35 @@ export class ClearingHouse {
 	}
 
 	public async placeAndFillOrder(
-		orderType: OrderType,
-		direction: PositionDirection,
-		baseAssetAmount: BN,
-		price: BN,
-		marketIndex: BN,
-		reduceOnly: boolean,
-		triggerPrice?: BN,
-		triggerCondition?: OrderTriggerCondition,
+		orderParams: OrderParams,
 		discountToken?: PublicKey
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
-			wrapInTx(
-				await this.getPlaceAndFillOrderIx(
-					orderType,
-					direction,
-					baseAssetAmount,
-					price,
-					marketIndex,
-					reduceOnly,
-					triggerPrice,
-					triggerCondition,
-					discountToken
-				)
-			),
+			wrapInTx(await this.getPlaceAndFillOrderIx(orderParams, discountToken)),
 			[],
 			this.opts
 		);
 	}
 
 	public async getPlaceAndFillOrderIx(
-		orderType: OrderType,
-		direction: PositionDirection,
-		baseAssetAmount: BN,
-		price: BN,
-		marketIndex: BN,
-		reduceOnly: boolean,
-		triggerPrice?: BN,
-		triggerCondition?: OrderTriggerCondition,
+		orderParams: OrderParams,
 		discountToken?: PublicKey
 	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
 		const userAccount = await this.getUserAccount();
 
 		const priceOracle =
-			this.getMarketsAccount().markets[marketIndex.toNumber()].amm.oracle;
+			this.getMarketsAccount().markets[orderParams.marketIndex.toNumber()].amm
+				.oracle;
 
-		const optionalAccounts = {
-			discountToken: false,
-		};
 		const remainingAccounts = [];
-		if (discountToken) {
-			optionalAccounts.discountToken = true;
+		if (orderParams.optionalAccounts.discountToken) {
+			if (!discountToken) {
+				throw Error(
+					'Optional accounts specified discount token but no discount token present'
+				);
+			}
+
 			remainingAccounts.push({
 				pubkey: discountToken,
 				isWritable: false,
@@ -910,44 +846,25 @@ export class ClearingHouse {
 			});
 		}
 
-		if (!triggerPrice) {
-			triggerPrice = new BN(0);
-		}
-
-		if (!triggerCondition) {
-			triggerCondition = OrderTriggerCondition.ABOVE;
-		}
-
 		const state = this.getStateAccount();
 		const orderState = this.getOrderStateAccount();
-		return await this.program.instruction.placeAndFillOrder(
-			orderType,
-			direction,
-			baseAssetAmount,
-			price,
-			marketIndex,
-			reduceOnly,
-			triggerPrice,
-			triggerCondition,
-			optionalAccounts,
-			{
-				accounts: {
-					state: await this.getStatePublicKey(),
-					user: userAccountPublicKey,
-					authority: this.wallet.publicKey,
-					markets: state.markets,
-					userOrders: await this.getUserOrdersAccountPublicKey(),
-					userPositions: userAccount.positions,
-					tradeHistory: state.tradeHistory,
-					fundingPaymentHistory: state.fundingPaymentHistory,
-					fundingRateHistory: state.fundingRateHistory,
-					orderState: await this.getOrderStatePublicKey(),
-					orderHistory: orderState.orderHistory,
-					oracle: priceOracle,
-				},
-				remainingAccounts,
-			}
-		);
+		return await this.program.instruction.placeAndFillOrder(orderParams, {
+			accounts: {
+				state: await this.getStatePublicKey(),
+				user: userAccountPublicKey,
+				authority: this.wallet.publicKey,
+				markets: state.markets,
+				userOrders: await this.getUserOrdersAccountPublicKey(),
+				userPositions: userAccount.positions,
+				tradeHistory: state.tradeHistory,
+				fundingPaymentHistory: state.fundingPaymentHistory,
+				fundingRateHistory: state.fundingRateHistory,
+				orderState: await this.getOrderStatePublicKey(),
+				orderHistory: orderState.orderHistory,
+				oracle: priceOracle,
+			},
+			remainingAccounts,
+		});
 	}
 
 	/**

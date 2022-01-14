@@ -1,6 +1,7 @@
 use anchor_lang::{prelude::*, AnchorDeserialize, AnchorSerialize};
 use anchor_spl::token::{Mint, Token, TokenAccount};
 
+use crate::controller::position::PositionDirection;
 use crate::state::history::curve::CurveHistory;
 use crate::state::history::deposit::DepositHistory;
 use crate::state::history::funding_rate::FundingRateHistory;
@@ -11,7 +12,7 @@ use crate::state::market::Markets;
 use crate::state::order_state::OrderState;
 use crate::state::state::State;
 use crate::state::user::{User, UserPositions};
-use crate::state::user_orders::UserOrders;
+use crate::state::user_orders::{OrderTriggerCondition, OrderType, UserOrders};
 
 #[derive(Accounts)]
 #[instruction(
@@ -514,6 +515,26 @@ pub struct PlaceOrder<'info> {
         constraint = &order_state.order_history.eq(&order_history.key())
     )]
     pub order_history: AccountLoader<'info, OrderHistory>,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
+pub struct OrderParams {
+    pub order_type: OrderType,
+    pub direction: PositionDirection,
+    pub base_asset_amount: u128,
+    pub price: u128,
+    pub market_index: u64,
+    pub reduce_only: bool,
+    pub trigger_price: u128,
+    pub trigger_condition: OrderTriggerCondition,
+    pub optional_accounts: PlaceOrderOptionalAccounts,
+}
+
+impl Default for OrderType {
+    // UpOnly
+    fn default() -> Self {
+        OrderType::Limit
+    }
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]

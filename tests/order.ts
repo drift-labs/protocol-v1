@@ -24,6 +24,8 @@ import {
 	QUOTE_PRECISION,
 	Wallet,
 	calculateTradeSlippage,
+	getLimitOrderParams,
+	getStopOrderParams,
 } from '../sdk/src';
 
 import { calculateAmountToTradeForLimit } from '../sdk/src/orders';
@@ -196,25 +198,22 @@ describe('orders', () => {
 
 	it('Open long limit order', async () => {
 		// user has $10, no open positions, trading in market of $1 mark price coin
-		const orderType = OrderType.LIMIT;
 		const direction = PositionDirection.LONG;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
 		const price = MARK_PRICE_PRECISION.mul(new BN(2));
 		const reduceOnly = true;
 		const triggerPrice = new BN(0);
 
-		// user sets reduce-only taker limit buy @ $2
-		await clearingHouse.placeOrder(
-			orderType,
+		const orderParams = getLimitOrderParams(
+			marketIndex,
 			direction,
 			baseAssetAmount,
 			price,
-			marketIndex,
 			reduceOnly,
-			undefined,
-			undefined,
-			discountTokenAccount.address
+			true
 		);
+		// user sets reduce-only taker limit buy @ $2
+		await clearingHouse.placeOrder(orderParams, discountTokenAccount.address);
 
 		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
@@ -303,21 +302,19 @@ describe('orders', () => {
 	});
 
 	it('Fill limit long order', async () => {
-		const orderType = OrderType.LIMIT;
 		const direction = PositionDirection.LONG;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
 		const price = MARK_PRICE_PRECISION.mul(new BN(2));
-		await clearingHouse.placeOrder(
-			orderType,
+
+		const orderParams = getLimitOrderParams(
+			marketIndex,
 			direction,
 			baseAssetAmount,
 			price,
-			marketIndex,
 			false,
-			undefined,
-			undefined,
-			discountTokenAccount.address
+			true
 		);
+		await clearingHouse.placeOrder(orderParams, discountTokenAccount.address);
 		const orderIndex = new BN(0);
 		const orderId = new BN(2);
 		await fillerClearingHouse.fillOrder(
@@ -401,23 +398,21 @@ describe('orders', () => {
 	});
 
 	it('Fill stop short order', async () => {
-		const orderType = OrderType.STOP;
 		const direction = PositionDirection.SHORT;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
-		const price = new BN(0);
 		const triggerPrice = MARK_PRICE_PRECISION;
 		const triggerCondition = OrderTriggerCondition.ABOVE;
-		await clearingHouse.placeOrder(
-			orderType,
+
+		const orderParams = getStopOrderParams(
+			marketIndex,
 			direction,
 			baseAssetAmount,
-			price,
-			marketIndex,
-			false,
 			triggerPrice,
 			triggerCondition,
-			discountTokenAccount.address
+			false,
+			true
 		);
+		await clearingHouse.placeOrder(orderParams, discountTokenAccount.address);
 		const orderId = new BN(3);
 		const orderIndex = new BN(0);
 		await fillerClearingHouse.fillOrder(
@@ -503,22 +498,19 @@ describe('orders', () => {
 	});
 
 	it('Fail to fill limit short order', async () => {
-		const orderType = OrderType.LIMIT;
 		const direction = PositionDirection.SHORT;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
 		const market = clearingHouse.getMarket(marketIndex);
 		const limitPrice = calculateMarkPrice(market); // 0 liquidity at current mark price
-		await clearingHouse.placeOrder(
-			orderType,
+		const orderParams = getLimitOrderParams(
+			marketIndex,
 			direction,
 			baseAssetAmount,
 			limitPrice,
-			marketIndex,
 			false,
-			undefined,
-			undefined,
-			discountTokenAccount.address
+			true
 		);
+		await clearingHouse.placeOrder(orderParams, discountTokenAccount.address);
 
 		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
 		const order = userOrdersAccount.orders[0];
@@ -545,7 +537,6 @@ describe('orders', () => {
 	});
 
 	it('Partial fill limit short order', async () => {
-		const orderType = OrderType.LIMIT;
 		const direction = PositionDirection.SHORT;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
 		await clearingHouse.fetchAccounts();
@@ -570,17 +561,16 @@ describe('orders', () => {
 
 		// const triggerPrice = new BN(0);
 		// const triggerCondition = OrderTriggerCondition.BELOW;
-		await clearingHouse.placeOrder(
-			orderType,
+		const orderParams = getLimitOrderParams(
+			marketIndex,
 			direction,
 			baseAssetAmount,
 			limitPrice,
-			marketIndex,
 			false,
-			undefined,
-			undefined,
-			discountTokenAccount.address
+			true
 		);
+
+		await clearingHouse.placeOrder(orderParams, discountTokenAccount.address);
 
 		await clearingHouseUser.fetchAccounts();
 		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
@@ -680,19 +670,18 @@ describe('orders', () => {
 
 		assert(baseAssetAmount.gt(amountToPrice)); // assert its a partial fill of liquidity
 
-		// const triggerPrice = new BN(0);
-		// const triggerCondition = OrderTriggerCondition.BELOW;
-		await clearingHouse.placeOrder(
-			orderType,
+		const orderParams = getLimitOrderParams(
+			marketIndex,
 			direction,
 			baseAssetAmount,
 			limitPrice,
-			marketIndex,
 			false,
-			undefined,
-			undefined,
-			discountTokenAccount.address
+			true
 		);
+
+		// const triggerPrice = new BN(0);
+		// const triggerCondition = OrderTriggerCondition.BELOW;
+		await clearingHouse.placeOrder(orderParams, discountTokenAccount.address);
 
 		// move price to make liquidity for order @ $1.05 (5%)
 		setFeedPrice(anchor.workspace.Pyth, 1.45, solUsd);
@@ -756,7 +745,7 @@ describe('orders', () => {
 
 		console.log(
 			'user initial leverage:',
-			convertToNumber(userLeverage0, TEN_THOUSAND),
+			convertToNumber(userLeverage0, TEN_THOUSAND)
 		);
 
 		const orderType = OrderType.LIMIT;
@@ -788,17 +777,16 @@ describe('orders', () => {
 
 		// const triggerPrice = new BN(0);
 		// const triggerCondition = OrderTriggerCondition.BELOW;
-		await clearingHouse.placeOrder(
-			orderType,
+		const orderParams = getLimitOrderParams(
+			marketIndex,
 			direction,
 			baseAssetAmount,
 			limitPrice,
-			marketIndex,
 			false,
-			undefined,
-			undefined,
-			discountTokenAccount.address
+			true
 		);
+
+		await clearingHouse.placeOrder(orderParams, discountTokenAccount.address);
 
 		// move price to make liquidity for order @ $1.05 (5%)
 		setFeedPrice(anchor.workspace.Pyth, 1.35, solUsd);
@@ -809,11 +797,10 @@ describe('orders', () => {
 
 		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
 		const order = userOrdersAccount.orders[0];
-		console.log(order.status)
+		console.log(order.status);
 		// assert(order.status == OrderStatus.INIT);
 		const amountToFill = calculateAmountToTradeForLimit(market, order);
 		console.log(amountToFill);
-
 
 		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
@@ -836,7 +823,10 @@ describe('orders', () => {
 			'mark price:',
 			convertToNumber(newMarkPricePriceMove, MARK_PRICE_PRECISION),
 			'base filled / amt:',
-			convertToNumber(orderPriceMove.baseAssetAmountFilled, AMM_RESERVE_PRECISION),
+			convertToNumber(
+				orderPriceMove.baseAssetAmountFilled,
+				AMM_RESERVE_PRECISION
+			),
 			'/',
 			convertToNumber(orderPriceMove.baseAssetAmount, AMM_RESERVE_PRECISION),
 			'\n',
@@ -874,9 +864,9 @@ describe('orders', () => {
 		console.log(
 			'FILLED:',
 			'position: ',
-			 convertToNumber(prePosition.baseAssetAmount, AMM_RESERVE_PRECISION),
-			 '->',
-			 convertToNumber(postPosition.baseAssetAmount, AMM_RESERVE_PRECISION),
+			convertToNumber(prePosition.baseAssetAmount, AMM_RESERVE_PRECISION),
+			'->',
+			convertToNumber(postPosition.baseAssetAmount, AMM_RESERVE_PRECISION),
 			'mark price:',
 			convertToNumber(newMarkPrice1, MARK_PRICE_PRECISION),
 			'base filled / amt:',
@@ -912,7 +902,9 @@ describe('orders', () => {
 
 		const market = clearingHouse.getMarket(marketIndex);
 		const limitPrice = calculateMarkPrice(market); // 0 liquidity at current mark price
-		const baseAssetAmount = AMM_RESERVE_PRECISION.mul(totalCol.mul(new BN(5)).div(QUOTE_PRECISION));
+		const baseAssetAmount = AMM_RESERVE_PRECISION.mul(
+			totalCol.mul(new BN(5)).div(QUOTE_PRECISION)
+		);
 		//long 50 base amount at $1 with ~$10 collateral (max leverage = 5x)
 
 		const [newDirection, amountToPrice, _entryPrice, newMarkPrice] =
@@ -936,17 +928,15 @@ describe('orders', () => {
 
 		// const triggerPrice = new BN(0);
 		// const triggerCondition = OrderTriggerCondition.BELOW;
-		await clearingHouse.placeOrder(
-			orderType,
+		const orderParams = getLimitOrderParams(
+			marketIndex,
 			direction,
 			baseAssetAmount,
 			limitPrice,
-			marketIndex,
 			false,
-			undefined,
-			undefined,
-			discountTokenAccount.address
+			true
 		);
+		await clearingHouse.placeOrder(orderParams, discountTokenAccount.address);
 
 		// move price to make liquidity for order @ $1.05 (5%)
 		setFeedPrice(anchor.workspace.Pyth, 1.33, solUsd);
@@ -1005,7 +995,7 @@ describe('orders', () => {
 	});
 
 	it('When in Max leverage long, fill limit long order to flip to max leverage short', async () => {
-		// determining max leverage short is harder than max leverage long 
+		// determining max leverage short is harder than max leverage long
 		// (using linear assumptions since it is smaller base amt)
 
 		const userLeverage0 = clearingHouseUser.getLeverage();
@@ -1013,7 +1003,7 @@ describe('orders', () => {
 
 		console.log(
 			'user initial leverage:',
-			convertToNumber(userLeverage0, TEN_THOUSAND),
+			convertToNumber(userLeverage0, TEN_THOUSAND)
 		);
 
 		const orderType = OrderType.LIMIT;
@@ -1050,17 +1040,15 @@ describe('orders', () => {
 
 		// const triggerPrice = new BN(0);
 		// const triggerCondition = OrderTriggerCondition.BELOW;
-		await clearingHouse.placeOrder(
-			orderType,
+		const orderParams = getLimitOrderParams(
+			marketIndex,
 			direction,
 			baseAssetAmount,
 			limitPrice,
-			marketIndex,
 			false,
-			undefined,
-			undefined,
-			discountTokenAccount.address
+			true
 		);
+		await clearingHouse.placeOrder(orderParams, discountTokenAccount.address);
 
 		// move price to make liquidity for order @ $1.05 (5%)
 		// setFeedPrice(anchor.workspace.Pyth, 1.55, solUsd);
@@ -1071,11 +1059,10 @@ describe('orders', () => {
 
 		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
 		const order = userOrdersAccount.orders[0];
-		console.log(order.status)
+		console.log(order.status);
 		// assert(order.status == OrderStatus.INIT);
 		const amountToFill = calculateAmountToTradeForLimit(market, order);
 		console.log(amountToFill);
-
 
 		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
@@ -1098,7 +1085,10 @@ describe('orders', () => {
 			'mark price:',
 			convertToNumber(newMarkPricePriceMove, MARK_PRICE_PRECISION),
 			'base filled / amt:',
-			convertToNumber(orderPriceMove.baseAssetAmountFilled, AMM_RESERVE_PRECISION),
+			convertToNumber(
+				orderPriceMove.baseAssetAmountFilled,
+				AMM_RESERVE_PRECISION
+			),
 			'/',
 			convertToNumber(orderPriceMove.baseAssetAmount, AMM_RESERVE_PRECISION),
 			'\n',
@@ -1136,9 +1126,9 @@ describe('orders', () => {
 		console.log(
 			'FILLED:',
 			'position: ',
-			 convertToNumber(prePosition.baseAssetAmount, AMM_RESERVE_PRECISION),
-			 '->',
-			 convertToNumber(postPosition.baseAssetAmount, AMM_RESERVE_PRECISION),
+			convertToNumber(prePosition.baseAssetAmount, AMM_RESERVE_PRECISION),
+			'->',
+			convertToNumber(postPosition.baseAssetAmount, AMM_RESERVE_PRECISION),
 			'mark price:',
 			convertToNumber(newMarkPrice1, MARK_PRICE_PRECISION),
 			'base filled / amt:',
@@ -1165,7 +1155,7 @@ describe('orders', () => {
 		const userTotalCollatearl = clearingHouseUser.getTotalCollateral();
 
 		console.log(
-			'user collatearl', 
+			'user collatearl',
 			convertToNumber(userTotalCollatearl),
 			'user initial leverage:',
 			convertToNumber(userLeverage0, TEN_THOUSAND)
@@ -1205,17 +1195,15 @@ describe('orders', () => {
 
 		// const triggerPrice = new BN(0);
 		// const triggerCondition = OrderTriggerCondition.BELOW;
-		await clearingHouse.placeOrder(
-			orderType,
+		const orderParams = getLimitOrderParams(
+			marketIndexBTC,
 			direction,
 			baseAssetAmount,
 			limitPrice,
-			marketIndexBTC,
 			false,
-			undefined,
-			undefined,
-			discountTokenAccount.address
+			true
 		);
+		await clearingHouse.placeOrder(orderParams, discountTokenAccount.address);
 
 		await clearingHouseUser.fetchAccounts();
 
@@ -1240,7 +1228,6 @@ describe('orders', () => {
 
 		const newMarket1 = clearingHouse.getMarket(marketIndexBTC);
 		const newMarkPrice1 = calculateMarkPrice(newMarket1);
-		
 
 		const postPosition = clearingHouseUser.getUserPosition(marketIndexBTC);
 		console.log(
@@ -1249,7 +1236,6 @@ describe('orders', () => {
 			'->',
 			convertToNumber(postPosition.baseAssetAmount, AMM_RESERVE_PRECISION)
 		);
-
 
 		console.log(
 			'assert: ',
@@ -1314,17 +1300,15 @@ describe('orders', () => {
 
 		// const triggerPrice = new BN(0);
 		// const triggerCondition = OrderTriggerCondition.BELOW;
-		await clearingHouse.placeOrder(
-			orderType,
+		const orderParams = getLimitOrderParams(
+			marketIndexBTC,
 			direction,
 			baseAssetAmount,
 			limitPrice,
-			marketIndexBTC,
 			false,
-			undefined,
-			undefined,
-			discountTokenAccount.address
+			true
 		);
+		await clearingHouse.placeOrder(orderParams, discountTokenAccount.address);
 
 		await clearingHouseUser.fetchAccounts();
 
@@ -1381,7 +1365,6 @@ describe('orders', () => {
 	});
 
 	it('PlaceAndFill LONG Order 100% filled', async () => {
-		const orderType = OrderType.LIMIT;
 		const direction = PositionDirection.LONG;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
 		const price = MARK_PRICE_PRECISION.mul(new BN(2));
@@ -1392,15 +1375,16 @@ describe('orders', () => {
 
 		const fillerUserAccount0 = fillerUser.getUserAccount();
 
-		await clearingHouse.placeAndFillOrder(
-			orderType,
+		const orderParams = getLimitOrderParams(
+			marketIndex,
 			direction,
 			baseAssetAmount,
 			price,
-			marketIndex,
 			false,
-			undefined,
-			undefined,
+			true
+		);
+		await clearingHouse.placeAndFillOrder(
+			orderParams,
 			discountTokenAccount.address
 		);
 
@@ -1434,8 +1418,6 @@ describe('orders', () => {
 
 	it('PlaceAndFill LONG Order multiple fills', async () => {
 		// todo: check order/trade account history and make sure they match expectations
-
-		const orderType = OrderType.LIMIT;
 		const direction = PositionDirection.LONG;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
 
@@ -1453,15 +1435,16 @@ describe('orders', () => {
 
 		const fillerUserAccount0 = fillerUser.getUserAccount();
 
-		await clearingHouse.placeAndFillOrder(
-			orderType,
+		const orderParams = getLimitOrderParams(
+			marketIndex,
 			direction,
 			baseAssetAmount,
 			limitPrice,
-			marketIndex,
 			false,
-			undefined,
-			undefined,
+			true
+		);
+		await clearingHouse.placeAndFillOrder(
+			orderParams,
 			discountTokenAccount.address
 		);
 

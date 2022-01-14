@@ -345,6 +345,20 @@ export type Order = {
 	discountTier: OrderDiscountTier;
 };
 
+export type OrderParams = {
+	orderType: OrderType;
+	direction: PositionDirection;
+	baseAssetAmount: BN;
+	price: BN;
+	marketIndex: BN;
+	reduceOnly: boolean;
+	triggerPrice: BN;
+	triggerCondition: OrderTriggerCondition;
+	optionalAccounts: {
+		discountToken: boolean;
+	};
+};
+
 // # Misc Types
 export interface IWallet {
 	signTransaction(tx: Transaction): Promise<Transaction>;

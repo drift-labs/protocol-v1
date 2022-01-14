@@ -88,3 +88,10 @@ pub enum OrderTriggerCondition {
     Above,
     Below,
 }
+
+impl Default for OrderTriggerCondition {
+    // UpOnly
+    fn default() -> Self {
+        OrderTriggerCondition::Above
+    }
+}

@@ -19,6 +19,7 @@ export * from './math/position';
 export * from './math/amm';
 export * from './math/trade';
 export * from './orders';
+export * from './orderParams';
 export * from './wallet';
 export * from './types';
 export * from './math/utils';

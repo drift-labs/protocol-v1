@@ -957,20 +957,9 @@ pub mod clearing_house {
 
     #[allow(unused_must_use)]
     #[access_control(
-        market_initialized(&ctx.accounts.markets, market_index)
+        market_initialized(&ctx.accounts.markets, params.market_index)
     )]
-    pub fn place_order<'info>(
-        ctx: Context<PlaceOrder>,
-        order_type: OrderType,
-        direction: PositionDirection,
-        base_asset_amount: u128,
-        price: u128,
-        market_index: u64,
-        reduce_only: bool,
-        trigger_price: u128,
-        trigger_condition: OrderTriggerCondition,
-        optional_accounts: PlaceOrderOptionalAccounts,
-    ) -> ProgramResult {
+    pub fn place_order<'info>(ctx: Context<PlaceOrder>, params: OrderParams) -> ProgramResult {
         controller::orders::place_order(
             &ctx.accounts.state,
             &ctx.accounts.order_state,
@@ -982,15 +971,7 @@ pub mod clearing_house {
             &ctx.accounts.order_history,
             &ctx.remaining_accounts,
             &Clock::get()?,
-            order_type,
-            direction,
-            base_asset_amount,
-            price,
-            market_index,
-            reduce_only,
-            trigger_price,
-            trigger_condition,
-            optional_accounts,
+            params,
         )?;
 
         Ok(())
@@ -1040,20 +1021,12 @@ pub mod clearing_house {
     }
 
     #[access_control(
-        market_initialized(&ctx.accounts.markets, market_index) &&
-        valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
+        market_initialized(&ctx.accounts.markets, params.market_index) &&
+        valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, params.market_index)
     )]
     pub fn place_and_fill_order<'info>(
         ctx: Context<PlaceAndFillOrder>,
-        order_type: OrderType,
-        direction: PositionDirection,
-        base_asset_amount: u128,
-        price: u128,
-        market_index: u64,
-        reduce_only: bool,
-        trigger_price: u128,
-        trigger_condition: OrderTriggerCondition,
-        optional_accounts: PlaceOrderOptionalAccounts,
+        params: OrderParams,
     ) -> ProgramResult {
         controller::orders::place_order(
             &ctx.accounts.state,
@@ -1066,15 +1039,7 @@ pub mod clearing_house {
             &ctx.accounts.order_history,
             &ctx.remaining_accounts,
             &Clock::get()?,
-            order_type,
-            direction,
-            base_asset_amount,
-            price,
-            market_index,
-            reduce_only,
-            trigger_price,
-            trigger_condition,
-            optional_accounts,
+            params,
         )?;
 
         let order_id;
