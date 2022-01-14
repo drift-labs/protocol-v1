@@ -1,10 +1,6 @@
 use crate::error::*;
 use crate::math::{amm, repeg};
 
-use crate::math::constants::{
-    SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR,
-    SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR,
-};
 use crate::math_error;
 use crate::state::market::Market;
 
@@ -103,14 +99,7 @@ pub fn repeg(
 
         // Only a portion of the protocol fees are allocated to repegging
         // This checks that the total_fee_minus_distributions does not decrease too much after repeg
-        if market.amm.total_fee_minus_distributions
-            < market
-                .amm
-                .total_fee
-                .checked_mul(SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR)
-                .ok_or_else(math_error!())?
-                .checked_div(SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR)
-                .ok_or_else(math_error!())?
+        if market.amm.total_fee_minus_distributions < repeg::total_fee_lower_bound(&market)?
         {
             return Err(ErrorCode::InvalidRepegProfitability.into());
         }

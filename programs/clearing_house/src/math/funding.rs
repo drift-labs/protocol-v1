@@ -3,9 +3,9 @@ use crate::math::bn;
 use crate::math::casting::cast_to_i128;
 use crate::math::constants::{
     AMM_TO_QUOTE_PRECISION_RATIO, FUNDING_PAYMENT_PRECISION, MARK_PRICE_PRECISION,
-    QUOTE_TO_BASE_AMT_FUNDING_PRECISION, SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR,
-    SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR,
+    QUOTE_TO_BASE_AMT_FUNDING_PRECISION,
 };
+use crate::math::repeg::total_fee_lower_bound;
 use crate::math_error;
 use crate::state::market::Market;
 use crate::state::user::MarketPosition;
@@ -47,13 +47,7 @@ pub fn calculate_funding_rate_long_short(
     
     // clearing house is paying part of funding imbalance
     if capped_funding_pnl != 0 {
-        let total_fee_minus_distributions_lower_bound = market
-            .amm
-            .total_fee
-            .checked_mul(SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR)
-            .ok_or_else(math_error!())?
-            .checked_div(SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR)
-            .ok_or_else(math_error!())?;
+        let total_fee_minus_distributions_lower_bound = total_fee_lower_bound(&market)?;
 
         // makes sure the clearing house doesn't pay more than the share of fees allocated to `distributions`
         if new_total_fee_minus_distributions < total_fee_minus_distributions_lower_bound {
@@ -84,13 +78,7 @@ fn calculate_capped_funding_rate(
     funding_rate: i128,
 ) -> ClearingHouseResult<(i128, i128)> {
     // The funding_rate_pnl_limit is the amount of fees the clearing house can use before it hits it's lower bound
-    let total_fee_minus_distributions_lower_bound = market
-        .amm
-        .total_fee
-        .checked_mul(SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR)
-        .ok_or_else(math_error!())?
-        .checked_div(SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR)
-        .ok_or_else(math_error!())?;
+    let total_fee_minus_distributions_lower_bound = total_fee_lower_bound(&market)?;
     let funding_rate_pnl_limit =
         if market.amm.total_fee_minus_distributions > total_fee_minus_distributions_lower_bound {
             -cast_to_i128(
