@@ -2701,121 +2701,126 @@
     },
     {
       "code": 6015,
+      "name": "InvalidRepegPriceImpact",
+      "msg": "AMM repeg mark price impact vs oracle too large"
+    },
+    {
+      "code": 6016,
       "name": "SlippageOutsideLimit",
       "msg": "Slippage Outside Limit Price"
     },
     {
-      "code": 6016,
+      "code": 6017,
       "name": "TradeSizeTooSmall",
       "msg": "Trade Size Too Small"
     },
     {
-      "code": 6017,
+      "code": 6018,
       "name": "InvalidUpdateK",
       "msg": "Price change too large when updating K"
     },
     {
-      "code": 6018,
+      "code": 6019,
       "name": "AdminWithdrawTooLarge",
       "msg": "Admin tried to withdraw amount larger than fees collected"
     },
     {
-      "code": 6019,
+      "code": 6020,
       "name": "MathError",
       "msg": "Math Error"
     },
     {
-      "code": 6020,
+      "code": 6021,
       "name": "BnConversionError",
       "msg": "Conversion to u128/u64 failed with an overflow or underflow"
     },
     {
-      "code": 6021,
+      "code": 6022,
       "name": "ClockUnavailable",
       "msg": "Clock unavailable"
     },
     {
-      "code": 6022,
+      "code": 6023,
       "name": "UnableToLoadOracle",
       "msg": "Unable To Load Oracles"
     },
     {
-      "code": 6023,
+      "code": 6024,
       "name": "OracleMarkSpreadLimit",
       "msg": "Oracle/Mark Spread Too Large"
     },
     {
-      "code": 6024,
+      "code": 6025,
       "name": "HistoryAlreadyInitialized",
       "msg": "Clearing House history already initialized"
     },
     {
-      "code": 6025,
+      "code": 6026,
       "name": "ExchangePaused",
       "msg": "Exchange is paused"
     },
     {
-      "code": 6026,
+      "code": 6027,
       "name": "InvalidWhitelistToken",
       "msg": "Invalid whitelist token"
     },
     {
-      "code": 6027,
+      "code": 6028,
       "name": "WhitelistTokenNotFound",
       "msg": "Whitelist token not found"
     },
     {
-      "code": 6028,
+      "code": 6029,
       "name": "InvalidDiscountToken",
       "msg": "Invalid discount token"
     },
     {
-      "code": 6029,
+      "code": 6030,
       "name": "DiscountTokenNotFound",
       "msg": "Discount token not found"
     },
     {
-      "code": 6030,
+      "code": 6031,
       "name": "InvalidReferrer",
       "msg": "Invalid referrer"
     },
     {
-      "code": 6031,
+      "code": 6032,
       "name": "ReferrerNotFound",
       "msg": "Referrer not found"
     },
     {
-      "code": 6032,
+      "code": 6033,
       "name": "InvalidOracle",
       "msg": "InvalidOracle"
     },
     {
-      "code": 6033,
+      "code": 6034,
       "name": "OracleNotFound",
       "msg": "OracleNotFound"
     },
     {
-      "code": 6034,
+      "code": 6035,
       "name": "LiquidationsBlockedByOracle",
       "msg": "Liquidations Blocked By Oracle"
     },
     {
-      "code": 6035,
+      "code": 6036,
       "name": "UserMaxDeposit",
       "msg": "Can not deposit more than max deposit"
     },
     {
-      "code": 6036,
+      "code": 6037,
       "name": "CantDeleteUserWithCollateral",
       "msg": "Can not delete user that still has collateral"
     },
     {
-      "code": 6037,
+      "code": 6038,
       "name": "InvalidFundingProfitability",
       "msg": "AMM funding out of bounds pnl"
     },
     {
-      "code": 6038,
+      "code": 6039,
       "name": "CastingFailure",
       "msg": "Casting Failure"
     }

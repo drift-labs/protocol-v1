@@ -34,6 +34,8 @@ pub enum ErrorCode {
     InvalidRepegDirection,
     #[msg("AMM repeg out of bounds pnl")]
     InvalidRepegProfitability,
+    #[msg("AMM repeg mark price impact vs oracle too large")]
+    InvalidRepegPriceImpact,
     #[msg("Slippage Outside Limit Price")]
     SlippageOutsideLimit,
     #[msg("Trade Size Too Small")]
