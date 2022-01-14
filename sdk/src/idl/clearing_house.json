@@ -2309,6 +2309,14 @@
             "type": "bool"
           },
           {
+            "name": "postOnly",
+            "type": "bool"
+          },
+          {
+            "name": "immediateOrCancel",
+            "type": "bool"
+          },
+          {
             "name": "triggerPrice",
             "type": "u128"
           },
@@ -3220,6 +3228,14 @@
           },
           {
             "name": "reduceOnly",
+            "type": "bool"
+          },
+          {
+            "name": "postOnly",
+            "type": "bool"
+          },
+          {
+            "name": "immediateOrCancel",
             "type": "bool"
           },
           {

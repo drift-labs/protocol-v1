@@ -22,6 +22,8 @@ export function getLimitOrderParams(
 		baseAssetAmount,
 		price,
 		reduceOnly,
+		postOnly: false,
+		immediateOrCancel: false,
 		optionalAccounts: {
 			discountToken,
 		},
@@ -46,6 +48,8 @@ export function getStopOrderParams(
 		baseAssetAmount,
 		price: ZERO,
 		reduceOnly,
+		postOnly: false,
+		immediateOrCancel: false,
 		optionalAccounts: {
 			discountToken,
 		},

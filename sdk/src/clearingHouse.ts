@@ -17,10 +17,8 @@ import {
 	TradeHistoryAccount,
 	UserAccount,
 	Market,
-	OrderType,
 	OrderHistoryAccount,
 	OrderStateAccount,
-	OrderTriggerCondition,
 	OrderParams,
 } from './types';
 import * as anchor from '@project-serum/anchor';

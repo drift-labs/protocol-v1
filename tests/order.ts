@@ -11,7 +11,6 @@ import {
 	MARK_PRICE_PRECISION,
 	ClearingHouse,
 	PositionDirection,
-	OrderType,
 	getUserOrdersAccountPublicKey,
 	ClearingHouseUser,
 	OrderStatus,
@@ -643,7 +642,6 @@ describe('orders', () => {
 			convertToNumber(userLeverage0, TEN_THOUSAND)
 		);
 
-		const orderType = OrderType.LIMIT;
 		const direction = PositionDirection.SHORT;
 
 		const market = clearingHouse.getMarket(marketIndex);
@@ -748,7 +746,6 @@ describe('orders', () => {
 			convertToNumber(userLeverage0, TEN_THOUSAND)
 		);
 
-		const orderType = OrderType.LIMIT;
 		const direction = PositionDirection.LONG;
 
 		const market = clearingHouse.getMarket(marketIndex);
@@ -897,7 +894,6 @@ describe('orders', () => {
 			convertToNumber(userLeverage0, TEN_THOUSAND)
 		);
 
-		const orderType = OrderType.LIMIT;
 		const direction = PositionDirection.LONG;
 
 		const market = clearingHouse.getMarket(marketIndex);
@@ -1006,7 +1002,6 @@ describe('orders', () => {
 			convertToNumber(userLeverage0, TEN_THOUSAND)
 		);
 
-		const orderType = OrderType.LIMIT;
 		const direction = PositionDirection.SHORT;
 
 		const market = clearingHouse.getMarket(marketIndex);
@@ -1161,7 +1156,6 @@ describe('orders', () => {
 			convertToNumber(userLeverage0, TEN_THOUSAND)
 		);
 
-		const orderType = OrderType.LIMIT;
 		const direction = PositionDirection.LONG;
 
 		const market = clearingHouse.getMarket(marketIndexBTC);
@@ -1266,7 +1260,6 @@ describe('orders', () => {
 			convertToNumber(userLeverage0, TEN_THOUSAND)
 		);
 
-		const orderType = OrderType.LIMIT;
 		const direction = PositionDirection.SHORT;
 
 		const market = clearingHouse.getMarket(marketIndexBTC);

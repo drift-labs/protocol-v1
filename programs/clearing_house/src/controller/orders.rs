@@ -100,6 +100,10 @@ pub fn place_order(
         discount_tier,
         trigger_price: params.trigger_price,
         trigger_condition: params.trigger_condition,
+
+        // always false until we add support
+        post_only: false,
+        immediate_or_cancel: false,
     };
 
     let market_index = params.market_index;

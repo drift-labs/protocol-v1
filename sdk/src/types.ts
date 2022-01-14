@@ -352,6 +352,8 @@ export type OrderParams = {
 	price: BN;
 	marketIndex: BN;
 	reduceOnly: boolean;
+	postOnly: boolean;
+	immediateOrCancel: boolean;
 	triggerPrice: BN;
 	triggerCondition: OrderTriggerCondition;
 	optionalAccounts: {
