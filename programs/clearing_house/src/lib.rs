@@ -723,17 +723,15 @@ pub mod clearing_house {
             &ctx.accounts.state.oracle_guard_rails.price_divergence,
         )?;
 
-        // if oracle-mark divergence pushed above limit, block trade
+        // if oracle-mark divergence pushed outside limit, block trade
         if is_oracle_mark_too_divergent_after
             && !is_oracle_mark_too_divergent_before
-            && oracle_mark_spread_pct_after.unsigned_abs()
-                >= oracle_mark_spread_pct_before.unsigned_abs()
             && is_oracle_valid
         {
             return Err(ErrorCode::OracleMarkSpreadLimit.into());
         }
 
-        // if oracle-mark divergence above limit and risk-increasing, block trade
+        // if oracle-mark divergence outside limit and risk-increasing, block trade
         if is_oracle_mark_too_divergent_after
             && oracle_mark_spread_pct_after.unsigned_abs()
                 >= oracle_mark_spread_pct_before.unsigned_abs()
@@ -864,7 +862,7 @@ pub mod clearing_house {
                 &ctx.accounts.oracle,
                 0,
                 clock_slot,
-                None,
+                Some(mark_price_before),
             )?;
         let direction_to_close =
             math::position::direction_to_close_position(market_position.base_asset_amount);
@@ -963,8 +961,6 @@ pub mod clearing_house {
 
         // if closing position pushes outside of oracle-mark divergence limit, block trade
         if (is_oracle_mark_too_divergent_after && !is_oracle_mark_too_divergent_before)
-            && oracle_mark_spread_pct_after.unsigned_abs()
-                >= oracle_mark_spread_pct_before.unsigned_abs()
             && is_oracle_valid
         {
             return Err(ErrorCode::OracleMarkSpreadLimit.into());
