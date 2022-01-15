@@ -13,7 +13,8 @@ export function getLimitOrderParams(
 	baseAssetAmount: BN,
 	price: BN,
 	reduceOnly: boolean,
-	discountToken: boolean
+	discountToken = false,
+	referrer = false
 ): OrderParams {
 	return {
 		orderType: OrderType.LIMIT,
@@ -26,6 +27,7 @@ export function getLimitOrderParams(
 		immediateOrCancel: false,
 		optionalAccounts: {
 			discountToken,
+			referrer,
 		},
 		triggerCondition: OrderTriggerCondition.ABOVE,
 		triggerPrice: ZERO,
@@ -39,7 +41,8 @@ export function getStopOrderParams(
 	triggerPrice: BN,
 	triggerCondition: OrderTriggerCondition,
 	reduceOnly: boolean,
-	discountToken: boolean
+	discountToken = false,
+	referrer = false
 ): OrderParams {
 	return {
 		orderType: OrderType.STOP,
@@ -52,6 +55,7 @@ export function getStopOrderParams(
 		immediateOrCancel: false,
 		optionalAccounts: {
 			discountToken,
+			referrer,
 		},
 		triggerCondition,
 		triggerPrice,

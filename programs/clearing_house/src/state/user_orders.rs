@@ -41,6 +41,7 @@ pub struct Order {
     pub discount_tier: OrderDiscountTier,
     pub trigger_price: u128,
     pub trigger_condition: OrderTriggerCondition,
+    pub referrer: Pubkey,
 }
 
 impl Default for Order {
@@ -62,6 +63,7 @@ impl Default for Order {
             discount_tier: OrderDiscountTier::None,
             trigger_price: 0,
             trigger_condition: OrderTriggerCondition::Above,
+            referrer: Pubkey::default(),
         };
     }
 }

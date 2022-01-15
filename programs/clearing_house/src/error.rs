@@ -104,6 +104,14 @@ pub enum ErrorCode {
     UnableToLoadAccountLoader,
     #[msg("Trade Size Too Large")]
     TradeSizeTooLarge,
+    #[msg("Unable to write to remaining account")]
+    UnableToWriteToRemainingAccount,
+    #[msg("User cant refer themselves")]
+    UserCantReferThemselves,
+    #[msg("Did not receive expected referrer")]
+    DidNotReceiveExpectedReferrer,
+    #[msg("Could not deserialize referrer")]
+    CouldNotDeserializeReferrer,
 }
 
 #[macro_export]

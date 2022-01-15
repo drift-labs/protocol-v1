@@ -529,7 +529,7 @@ pub struct OrderParams {
     pub immediate_or_cancel: bool,
     pub trigger_price: u128,
     pub trigger_condition: OrderTriggerCondition,
-    pub optional_accounts: PlaceOrderOptionalAccounts,
+    pub optional_accounts: OrderParamsOptionalAccounts,
 }
 
 impl Default for OrderType {
@@ -540,8 +540,9 @@ impl Default for OrderType {
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
-pub struct PlaceOrderOptionalAccounts {
+pub struct OrderParamsOptionalAccounts {
     pub discount_token: bool,
+    pub referrer: bool,
 }
 
 #[derive(Accounts)]
@@ -552,6 +553,7 @@ pub struct PlaceAndFillOrder<'info> {
     )]
     pub order_state: Box<Account<'info, OrderState>>,
     #[account(
+        mut,
         has_one = authority,
         constraint = &user.positions.eq(&user_positions.key())
     )]

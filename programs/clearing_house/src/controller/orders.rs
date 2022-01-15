@@ -32,6 +32,7 @@ use crate::order_validation::validate_order;
 use crate::state::history::funding_payment::FundingPaymentHistory;
 use crate::state::history::funding_rate::FundingRateHistory;
 use crate::state::history::order_history::OrderAction;
+use spl_token::state::Account as TokenAccount;
 use std::cell::RefMut;
 
 pub fn place_order(
@@ -43,7 +44,8 @@ pub fn place_order(
     user_orders: &AccountLoader<UserOrders>,
     funding_payment_history: &AccountLoader<FundingPaymentHistory>,
     order_history: &AccountLoader<OrderHistory>,
-    remaining_accounts: &[AccountInfo],
+    discount_token: Option<TokenAccount>,
+    referrer: &Option<Account<User>>,
     clock: &Clock,
     params: OrderParams,
 ) -> ClearingHouseResult {
@@ -74,12 +76,6 @@ pub fn place_order(
         .iter()
         .position(|order| order.status.eq(&OrderStatus::Init))
         .ok_or(ErrorCode::MaxNumberOfOrders)?;
-    let discount_token = get_discount_token(
-        params.optional_accounts.discount_token,
-        &mut remaining_accounts.iter(),
-        &state.discount_mint,
-        &user.authority.key(),
-    )?;
     let discount_tier = calculate_order_fee_tier(&state.fee_structure, discount_token)?;
     let order_history_account = &mut order_history
         .load_mut()
@@ -100,6 +96,10 @@ pub fn place_order(
         discount_tier,
         trigger_price: params.trigger_price,
         trigger_condition: params.trigger_condition,
+        referrer: match referrer {
+            Some(referrer) => referrer.key(),
+            None => Pubkey::default(),
+        },
 
         // always false until we add support
         post_only: false,
@@ -222,6 +222,7 @@ pub fn fill_order(
     trade_history: &AccountLoader<TradeHistory>,
     order_history: &AccountLoader<OrderHistory>,
     funding_rate_history: &AccountLoader<FundingRateHistory>,
+    referrer: Option<Account<User>>,
     clock: &Clock,
 ) -> ClearingHouseResult<(u128)> {
     let now = clock.unix_timestamp;
@@ -371,7 +372,7 @@ pub fn fill_order(
     }
 
     let discount_tier = order.discount_tier;
-    let (user_fee, fee_to_market, token_discount, filler_reward) =
+    let (user_fee, fee_to_market, token_discount, filler_reward, referrer_reward, referee_discount) =
         fees::calculate_fee_for_limit_order(
             quote_asset_amount,
             &state.fee_structure,
@@ -379,6 +380,7 @@ pub fn fill_order(
             &discount_tier,
             order.ts,
             now,
+            &referrer,
             filler.key() == user.key(),
         )?;
 
@@ -408,16 +410,31 @@ pub fn fill_order(
         .total_fee_paid
         .checked_add(user_fee)
         .ok_or_else(math_error!())?;
-
     user.total_token_discount = user
         .total_token_discount
         .checked_add(token_discount)
+        .ok_or_else(math_error!())?;
+    user.total_referee_discount = user
+        .total_referee_discount
+        .checked_add(referee_discount)
         .ok_or_else(math_error!())?;
 
     filler.collateral = filler
         .collateral
         .checked_add(cast(filler_reward)?)
         .ok_or_else(math_error!())?;
+
+    // Update the referrer's collateral with their reward
+    if referrer.is_some() {
+        let mut referrer = referrer.unwrap();
+        referrer.total_referral_reward = referrer
+            .total_referral_reward
+            .checked_add(referrer_reward)
+            .ok_or_else(math_error!())?;
+        referrer
+            .exit(&crate::ID)
+            .or(Err(ErrorCode::UnableToWriteToRemainingAccount.into()))?;
+    }
 
     let trade_history_account = &mut trade_history
         .load_mut()
@@ -435,8 +452,8 @@ pub fn fill_order(
         mark_price_after,
         fee: user_fee,
         token_discount,
-        referrer_reward: 0,
-        referee_discount: 0,
+        referrer_reward,
+        referee_discount,
         liquidation: false,
         market_index,
         oracle_price: oracle_price_after,

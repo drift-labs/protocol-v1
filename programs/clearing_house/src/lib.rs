@@ -33,7 +33,7 @@ declare_id!("J6AHwb9mXXWRS5gZoh645BMJown4RVgoxrNXqpxJAUEv");
 #[program]
 pub mod clearing_house {
     use crate::math;
-    use crate::optional_accounts::get_discount_token;
+    use crate::optional_accounts::{get_discount_token, get_referrer, get_referrer_for_fill_order};
     use crate::state::history::curve::CurveRecord;
     use crate::state::history::deposit::{DepositDirection, DepositRecord};
     use crate::state::history::liquidation::LiquidationRecord;
@@ -960,6 +960,20 @@ pub mod clearing_house {
         market_initialized(&ctx.accounts.markets, params.market_index)
     )]
     pub fn place_order<'info>(ctx: Context<PlaceOrder>, params: OrderParams) -> ProgramResult {
+        let account_info_iter = &mut ctx.remaining_accounts.iter();
+        let discount_token = get_discount_token(
+            params.optional_accounts.discount_token,
+            account_info_iter,
+            &ctx.accounts.state.discount_mint,
+            &ctx.accounts.authority.key,
+        )?;
+        let referrer = get_referrer(
+            params.optional_accounts.referrer,
+            account_info_iter,
+            &ctx.accounts.user.key(),
+            None,
+        )?;
+
         controller::orders::place_order(
             &ctx.accounts.state,
             &ctx.accounts.order_state,
@@ -969,7 +983,8 @@ pub mod clearing_house {
             &ctx.accounts.user_orders,
             &ctx.accounts.funding_payment_history,
             &ctx.accounts.order_history,
-            &ctx.remaining_accounts,
+            discount_token,
+            &referrer,
             &Clock::get()?,
             params,
         )?;
@@ -996,6 +1011,14 @@ pub mod clearing_house {
         exchange_not_paused(&ctx.accounts.state)
     )]
     pub fn fill_order<'info>(ctx: Context<FillOrder>, order_id: u128) -> ProgramResult {
+        let account_info_iter = &mut ctx.remaining_accounts.iter();
+        let referrer = get_referrer_for_fill_order(
+            account_info_iter,
+            &ctx.accounts.user.key(),
+            order_id,
+            &ctx.accounts.user_orders,
+        )?;
+
         let base_asset_amount = controller::orders::fill_order(
             order_id,
             &ctx.accounts.state,
@@ -1010,6 +1033,7 @@ pub mod clearing_house {
             &ctx.accounts.trade_history,
             &ctx.accounts.order_history,
             &ctx.accounts.funding_rate_history,
+            referrer,
             &Clock::get()?,
         )?;
 
@@ -1028,6 +1052,20 @@ pub mod clearing_house {
         ctx: Context<PlaceAndFillOrder>,
         params: OrderParams,
     ) -> ProgramResult {
+        let account_info_iter = &mut ctx.remaining_accounts.iter();
+        let discount_token = get_discount_token(
+            params.optional_accounts.discount_token,
+            account_info_iter,
+            &ctx.accounts.state.discount_mint,
+            &ctx.accounts.authority.key,
+        )?;
+        let referrer = get_referrer(
+            params.optional_accounts.referrer,
+            account_info_iter,
+            &ctx.accounts.user.key(),
+            None,
+        )?;
+
         controller::orders::place_order(
             &ctx.accounts.state,
             &ctx.accounts.order_state,
@@ -1037,7 +1075,8 @@ pub mod clearing_house {
             &ctx.accounts.user_orders,
             &ctx.accounts.funding_payment_history,
             &ctx.accounts.order_history,
-            &ctx.remaining_accounts,
+            discount_token,
+            &referrer,
             &Clock::get()?,
             params,
         )?;
@@ -1063,6 +1102,7 @@ pub mod clearing_house {
             &ctx.accounts.trade_history,
             &ctx.accounts.order_history,
             &ctx.accounts.funding_rate_history,
+            referrer,
             &Clock::get()?,
         )?;
 

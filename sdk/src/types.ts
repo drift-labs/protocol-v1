@@ -321,6 +321,8 @@ export type UserAccount = {
 	positions: PublicKey;
 	totalFeePaid: BN;
 	totalTokenDiscount: BN;
+	totalReferralReward: BN;
+	totalRefereeDiscount: BN;
 };
 
 export type UserOrdersAccount = {
@@ -343,6 +345,7 @@ export type Order = {
 	triggerPrice: BN;
 	triggerCondition: OrderTriggerCondition;
 	discountTier: OrderDiscountTier;
+	referrer: PublicKey;
 };
 
 export type OrderParams = {
@@ -358,6 +361,7 @@ export type OrderParams = {
 	triggerCondition: OrderTriggerCondition;
 	optionalAccounts: {
 		discountToken: boolean;
+		referrer: boolean;
 	};
 };
 

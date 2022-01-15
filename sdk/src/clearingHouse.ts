@@ -661,10 +661,13 @@ export class ClearingHouse {
 
 	public async placeOrder(
 		orderParams: OrderParams,
-		discountToken?: PublicKey
+		discountToken?: PublicKey,
+		referrer?: PublicKey
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
-			wrapInTx(await this.getPlaceOrderIx(orderParams, discountToken)),
+			wrapInTx(
+				await this.getPlaceOrderIx(orderParams, discountToken, referrer)
+			),
 			[],
 			this.opts
 		);
@@ -672,7 +675,8 @@ export class ClearingHouse {
 
 	public async getPlaceOrderIx(
 		orderParams: OrderParams,
-		discountToken?: PublicKey
+		discountToken?: PublicKey,
+		referrer?: PublicKey
 	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
 		const userAccount = await this.getUserAccount();
@@ -691,6 +695,20 @@ export class ClearingHouse {
 
 			remainingAccounts.push({
 				pubkey: discountToken,
+				isWritable: false,
+				isSigner: false,
+			});
+		}
+
+		if (orderParams.optionalAccounts.referrer) {
+			if (!referrer) {
+				throw Error(
+					'Optional accounts specified referrer but no referrer present'
+				);
+			}
+
+			remainingAccounts.push({
+				pubkey: referrer,
 				isWritable: false,
 				isSigner: false,
 			});
@@ -788,6 +806,16 @@ export class ClearingHouse {
 
 		const state = this.getStateAccount();
 		const orderState = this.getOrderStateAccount();
+
+		const remainingAccounts = [];
+		if (!order.referrer.equals(PublicKey.default)) {
+			remainingAccounts.push({
+				pubkey: order.referrer,
+				isWritable: true,
+				isSigner: false,
+			});
+		}
+
 		return await this.program.instruction.fillOrder(orderId, {
 			accounts: {
 				state: await this.getStatePublicKey(),
@@ -804,15 +832,19 @@ export class ClearingHouse {
 				orderHistory: orderState.orderHistory,
 				oracle: oracle,
 			},
+			remainingAccounts,
 		});
 	}
 
 	public async placeAndFillOrder(
 		orderParams: OrderParams,
-		discountToken?: PublicKey
+		discountToken?: PublicKey,
+		referrer?: PublicKey
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
-			wrapInTx(await this.getPlaceAndFillOrderIx(orderParams, discountToken)),
+			wrapInTx(
+				await this.getPlaceAndFillOrderIx(orderParams, discountToken, referrer)
+			),
 			[],
 			this.opts
 		);
@@ -820,7 +852,8 @@ export class ClearingHouse {
 
 	public async getPlaceAndFillOrderIx(
 		orderParams: OrderParams,
-		discountToken?: PublicKey
+		discountToken?: PublicKey,
+		referrer?: PublicKey
 	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
 		const userAccount = await this.getUserAccount();
@@ -840,6 +873,20 @@ export class ClearingHouse {
 			remainingAccounts.push({
 				pubkey: discountToken,
 				isWritable: false,
+				isSigner: false,
+			});
+		}
+
+		if (orderParams.optionalAccounts.referrer) {
+			if (!referrer) {
+				throw Error(
+					'Optional accounts specified referrer but no referrer present'
+				);
+			}
+
+			remainingAccounts.push({
+				pubkey: referrer,
+				isWritable: true,
 				isSigner: false,
 			});
 		}

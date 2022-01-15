@@ -694,7 +694,7 @@
         },
         {
           "name": "user",
-          "isMut": false,
+          "isMut": true,
           "isSigner": false
         },
         {
@@ -2329,19 +2329,23 @@
           {
             "name": "optionalAccounts",
             "type": {
-              "defined": "PlaceOrderOptionalAccounts"
+              "defined": "OrderParamsOptionalAccounts"
             }
           }
         ]
       }
     },
     {
-      "name": "PlaceOrderOptionalAccounts",
+      "name": "OrderParamsOptionalAccounts",
       "type": {
         "kind": "struct",
         "fields": [
           {
             "name": "discountToken",
+            "type": "bool"
+          },
+          {
+            "name": "referrer",
             "type": "bool"
           }
         ]
@@ -3253,6 +3257,10 @@
             "type": {
               "defined": "OrderTriggerCondition"
             }
+          },
+          {
+            "name": "referrer",
+            "type": "publicKey"
           }
         ]
       }
@@ -3660,6 +3668,26 @@
       "code": 6049,
       "name": "TradeSizeTooLarge",
       "msg": "Trade Size Too Large"
+    },
+    {
+      "code": 6050,
+      "name": "UnableToWriteToRemainingAccount",
+      "msg": "Unable to write to remaining account"
+    },
+    {
+      "code": 6051,
+      "name": "UserCantReferThemselves",
+      "msg": "User cant refer themselves"
+    },
+    {
+      "code": 6052,
+      "name": "DidNotReceiveExpectedReferrer",
+      "msg": "Did not receive expected referrer"
+    },
+    {
+      "code": 6053,
+      "name": "CouldNotDeserializeReferrer",
+      "msg": "Could not deserialize referrer"
     }
   ]
 }
