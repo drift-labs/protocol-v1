@@ -167,6 +167,10 @@ pub fn calculate_swap_output(
         .checked_mul(invariant_sqrt_u192)
         .ok_or_else(math_error!())?;
 
+    if direction == SwapDirection::Remove && swap_amount > input_asset_amount {
+        return Err(ErrorCode::TradeSizeTooLarge.into());
+    }
+
     let new_input_amount = if let SwapDirection::Add = direction {
         input_asset_amount
             .checked_add(swap_amount)

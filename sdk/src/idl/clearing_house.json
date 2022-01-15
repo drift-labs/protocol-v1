@@ -3655,6 +3655,11 @@
       "code": 6048,
       "name": "UnableToLoadAccountLoader",
       "msg": "Unable to load AccountLoader"
+    },
+    {
+      "code": 6049,
+      "name": "TradeSizeTooLarge",
+      "msg": "Trade Size Too Large"
     }
   ]
 }

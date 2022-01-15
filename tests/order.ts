@@ -31,9 +31,9 @@ import { calculateAmountToTradeForLimit } from '../sdk/src/orders';
 
 import {
 	mockOracle,
-	setFeedPrice,
-	mockUSDCMint,
 	mockUserUSDCAccount,
+	mockUSDCMint,
+	setFeedPrice,
 } from './testHelpers';
 import {
 	AMM_RESERVE_PRECISION,
@@ -61,6 +61,9 @@ describe('orders', () => {
 
 	let userAccountPublicKey: PublicKey;
 	let userOrdersAccountPublicKey: PublicKey;
+	
+	let whaleAccountPublicKey: PublicKey;
+	let whaleOrdersAccountPublicKey: PublicKey;
 
 	let usdcMint;
 	let userUSDCAccount;
@@ -76,6 +79,12 @@ describe('orders', () => {
 
 	const usdcAmount = new BN(10 * 10 ** 6);
 
+	const whaleKeyPair = new Keypair();
+	const usdcAmountWhale = new BN(10000000 * 10 ** 6);
+	let whaleUSDCAccount: Keypair;
+	let whaleClearingHouse: ClearingHouse;
+	let whaleUser: ClearingHouseUser;
+
 	let discountMint: Token;
 	let discountTokenAccount: AccountInfo;
 
@@ -86,6 +95,7 @@ describe('orders', () => {
 
 	const marketIndex = new BN(1);
 	const marketIndexBTC = new BN(2);
+
 	let solUsd;
 	let btcUsd;
 
@@ -187,12 +197,44 @@ describe('orders', () => {
 			fillerKeyPair.publicKey
 		);
 		await fillerUser.subscribe();
+
+		provider.connection.requestAirdrop(whaleKeyPair.publicKey, 10 ** 9);
+		whaleUSDCAccount = await mockUserUSDCAccount(
+			usdcMint,
+			usdcAmountWhale,
+			provider,
+			whaleKeyPair.publicKey
+		);
+		whaleClearingHouse = ClearingHouse.from(
+			connection,
+			new Wallet(whaleKeyPair),
+			chProgram.programId
+		);
+		await whaleClearingHouse.subscribe();
+
+		[, whaleAccountPublicKey] = await whaleClearingHouse.initializeUserAccountAndDepositCollateral(
+			usdcAmountWhale,
+			whaleUSDCAccount.publicKey
+		);
+
+		whaleUser = ClearingHouseUser.from(
+			whaleClearingHouse,
+			whaleKeyPair.publicKey
+		);
+		whaleOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(
+			clearingHouse.program.programId,
+			whaleKeyPair.publicKey
+		);
+		await whaleUser.subscribe();
 	});
 
 	after(async () => {
 		await clearingHouse.unsubscribe();
 		await clearingHouseUser.unsubscribe();
 		await fillerUser.unsubscribe();
+
+		await whaleClearingHouse.unsubscribe();
+		await whaleUser.unsubscribe();
 	});
 
 	it('Open long limit order', async () => {
@@ -1509,5 +1551,105 @@ describe('orders', () => {
 		);
 		assert(fillerReward.gt(new BN(0)));
 		await clearingHouse.closePosition(marketIndex);
+	});
+
+	it('Block whale trade > reserves', async() => {
+		const direction = PositionDirection.SHORT;
+
+		// whale trade
+		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION.mul(usdcAmountWhale).div(QUOTE_PRECISION));
+		const triggerPrice = MARK_PRICE_PRECISION;
+		const triggerCondition = OrderTriggerCondition.ABOVE;
+
+		const orderParams = getStopOrderParams(
+			marketIndex,
+			direction,
+			baseAssetAmount,
+			triggerPrice,
+			triggerCondition,
+			false,
+			false
+		);
+		await whaleClearingHouse.placeOrder(orderParams);
+		
+		await whaleClearingHouse.fetchAccounts();
+		await whaleUser.fetchAccounts();
+		await fillerUser.fetchAccounts();
+
+		const orderIndex = new BN(0);
+		const userOrdersAccount = whaleUser.getUserOrdersAccount();
+		const order = userOrdersAccount.orders[orderIndex.toString()];
+		try {
+			await whaleClearingHouse.fillOrder(
+				whaleAccountPublicKey,
+				whaleOrdersAccountPublicKey,
+				order.orderId
+			);
+		
+		} catch (e) {
+			await whaleClearingHouse.cancelOrder(order.orderId);
+			return;
+		}
+
+		assert(false);
+	});
+		
+
+	it('Time-based fee reward cap', async() => {
+		const direction = PositionDirection.SHORT;
+		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION.mul(new BN(10000)));
+		const market0 = clearingHouse.getMarket(marketIndex);
+		const triggerPrice = calculateMarkPrice(market0).sub(new BN(1));
+		const triggerCondition = OrderTriggerCondition.ABOVE;
+
+		const orderParams = getStopOrderParams(
+			marketIndex,
+			direction,
+			baseAssetAmount,
+			triggerPrice,
+			triggerCondition,
+			false,
+			false
+		);
+		await whaleClearingHouse.placeOrder(orderParams);
+		
+		await whaleClearingHouse.fetchAccounts();
+		await whaleUser.fetchAccounts();
+		await fillerUser.fetchAccounts();
+
+		const orderIndex = new BN(0);
+		const userOrdersAccount = whaleUser.getUserOrdersAccount();
+		const order = userOrdersAccount.orders[orderIndex.toString()];
+		const fillerUserAccountBefore = fillerUser.getUserAccount();
+
+		await fillerClearingHouse.fillOrder(
+			whaleAccountPublicKey,
+			whaleOrdersAccountPublicKey,
+			order.orderId
+		);
+
+		await whaleClearingHouse.fetchAccounts();
+		await whaleUser.fetchAccounts();
+		await fillerUser.fetchAccounts();
+
+		const whaleUserAccount = whaleUser.getUserAccount();
+		console.log('whaleFee:', convertToNumber(whaleUserAccount.totalFeePaid, QUOTE_PRECISION));
+
+		const fillerUserAccount = fillerUser.getUserAccount();
+		const expectedFillerReward = new BN(1e6/100); //1 cent
+		const fillerReward = fillerUserAccount.collateral.sub(fillerUserAccountBefore.collateral);
+		console.log(
+			'FillerReward: $',
+			convertToNumber(
+				fillerReward,
+				QUOTE_PRECISION
+			)
+		);
+		assert(
+			fillerUserAccount.collateral.sub(fillerUserAccountBefore.collateral).eq(expectedFillerReward)
+		);
+
+		assert(whaleUserAccount.totalFeePaid.gt(fillerReward.mul(new BN(100)))); 
+		// ensure whale fee more than x100 filler
 	});
 });

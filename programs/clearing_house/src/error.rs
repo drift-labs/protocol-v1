@@ -102,6 +102,8 @@ pub enum ErrorCode {
     OrderStateAlreadyInitialized,
     #[msg("Unable to load AccountLoader")]
     UnableToLoadAccountLoader,
+    #[msg("Trade Size Too Large")]
+    TradeSizeTooLarge,
 }
 
 #[macro_export]

@@ -7,7 +7,7 @@ use crate::state::user_orders::Order;
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::msg;
-use std::cmp::min;
+use std::cmp::{max, min};
 
 use crate::context::*;
 use crate::error::*;
@@ -524,8 +524,14 @@ pub fn execute_order_to_market(
         PositionDirection::Short => SwapDirection::Remove,
     };
 
-    let quote_asset_reserve_amount =
-        asset_to_reserve_amount(available_quote_asset_for_order, market.amm.peg_multiplier)?;
+    let quote_asset_reserve_amount = min(
+        market
+            .amm
+            .quote_asset_reserve
+            .checked_sub(1)
+            .ok_or_else(math_error!())?,
+        asset_to_reserve_amount(available_quote_asset_for_order, market.amm.peg_multiplier)?,
+    );
 
     let initial_base_asset_amount = market.amm.base_asset_reserve;
     let (new_base_asset_amount, _new_quote_asset_amount) = amm::calculate_swap_output(
