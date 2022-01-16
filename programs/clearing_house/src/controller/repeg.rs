@@ -1,10 +1,10 @@
 use crate::error::*;
-use crate::math::repeg;
 use crate::math::casting::{cast_to_i128, cast_to_u128};
+use crate::math::repeg;
 
+use crate::math::amm;
 use crate::math_error;
 use crate::state::market::Market;
-use crate::math::amm;
 use crate::state::state::OracleGuardRails;
 
 use anchor_lang::prelude::AccountInfo;
@@ -88,7 +88,6 @@ pub fn formulaic_repeg(
     oracle_conf: u128,
     oracle_is_valid: bool,
 ) -> ClearingHouseResult<i128> {
-
     let terminal_price_before = amm::calculate_terminal_price(market)?;
     let oracle_terminal_spread_before = oracle_price
         .checked_sub(cast_to_i128(terminal_price_before)?)
@@ -99,7 +98,8 @@ pub fn formulaic_repeg(
         .checked_div(oracle_price)
         .ok_or_else(math_error!())?;
 
-    let (new_peg_candidate, adjustment_cost) = repeg::calculate_optimal_peg_and_cost(market, oracle_terminal_divergence_pct_before)?;
+    let (new_peg_candidate, adjustment_cost) =
+        repeg::calculate_optimal_peg_and_cost(market, oracle_terminal_divergence_pct_before)?;
 
     let (
         oracle_is_valid,

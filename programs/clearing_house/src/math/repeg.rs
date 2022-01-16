@@ -19,7 +19,6 @@ pub fn calculate_repeg_validity_full(
     clock_slot: u64,
     oracle_guard_rails: &OracleGuardRails,
 ) -> ClearingHouseResult<(bool, bool, bool, bool, i128)> {
-
     let (oracle_price, _oracle_twap, oracle_conf, _oracle_twac, _oracle_delay) =
         market.amm.get_oracle_price(price_oracle, clock_slot)?;
 
@@ -60,13 +59,12 @@ pub fn calculate_repeg_validity(
     oracle_is_valid: bool,
     terminal_price_before: u128,
 ) -> ClearingHouseResult<(bool, bool, bool, bool, i128)> {
-
     let oracle_price_u128 = cast_to_u128(oracle_price)?;
 
     let terminal_price_after = amm::calculate_terminal_price(market)?;
     let oracle_terminal_spread_after = oracle_price
-    .checked_sub(cast_to_i128(terminal_price_after)?)
-    .ok_or_else(math_error!())?;
+        .checked_sub(cast_to_i128(terminal_price_after)?)
+        .ok_or_else(math_error!())?;
     let oracle_terminal_divergence_pct_after = oracle_terminal_spread_after
         .checked_shl(10)
         .ok_or_else(math_error!())?
@@ -108,7 +106,6 @@ pub fn calculate_repeg_validity(
             if mark_price_after > oracle_conf_band_top {
                 price_impact_valid = false;
             }
-
         } else if oracle_price_u128 < terminal_price_after {
             // only allow terminal down when oracle is lower
             if terminal_price_after > terminal_price_before {
@@ -140,23 +137,31 @@ pub fn calculate_repeg_validity(
     ))
 }
 
-
 pub fn calculate_optimal_peg_and_cost(
-    market: &mut Market, 
+    market: &mut Market,
     oracle_terminal_price_divergence: i128,
 ) -> ClearingHouseResult<(u128, i128)> {
-
     // does minimum valid repeg allowable iff satisfies the budget
 
     // budget is half of fee pool
-    let budget = calculate_fee_pool(market)?.checked_div(2).ok_or_else(math_error!())?;
-    
+    let budget = calculate_fee_pool(market)?
+        .checked_div(2)
+        .ok_or_else(math_error!())?;
+
     let mut optimal_peg: u128;
     if oracle_terminal_price_divergence > 0 {
-        optimal_peg = market.amm.peg_multiplier.checked_add(1).ok_or_else(math_error!())?;
+        optimal_peg = market
+            .amm
+            .peg_multiplier
+            .checked_add(1)
+            .ok_or_else(math_error!())?;
     } else if oracle_terminal_price_divergence < 0 {
-        optimal_peg = market.amm.peg_multiplier.checked_sub(1).ok_or_else(math_error!())?;
-    } else{
+        optimal_peg = market
+            .amm
+            .peg_multiplier
+            .checked_sub(1)
+            .ok_or_else(math_error!())?;
+    } else {
         optimal_peg = market.amm.peg_multiplier;
     }
 
@@ -167,7 +172,7 @@ pub fn calculate_optimal_peg_and_cost(
     if optimal_adjustment_cost > 0 && optimal_adjustment_cost.unsigned_abs() > budget {
         candidate_peg = market.amm.peg_multiplier;
         candidate_cost = 0;
-    } else{
+    } else {
         candidate_peg = optimal_peg;
         candidate_cost = optimal_adjustment_cost;
     }
@@ -175,7 +180,10 @@ pub fn calculate_optimal_peg_and_cost(
     Ok((candidate_peg, candidate_cost))
 }
 
-pub fn adjust_peg_cost(market: &mut Market, new_peg_candidate: u128) -> ClearingHouseResult<(&mut Market, i128)> {
+pub fn adjust_peg_cost(
+    market: &mut Market,
+    new_peg_candidate: u128,
+) -> ClearingHouseResult<(&mut Market, i128)> {
     let market_deep_copy = market;
 
     // Find the net market value before adjusting peg
@@ -199,9 +207,11 @@ pub fn adjust_peg_cost(market: &mut Market, new_peg_candidate: u128) -> Clearing
 pub fn calculate_fee_pool(market: &Market) -> ClearingHouseResult<u128> {
     let total_fee_minus_distributions_lower_bound = total_fee_lower_bound(&market)?;
 
-    let fee_pool = market.amm.total_fee_minus_distributions
-    .checked_sub(total_fee_minus_distributions_lower_bound)
-    .ok_or_else(math_error!())?;
+    let fee_pool = market
+        .amm
+        .total_fee_minus_distributions
+        .checked_sub(total_fee_minus_distributions_lower_bound)
+        .ok_or_else(math_error!())?;
 
     Ok(fee_pool)
 }
