@@ -61,7 +61,7 @@ describe('orders', () => {
 
 	let userAccountPublicKey: PublicKey;
 	let userOrdersAccountPublicKey: PublicKey;
-	
+
 	let whaleAccountPublicKey: PublicKey;
 	let whaleOrdersAccountPublicKey: PublicKey;
 
@@ -212,10 +212,11 @@ describe('orders', () => {
 		);
 		await whaleClearingHouse.subscribe();
 
-		[, whaleAccountPublicKey] = await whaleClearingHouse.initializeUserAccountAndDepositCollateral(
-			usdcAmountWhale,
-			whaleUSDCAccount.publicKey
-		);
+		[, whaleAccountPublicKey] =
+			await whaleClearingHouse.initializeUserAccountAndDepositCollateral(
+				usdcAmountWhale,
+				whaleUSDCAccount.publicKey
+			);
 
 		whaleUser = ClearingHouseUser.from(
 			whaleClearingHouse,
@@ -421,9 +422,12 @@ describe('orders', () => {
 		const expectedRecordId = new BN(4);
 		const expectedOrderId = new BN(2);
 		const expectedTradeRecordId = new BN(1);
+		const expectedFee = new BN(950);
 		assert(orderRecord.recordId.eq(expectedRecordId));
 		assert(orderRecord.ts.gt(ZERO));
 		assert(orderRecord.order.orderId.eq(expectedOrderId));
+		assert(orderRecord.fee.eq(expectedFee));
+		assert(orderRecord.order.fee.eq(expectedFee));
 		assert(enumsAreEqual(orderRecord.action, OrderAction.FILL));
 		assert(
 			orderRecord.user.equals(await clearingHouseUser.getUserAccountPublicKey())
@@ -1553,11 +1557,13 @@ describe('orders', () => {
 		await clearingHouse.closePosition(marketIndex);
 	});
 
-	it('Block whale trade > reserves', async() => {
+	it('Block whale trade > reserves', async () => {
 		const direction = PositionDirection.SHORT;
 
 		// whale trade
-		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION.mul(usdcAmountWhale).div(QUOTE_PRECISION));
+		const baseAssetAmount = new BN(
+			AMM_RESERVE_PRECISION.mul(usdcAmountWhale).div(QUOTE_PRECISION)
+		);
 		const triggerPrice = MARK_PRICE_PRECISION;
 		const triggerCondition = OrderTriggerCondition.ABOVE;
 
@@ -1571,7 +1577,7 @@ describe('orders', () => {
 			false
 		);
 		await whaleClearingHouse.placeOrder(orderParams);
-		
+
 		await whaleClearingHouse.fetchAccounts();
 		await whaleUser.fetchAccounts();
 		await fillerUser.fetchAccounts();
@@ -1585,7 +1591,6 @@ describe('orders', () => {
 				whaleOrdersAccountPublicKey,
 				order.orderId
 			);
-		
 		} catch (e) {
 			await whaleClearingHouse.cancelOrder(order.orderId);
 			return;
@@ -1593,9 +1598,8 @@ describe('orders', () => {
 
 		assert(false);
 	});
-		
 
-	it('Time-based fee reward cap', async() => {
+	it('Time-based fee reward cap', async () => {
 		const direction = PositionDirection.SHORT;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION.mul(new BN(10000)));
 		const market0 = clearingHouse.getMarket(marketIndex);
@@ -1612,7 +1616,7 @@ describe('orders', () => {
 			false
 		);
 		await whaleClearingHouse.placeOrder(orderParams);
-		
+
 		await whaleClearingHouse.fetchAccounts();
 		await whaleUser.fetchAccounts();
 		await fillerUser.fetchAccounts();
@@ -1633,23 +1637,27 @@ describe('orders', () => {
 		await fillerUser.fetchAccounts();
 
 		const whaleUserAccount = whaleUser.getUserAccount();
-		console.log('whaleFee:', convertToNumber(whaleUserAccount.totalFeePaid, QUOTE_PRECISION));
+		console.log(
+			'whaleFee:',
+			convertToNumber(whaleUserAccount.totalFeePaid, QUOTE_PRECISION)
+		);
 
 		const fillerUserAccount = fillerUser.getUserAccount();
-		const expectedFillerReward = new BN(1e6/100); //1 cent
-		const fillerReward = fillerUserAccount.collateral.sub(fillerUserAccountBefore.collateral);
+		const expectedFillerReward = new BN(1e6 / 100); //1 cent
+		const fillerReward = fillerUserAccount.collateral.sub(
+			fillerUserAccountBefore.collateral
+		);
 		console.log(
 			'FillerReward: $',
-			convertToNumber(
-				fillerReward,
-				QUOTE_PRECISION
-			)
+			convertToNumber(fillerReward, QUOTE_PRECISION)
 		);
 		assert(
-			fillerUserAccount.collateral.sub(fillerUserAccountBefore.collateral).eq(expectedFillerReward)
+			fillerUserAccount.collateral
+				.sub(fillerUserAccountBefore.collateral)
+				.eq(expectedFillerReward)
 		);
 
-		assert(whaleUserAccount.totalFeePaid.gt(fillerReward.mul(new BN(100)))); 
+		assert(whaleUserAccount.totalFeePaid.gt(fillerReward.mul(new BN(100))));
 		// ensure whale fee more than x100 filler
 	});
 });

@@ -91,6 +91,7 @@ pub fn place_order(
         base_asset_amount: params.base_asset_amount,
         base_asset_amount_filled: 0,
         quote_asset_amount_filled: 0,
+        fee: 0,
         direction: params.direction,
         reduce_only: params.reduce_only,
         discount_tier,
@@ -132,6 +133,7 @@ pub fn place_order(
         base_asset_amount_filled: 0,
         quote_asset_amount_filled: 0,
         filler_reward: 0,
+        fee: 0,
     });
 
     Ok(())
@@ -197,6 +199,7 @@ pub fn cancel_order(
         base_asset_amount_filled: 0,
         quote_asset_amount_filled: 0,
         filler_reward: 0,
+        fee: 0,
     });
 
     // Decrement open orders for existing position
@@ -436,6 +439,20 @@ pub fn fill_order(
             .or(Err(ErrorCode::UnableToWriteToRemainingAccount.into()))?;
     }
 
+    {
+        let markets = &mut markets
+            .load()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        let market = markets.get_market(market_index);
+        update_order_after_trade(
+            order,
+            market.amm.minimum_base_asset_trade_size,
+            base_asset_amount,
+            quote_asset_amount,
+            user_fee,
+        )?;
+    }
+
     let trade_history_account = &mut trade_history
         .load_mut()
         .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
@@ -475,6 +492,7 @@ pub fn fill_order(
         base_asset_amount_filled: base_asset_amount,
         quote_asset_amount_filled: quote_asset_amount,
         filler_reward,
+        fee: user_fee,
     });
 
     // Cant reset order until after its been logged in order history
@@ -606,13 +624,6 @@ pub fn execute_order_to_market(
         return Err(ErrorCode::ReduceOnlyOrderIncreasedRisk.into());
     }
 
-    update_order_after_trade(
-        order,
-        minimum_base_asset_trade_size,
-        base_asset_amount,
-        quote_asset_amount,
-    )?;
-
     Ok((
         base_asset_amount,
         quote_asset_amount,
@@ -625,6 +636,7 @@ pub fn update_order_after_trade(
     minimum_base_asset_trade_size: u128,
     base_asset_amount: u128,
     quote_asset_amount: u128,
+    fee: u128,
 ) -> ClearingHouseResult {
     order.base_asset_amount_filled = order
         .base_asset_amount_filled
@@ -645,6 +657,8 @@ pub fn update_order_after_trade(
     if base_asset_amount_to_fill > 0 && base_asset_amount_to_fill < minimum_base_asset_trade_size {
         return Err(ErrorCode::OrderAmountTooSmall.into());
     }
+
+    order.fee = order.fee.checked_add(fee).ok_or_else(math_error!())?;
 
     Ok(())
 }

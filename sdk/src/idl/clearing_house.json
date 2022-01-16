@@ -2851,6 +2851,10 @@
             "type": "u128"
           },
           {
+            "name": "fee",
+            "type": "u128"
+          },
+          {
             "name": "fillerReward",
             "type": "u128"
           }
@@ -3222,6 +3226,10 @@
           },
           {
             "name": "quoteAssetAmountFilled",
+            "type": "u128"
+          },
+          {
+            "name": "fee",
             "type": "u128"
           },
           {

@@ -210,6 +210,7 @@ export type OrderRecord = {
 	filler: PublicKey;
 	baseAssetAmountFilled: BN;
 	quoteAssetAmountFilled: BN;
+	fee: BN;
 	fillerReward: BN;
 	tradeRecordId: BN;
 };
@@ -340,6 +341,7 @@ export type Order = {
 	baseAssetAmount: BN;
 	baseAssetAmountFilled: BN;
 	quoteAssetAmountFilled: BN;
+	fee: BN;
 	direction: PositionDirection;
 	reduceOnly: boolean;
 	triggerPrice: BN;
