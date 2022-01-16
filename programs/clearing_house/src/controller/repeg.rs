@@ -1,9 +1,10 @@
 use crate::error::*;
 use crate::math::repeg;
+use crate::math::casting::{cast_to_i128, cast_to_u128};
 
 use crate::math_error;
 use crate::state::market::Market;
-
+use crate::math::amm;
 use crate::state::state::OracleGuardRails;
 
 use anchor_lang::prelude::AccountInfo;
@@ -19,8 +20,9 @@ pub fn repeg(
     if new_peg_candidate == market.amm.peg_multiplier {
         return Err(ErrorCode::InvalidRepegRedundant.into());
     }
+    let terminal_price_before = amm::calculate_terminal_price(market)?;
 
-    let adjustment_cost = repeg::adjust_peg_cost(market, new_peg_candidate)?;
+    let (repegged_market, adjustment_cost) = repeg::adjust_peg_cost(market, new_peg_candidate)?;
 
     let (
         oracle_is_valid,
@@ -28,10 +30,10 @@ pub fn repeg(
         profitability_valid,
         price_impact_valid,
         oracle_terminal_divergence,
-    ) = repeg::calculate_repeg_validity(
-        market,
+    ) = repeg::calculate_repeg_validity_full(
+        repegged_market,
         price_oracle,
-        new_peg_candidate,
+        terminal_price_before,
         clock_slot,
         oracle_guard_rails,
     )?;
@@ -50,6 +52,8 @@ pub fn repeg(
     if !price_impact_valid {
         return Err(ErrorCode::InvalidRepegPriceImpact.into());
     }
+
+    // modify market's total fee change and peg change
 
     // Reduce pnl to quote asset precision and take the absolute value
     if adjustment_cost > 0 {
@@ -80,29 +84,35 @@ pub fn repeg(
 
 pub fn formulaic_repeg(
     market: &mut Market,
-    price_oracle: &AccountInfo,
-    new_peg_candidate: u128,
-    clock_slot: u64,
-    oracle_guard_rails: &OracleGuardRails,
+    oracle_price: i128,
+    oracle_conf: u128,
+    oracle_is_valid: bool,
 ) -> ClearingHouseResult<i128> {
-    if new_peg_candidate == market.amm.peg_multiplier {
-        return Err(ErrorCode::InvalidRepegRedundant.into());
-    }
 
-    let adjustment_cost = repeg::adjust_peg_cost(market, new_peg_candidate)?;
+    let terminal_price_before = amm::calculate_terminal_price(market)?;
+    let oracle_terminal_spread_before = oracle_price
+        .checked_sub(cast_to_i128(terminal_price_before)?)
+        .ok_or_else(math_error!())?;
+    let oracle_terminal_divergence_pct_before = oracle_terminal_spread_before
+        .checked_shl(10)
+        .ok_or_else(math_error!())?
+        .checked_div(oracle_price)
+        .ok_or_else(math_error!())?;
+
+    let (new_peg_candidate, adjustment_cost) = repeg::calculate_optimal_peg_and_cost(market, oracle_terminal_divergence_pct_before)?;
 
     let (
         oracle_is_valid,
         direction_valid,
         profitability_valid,
         price_impact_valid,
-        oracle_terminal_divergence,
+        oracle_terminal_divergence_pct_after,
     ) = repeg::calculate_repeg_validity(
         market,
-        price_oracle,
-        new_peg_candidate,
-        clock_slot,
-        oracle_guard_rails,
+        oracle_price,
+        oracle_conf,
+        oracle_is_valid,
+        terminal_price_before,
     )?;
 
     if oracle_is_valid && direction_valid && profitability_valid && price_impact_valid {

@@ -2,6 +2,7 @@ import { BN } from '@project-serum/anchor';
 import {
 	AMM_TIMES_PEG_TO_QUOTE_PRECISION_RATIO,
 	MARK_PRICE_PRECISION,
+	AMM_RESERVE_PRECISION,
 	PEG_PRECISION,
 	ZERO,
 } from '../constants/numericConstants';
@@ -199,6 +200,64 @@ export function calculateRepegCost(
 	marketNewPeg.amm = Object.assign({}, market.amm);
 
 	// const marketNewPeg = JSON.parse(JSON.stringify(market));
+	marketNewPeg.amm.pegMultiplier = newPeg;
+
+	console.log(
+		'Price moves from',
+		convertToNumber(prevMarketPrice),
+		'to',
+		convertToNumber(calculateMarkPrice(marketNewPeg))
+	);
+
+	const cost = calculatePositionPNL(marketNewPeg, netUserPosition);
+
+	return cost;
+}
+
+/**
+ * Helper function calculating adjust pegMultiplier (repeg) cost
+ *
+ * @param market
+ * @param marketIndex
+ * @param newPeg
+ * @returns cost : Precision QUOTE_ASSET_PRECISION
+ */
+ export function calculateReserveRebalanceCost(
+	market: Market,
+	marketIndex: BN,
+): BN {
+	const netUserPosition = {
+		baseAssetAmount: market.baseAssetAmount,
+		lastCumulativeFundingRate: market.amm.cumulativeFundingRate,
+		marketIndex: new BN(marketIndex),
+		quoteAssetAmount: new BN(0),
+	};
+
+	const currentValue = calculateBaseAssetValue(market, netUserPosition);
+	netUserPosition.quoteAssetAmount = currentValue;
+	const prevMarketPrice = calculateMarkPrice(market);
+	const marketNewPeg = Object.assign({}, market);
+	marketNewPeg.amm = Object.assign({}, market.amm);
+
+	// const marketNewPeg = JSON.parse(JSON.stringify(market));
+	const newPeg = calculateTerminalPrice(market).mul(PEG_PRECISION).div(MARK_PRICE_PRECISION);
+	// const newPeg = prevMarketPrice.mul(PEG_PRECISION).div(MARK_PRICE_PRECISION);
+
+	const newBaseReserve = market.amm.baseAssetReserve.add(market.baseAssetAmount);
+	const newQuoteReserve = market.amm.sqrtK.mul(market.amm.sqrtK).div(newBaseReserve);
+	console.log('current reserves on close, quote:', convertToNumber(newQuoteReserve, AMM_RESERVE_PRECISION),
+	'base:', convertToNumber(newBaseReserve, AMM_RESERVE_PRECISION));
+
+	let newSqrtK;
+	if(newPeg.lt(market.amm.pegMultiplier)){
+		newSqrtK = newBaseReserve;
+	} else{
+		newSqrtK = newQuoteReserve;
+	}
+
+	marketNewPeg.amm.baseAssetReserve = newSqrtK.sub(market.baseAssetAmount); // newSqrtK.sub(market.baseAssetAmount);
+	marketNewPeg.amm.quoteAssetReserve = newSqrtK.mul(newSqrtK).div(marketNewPeg.amm.baseAssetReserve);
+	marketNewPeg.amm.sqrtK = newSqrtK;
 	marketNewPeg.amm.pegMultiplier = newPeg;
 
 	console.log(
