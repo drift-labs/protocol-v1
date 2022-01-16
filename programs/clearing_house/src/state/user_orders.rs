@@ -31,6 +31,7 @@ pub struct Order {
     pub order_id: u128,
     pub market_index: u64,
     pub price: u128,
+    pub quote_asset_amount: u128,
     pub base_asset_amount: u128,
     pub base_asset_amount_filled: u128,
     pub quote_asset_amount_filled: u128,
@@ -55,6 +56,7 @@ impl Default for Order {
             market_index: 0,
             price: 0,
             base_asset_amount: 0,
+            quote_asset_amount: 0,
             base_asset_amount_filled: 0,
             quote_asset_amount_filled: 0,
             fee: 0,
@@ -78,6 +80,7 @@ pub enum OrderStatus {
 
 #[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq)]
 pub enum OrderType {
+    Market,
     Limit,
     Stop,
 }

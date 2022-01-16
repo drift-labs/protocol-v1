@@ -20,6 +20,7 @@ export class OracleSource {
 export class OrderType {
 	static readonly LIMIT = { limit: {} };
 	static readonly STOP = { stop: {} };
+	static readonly MARKET = { market: {} };
 }
 
 export class OrderStatus {
@@ -353,6 +354,7 @@ export type Order = {
 export type OrderParams = {
 	orderType: OrderType;
 	direction: PositionDirection;
+	quoteAssetAmount: BN;
 	baseAssetAmount: BN;
 	price: BN;
 	marketIndex: BN;

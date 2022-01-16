@@ -542,82 +542,26 @@ pub mod clearing_house {
             }
         }
 
-        let mut quote_asset_amount = quote_asset_amount;
+        let potentially_risk_increasing;
         let base_asset_amount;
-        // The trade increases the the user position if
-        // 1) the user does not have a position
-        // 2) the trade is in the same direction as the user's existing position
-        let increase_position = market_position.base_asset_amount == 0
-            || market_position.base_asset_amount > 0 && direction == PositionDirection::Long
-            || market_position.base_asset_amount < 0 && direction == PositionDirection::Short;
-        if increase_position {
-            let market = &mut ctx.accounts.markets.load_mut()?.markets
-                [Markets::index_from_u64(market_index)];
-
-            base_asset_amount = controller::position::increase(
-                direction,
-                quote_asset_amount,
-                market,
-                market_position,
-                now,
-            )?
-            .unsigned_abs();
-        } else {
-            let market = &mut ctx.accounts.markets.load_mut()?.markets
-                [Markets::index_from_u64(market_index)];
-
-            let (base_asset_value, _unrealized_pnl) =
-                calculate_base_asset_value_and_pnl(market_position, &market.amm)?;
-
-            // if the quote_asset_amount is close enough in value to base_asset_value,
-            // round the quote_asset_amount to be the same as base_asset_value
-            if amm::should_round_trade(&market.amm, quote_asset_amount, base_asset_value)? {
-                quote_asset_amount = base_asset_value;
-            }
-
-            // we calculate what the user's position is worth if they closed to determine
-            // if they are reducing or closing and reversing their position
-            if base_asset_value > quote_asset_amount {
-                base_asset_amount = controller::position::reduce(
-                    direction,
+        let mut quote_asset_amount = quote_asset_amount;
+        {
+            let markets = &mut ctx.accounts.markets.load_mut()?;
+            let market = markets.get_market_mut(market_index);
+            let (_potentially_risk_increasing, _base_asset_amount, _quote_asset_amount) =
+                controller::position::update_position_with_quote_asset_amount(
                     quote_asset_amount,
-                    user,
-                    market,
-                    market_position,
-                    now,
-                    None,
-                )?
-                .unsigned_abs();
-
-                potentially_risk_increasing = false;
-            } else {
-                // after closing existing position, how large should trade be in opposite direction
-                let quote_asset_amount_after_close = quote_asset_amount
-                    .checked_sub(base_asset_value)
-                    .ok_or_else(math_error!())?;
-
-                // If the value of the new position is less than value of the old position, consider it risk decreasing
-                if quote_asset_amount_after_close < base_asset_value {
-                    potentially_risk_increasing = false;
-                }
-
-                let (_, base_asset_amount_closed) =
-                    controller::position::close(user, market, market_position, now)?;
-                let base_asset_amount_closed = base_asset_amount_closed.unsigned_abs();
-
-                let base_asset_amount_opened = controller::position::increase(
                     direction,
-                    quote_asset_amount_after_close,
                     market,
+                    user,
                     market_position,
+                    mark_price_before,
                     now,
-                )?
-                .unsigned_abs();
+                )?;
 
-                base_asset_amount = base_asset_amount_closed
-                    .checked_add(base_asset_amount_opened)
-                    .ok_or_else(math_error!())?;
-            }
+            potentially_risk_increasing = _potentially_risk_increasing;
+            base_asset_amount = _base_asset_amount;
+            quote_asset_amount = _quote_asset_amount;
         }
 
         // Collect data about position/market after trade is executed so that it can be stored in trade history
@@ -751,31 +695,13 @@ pub mod clearing_house {
 
         // If the user adds a limit price to their trade, check that their entry price is better than the limit price
         if limit_price != 0 {
-            let market =
-                &ctx.accounts.markets.load()?.markets[Markets::index_from_u64(market_index)];
-
-            let quote_asset_reserve_amount = math::quote_asset::asset_to_reserve_amount(
+            if !limit_price_satisfied(
+                limit_price,
                 quote_asset_amount,
-                market.amm.peg_multiplier,
-            )?;
-
-            let entry_price = amm::calculate_price(
-                quote_asset_reserve_amount,
                 base_asset_amount,
-                market.amm.peg_multiplier,
-            )?;
-
-            match direction {
-                PositionDirection::Long => {
-                    if entry_price > limit_price {
-                        return Err(ErrorCode::SlippageOutsideLimit.into());
-                    }
-                }
-                PositionDirection::Short => {
-                    if entry_price < limit_price {
-                        return Err(ErrorCode::SlippageOutsideLimit.into());
-                    }
-                }
+                direction,
+            )? {
+                return Err(ErrorCode::SlippageOutsideLimit.into());
             }
         }
 
@@ -973,6 +899,10 @@ pub mod clearing_house {
             &ctx.accounts.user.key(),
             None,
         )?;
+
+        if params.order_type == OrderType::Market {
+            return Err(ErrorCode::MarketOrderMustBeInPlaceAndFill.into());
+        }
 
         controller::orders::place_order(
             &ctx.accounts.state,

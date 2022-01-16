@@ -2293,6 +2293,10 @@
             }
           },
           {
+            "name": "quoteAssetAmount",
+            "type": "u128"
+          },
+          {
             "name": "baseAssetAmount",
             "type": "u128"
           },
@@ -3217,6 +3221,10 @@
             "type": "u128"
           },
           {
+            "name": "quoteAssetAmount",
+            "type": "u128"
+          },
+          {
             "name": "baseAssetAmount",
             "type": "u128"
           },
@@ -3379,6 +3387,9 @@
       "type": {
         "kind": "enum",
         "variants": [
+          {
+            "name": "Market"
+          },
           {
             "name": "Limit"
           },
@@ -3696,6 +3707,11 @@
       "code": 6053,
       "name": "CouldNotDeserializeReferrer",
       "msg": "Could not deserialize referrer"
+    },
+    {
+      "code": 6054,
+      "name": "MarketOrderMustBeInPlaceAndFill",
+      "msg": "Market order must be in place and fill"
     }
   ]
 }

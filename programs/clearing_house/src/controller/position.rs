@@ -4,9 +4,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use crate::controller;
 use crate::controller::amm::SwapDirection;
 use crate::error::*;
+use crate::math::amm::should_round_trade;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math::pnl::calculate_pnl;
+use crate::math::position::calculate_base_asset_value_and_pnl;
 use crate::math_error;
 use crate::{Market, MarketPosition, User, UserPositions};
 use solana_program::msg;
@@ -205,10 +207,10 @@ pub fn increase_with_base_asset_amount(
     Ok(quote_asset_swapped)
 }
 
-pub fn reduce<'info>(
+pub fn reduce(
     direction: PositionDirection,
     quote_asset_swap_amount: u128,
-    user: &mut Account<'info, User>,
+    user: &mut User,
     market: &mut Market,
     market_position: &mut MarketPosition,
     now: i64,
@@ -436,7 +438,7 @@ pub fn update_position_with_base_asset_amount(
     user: &mut User,
     market_position: &mut MarketPosition,
     now: i64,
-) -> ClearingHouseResult<(bool, u128)> {
+) -> ClearingHouseResult<(bool, u128, u128)> {
     // A trade is risk increasing if it increases the users leverage
     // If a trade is risk increasing and brings the user's margin ratio below initial requirement
     // the trade fails
@@ -498,5 +500,104 @@ pub fn update_position_with_base_asset_amount(
         }
     }
 
-    Ok((potentially_risk_increasing, quote_asset_amount))
+    Ok((
+        potentially_risk_increasing,
+        base_asset_amount,
+        quote_asset_amount,
+    ))
+}
+
+pub fn update_position_with_quote_asset_amount(
+    quote_asset_amount: u128,
+    direction: PositionDirection,
+    market: &mut Market,
+    user: &mut User,
+    market_position: &mut MarketPosition,
+    mark_price_before: u128,
+    now: i64,
+) -> ClearingHouseResult<(bool, u128, u128)> {
+    // A trade is risk increasing if it increases the users leverage
+    // If a trade is risk increasing and brings the user's margin ratio below initial requirement
+    // the trade fails
+    // If a trade is risk increasing and it pushes the mark price too far away from the oracle price
+    // the trade fails
+    let mut potentially_risk_increasing = true;
+
+    let mut quote_asset_amount = quote_asset_amount;
+    let base_asset_amount;
+    // The trade increases the the user position if
+    // 1) the user does not have a position
+    // 2) the trade is in the same direction as the user's existing position
+    let increase_position = market_position.base_asset_amount == 0
+        || market_position.base_asset_amount > 0 && direction == PositionDirection::Long
+        || market_position.base_asset_amount < 0 && direction == PositionDirection::Short;
+    if increase_position {
+        base_asset_amount = controller::position::increase(
+            direction,
+            quote_asset_amount,
+            market,
+            market_position,
+            now,
+        )?
+        .unsigned_abs();
+    } else {
+        let (base_asset_value, _unrealized_pnl) =
+            calculate_base_asset_value_and_pnl(market_position, &market.amm)?;
+
+        // if the quote_asset_amount is close enough in value to base_asset_value,
+        // round the quote_asset_amount to be the same as base_asset_value
+        if should_round_trade(&market.amm, quote_asset_amount, base_asset_value)? {
+            quote_asset_amount = base_asset_value;
+        }
+
+        // we calculate what the user's position is worth if they closed to determine
+        // if they are reducing or closing and reversing their position
+        if base_asset_value > quote_asset_amount {
+            base_asset_amount = controller::position::reduce(
+                direction,
+                quote_asset_amount,
+                user,
+                market,
+                market_position,
+                now,
+                Some(mark_price_before),
+            )?
+            .unsigned_abs();
+
+            potentially_risk_increasing = false;
+        } else {
+            // after closing existing position, how large should trade be in opposite direction
+            let quote_asset_amount_after_close = quote_asset_amount
+                .checked_sub(base_asset_value)
+                .ok_or_else(math_error!())?;
+
+            // If the value of the new position is less than value of the old position, consider it risk decreasing
+            if quote_asset_amount_after_close < base_asset_value {
+                potentially_risk_increasing = false;
+            }
+
+            let (_, base_asset_amount_closed) =
+                controller::position::close(user, market, market_position, now)?;
+            let base_asset_amount_closed = base_asset_amount_closed.unsigned_abs();
+
+            let base_asset_amount_opened = controller::position::increase(
+                direction,
+                quote_asset_amount_after_close,
+                market,
+                market_position,
+                now,
+            )?
+            .unsigned_abs();
+
+            base_asset_amount = base_asset_amount_closed
+                .checked_add(base_asset_amount_opened)
+                .ok_or_else(math_error!())?;
+        }
+    }
+
+    Ok((
+        potentially_risk_increasing,
+        base_asset_amount,
+        quote_asset_amount,
+    ))
 }

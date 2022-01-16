@@ -112,6 +112,8 @@ pub enum ErrorCode {
     DidNotReceiveExpectedReferrer,
     #[msg("Could not deserialize referrer")]
     CouldNotDeserializeReferrer,
+    #[msg("Market order must be in place and fill")]
+    MarketOrderMustBeInPlaceAndFill,
 }
 
 #[macro_export]

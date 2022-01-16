@@ -6,12 +6,15 @@ use crate::state::user_orders::{Order, OrderTriggerCondition, OrderType};
 use solana_program::msg;
 use std::cell::{Ref, RefMut};
 use std::cmp::min;
+use std::ops::Div;
 
 use crate::controller::position::PositionDirection;
 use crate::controller::position::{add_new_position, get_position_index};
 use crate::error::*;
 use crate::math::collateral::calculate_updated_collateral;
-use crate::math::constants::MARGIN_PRECISION;
+use crate::math::constants::{
+    AMM_TO_QUOTE_PRECISION_RATIO, MARGIN_PRECISION, MARK_PRICE_PRECISION,
+};
 use crate::math::margin::calculate_free_collateral;
 use crate::state::market::Markets;
 use crate::state::user::{MarketPosition, User, UserPositions};
@@ -26,6 +29,7 @@ pub fn calculate_base_asset_amount_to_trade(
         OrderType::Stop => {
             calculate_base_asset_amount_to_trade_for_stop(order, market, precomputed_mark_price)
         }
+        OrderType::Market => Err(ErrorCode::InvalidOrder.into()),
     }
 }
 
@@ -83,7 +87,7 @@ pub fn calculate_available_quote_asset_for_order(
     markets: &Markets,
     margin_ratio_initial: u128,
 ) -> ClearingHouseResult<u128> {
-    let market_position = user_positions.positions[position_index];
+    let market_position = &user_positions.positions[position_index];
 
     let max_leverage = MARGIN_PRECISION
         .checked_div(margin_ratio_initial)
@@ -112,4 +116,31 @@ pub fn calculate_available_quote_asset_for_order(
     }
 
     Ok(available_quote_asset_for_order)
+}
+
+pub fn limit_price_satisfied(
+    limit_price: u128,
+    quote_asset_amount: u128,
+    base_asset_amount: u128,
+    direction: PositionDirection,
+) -> ClearingHouseResult<bool> {
+    let price = quote_asset_amount
+        .checked_mul(MARK_PRICE_PRECISION * AMM_TO_QUOTE_PRECISION_RATIO)
+        .ok_or_else(math_error!())?
+        .div(base_asset_amount);
+
+    match direction {
+        PositionDirection::Long => {
+            if price > limit_price {
+                return Ok(false);
+            }
+        }
+        PositionDirection::Short => {
+            if price < limit_price {
+                return Ok(false);
+            }
+        }
+    }
+
+    return Ok(true);
 }

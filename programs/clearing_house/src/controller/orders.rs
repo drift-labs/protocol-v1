@@ -89,6 +89,7 @@ pub fn place_order(
         market_index: params.market_index,
         price: params.price,
         base_asset_amount: params.base_asset_amount,
+        quote_asset_amount: params.quote_asset_amount,
         base_asset_amount_filled: 0,
         quote_asset_amount_filled: 0,
         fee: 0,
@@ -303,19 +304,18 @@ pub fn fill_order(
         }
     }
 
-    let (base_asset_amount, quote_asset_amount, potentially_risk_increasing) =
-        execute_order_to_market(
-            state,
-            user,
-            user_positions,
-            order,
-            &mut markets
-                .load_mut()
-                .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?,
-            market_index,
-            mark_price_before,
-            now,
-        )?;
+    let (base_asset_amount, quote_asset_amount, potentially_risk_increasing) = execute_order(
+        state,
+        user,
+        user_positions,
+        order,
+        &mut markets
+            .load_mut()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?,
+        market_index,
+        mark_price_before,
+        now,
+    )?;
 
     if base_asset_amount == 0 {
         return Ok(0);
@@ -527,7 +527,97 @@ pub fn fill_order(
     Ok(base_asset_amount)
 }
 
-pub fn execute_order_to_market(
+pub fn execute_order(
+    state: &State,
+    user: &mut User,
+    user_positions: &mut RefMut<UserPositions>,
+    order: &mut Order,
+    markets: &mut RefMut<Markets>,
+    market_index: u64,
+    mark_price_before: u128,
+    now: i64,
+) -> ClearingHouseResult<(u128, u128, bool)> {
+    match order.order_type {
+        OrderType::Market => execute_market_order(
+            user,
+            user_positions,
+            order,
+            markets,
+            market_index,
+            mark_price_before,
+            now,
+        ),
+        _ => execute_non_market_order(
+            state,
+            user,
+            user_positions,
+            order,
+            markets,
+            market_index,
+            mark_price_before,
+            now,
+        ),
+    }
+}
+
+pub fn execute_market_order(
+    user: &mut User,
+    user_positions: &mut RefMut<UserPositions>,
+    order: &mut Order,
+    markets: &mut RefMut<Markets>,
+    market_index: u64,
+    mark_price_before: u128,
+    now: i64,
+) -> ClearingHouseResult<(u128, u128, bool)> {
+    let position_index = get_position_index(user_positions, market_index)?;
+    let market_position = &mut user_positions.positions[position_index];
+    let market = markets.get_market_mut(market_index);
+
+    let (potentially_risk_increasing, base_asset_amount, quote_asset_amount) =
+        if order.base_asset_amount > 0 {
+            controller::position::update_position_with_base_asset_amount(
+                order.base_asset_amount,
+                order.direction,
+                market,
+                user,
+                market_position,
+                now,
+            )?
+        } else {
+            controller::position::update_position_with_quote_asset_amount(
+                order.quote_asset_amount,
+                order.direction,
+                market,
+                user,
+                market_position,
+                mark_price_before,
+                now,
+            )?
+        };
+
+    if potentially_risk_increasing && order.reduce_only {
+        return Err(ErrorCode::ReduceOnlyOrderIncreasedRisk.into());
+    }
+
+    if order.price > 0 {
+        if !limit_price_satisfied(
+            order.price,
+            quote_asset_amount,
+            base_asset_amount,
+            order.direction,
+        )? {
+            return Err(ErrorCode::SlippageOutsideLimit.into());
+        }
+    }
+
+    Ok((
+        base_asset_amount,
+        quote_asset_amount,
+        potentially_risk_increasing,
+    ))
+}
+
+pub fn execute_non_market_order(
     state: &State,
     user: &mut User,
     user_positions: &mut RefMut<UserPositions>,
@@ -610,7 +700,7 @@ pub fn execute_order_to_market(
         return Ok((0, 0, false));
     }
 
-    let (potentially_risk_increasing, quote_asset_amount) =
+    let (potentially_risk_increasing, _, quote_asset_amount) =
         controller::position::update_position_with_base_asset_amount(
             base_asset_amount,
             order.direction,
@@ -648,14 +738,18 @@ pub fn update_order_after_trade(
         .checked_add(quote_asset_amount)
         .ok_or_else(math_error!())?;
 
-    // redudancy test to make sure no min trade size remaining
-    let base_asset_amount_to_fill = order
-        .base_asset_amount
-        .checked_sub(order.base_asset_amount_filled)
-        .ok_or_else(math_error!())?;
+    if order.order_type != OrderType::Market {
+        // redundant test to make sure no min trade size remaining
+        let base_asset_amount_to_fill = order
+            .base_asset_amount
+            .checked_sub(order.base_asset_amount_filled)
+            .ok_or_else(math_error!())?;
 
-    if base_asset_amount_to_fill > 0 && base_asset_amount_to_fill < minimum_base_asset_trade_size {
-        return Err(ErrorCode::OrderAmountTooSmall.into());
+        if base_asset_amount_to_fill > 0
+            && base_asset_amount_to_fill < minimum_base_asset_trade_size
+        {
+            return Err(ErrorCode::OrderAmountTooSmall.into());
+        }
     }
 
     order.fee = order.fee.checked_add(fee).ok_or_else(math_error!())?;
