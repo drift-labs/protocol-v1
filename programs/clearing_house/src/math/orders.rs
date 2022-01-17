@@ -29,6 +29,11 @@ pub fn calculate_base_asset_amount_to_trade(
         OrderType::Stop => {
             calculate_base_asset_amount_to_trade_for_stop(order, market, precomputed_mark_price)
         }
+        OrderType::StopLimit => calculate_base_asset_amount_to_trade_for_stop_limit(
+            order,
+            market,
+            precomputed_mark_price,
+        ),
         OrderType::Market => Err(ErrorCode::InvalidOrder.into()),
     }
 }
@@ -77,6 +82,23 @@ fn calculate_base_asset_amount_to_trade_for_stop(
     }
 
     Ok(order.base_asset_amount)
+}
+
+fn calculate_base_asset_amount_to_trade_for_stop_limit(
+    order: &Order,
+    market: &Market,
+    precomputed_mark_price: Option<u128>,
+) -> ClearingHouseResult<u128> {
+    // if the order has not been failed yet, need to check that stop condition is met
+    if order.base_asset_amount_filled == 0 {
+        let base_asset_amount =
+            calculate_base_asset_amount_to_trade_for_stop(order, market, precomputed_mark_price)?;
+        if base_asset_amount == 0 {
+            return Ok(0);
+        }
+    }
+
+    calculate_base_asset_amount_to_trade_for_limit(order, market)
 }
 
 pub fn calculate_available_quote_asset_for_order(

@@ -181,6 +181,8 @@ function calculateAmountSwapped(
 function calculateAmountToTrade(market: Market, order: Order): BN {
 	if (isVariant(order.orderType, 'limit')) {
 		return calculateAmountToTradeForLimit(market, order);
+	} else if (isVariant(order.orderType, 'stopLimit')) {
+		return calculateAmountToTradeForStopLimit(market, order);
 	} else {
 		return calculateAmountToTradeForStop(market, order);
 	}
@@ -204,6 +206,20 @@ export function calculateAmountToTradeForLimit(
 	return maxAmountToTrade.gt(order.baseAssetAmount)
 		? order.baseAssetAmount
 		: maxAmountToTrade;
+}
+
+export function calculateAmountToTradeForStopLimit(
+	market: Market,
+	order: Order
+): BN {
+	if (order.baseAssetAmountFilled.eq(ZERO)) {
+		const baseAssetAmount = calculateAmountToTradeForStop(market, order);
+		if (baseAssetAmount.eq(ZERO)) {
+			return ZERO;
+		}
+	}
+
+	return calculateAmountToTradeForLimit(market, order);
 }
 
 function isSameDirection(

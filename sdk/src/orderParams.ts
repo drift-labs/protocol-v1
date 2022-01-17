@@ -64,6 +64,36 @@ export function getStopOrderParams(
 	};
 }
 
+export function getStopLimitOrderParams(
+	marketIndex: BN,
+	direction: PositionDirection,
+	baseAssetAmount: BN,
+	price: BN,
+	triggerPrice: BN,
+	triggerCondition: OrderTriggerCondition,
+	reduceOnly: boolean,
+	discountToken = false,
+	referrer = false
+): OrderParams {
+	return {
+		orderType: OrderType.STOP_LIMIT,
+		marketIndex,
+		direction,
+		quoteAssetAmount: ZERO,
+		baseAssetAmount,
+		price,
+		reduceOnly,
+		postOnly: false,
+		immediateOrCancel: false,
+		optionalAccounts: {
+			discountToken,
+			referrer,
+		},
+		triggerCondition,
+		triggerPrice,
+	};
+}
+
 export function getMarketOrderParams(
 	marketIndex: BN,
 	direction: PositionDirection,

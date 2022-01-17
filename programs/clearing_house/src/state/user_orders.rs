@@ -83,6 +83,7 @@ pub enum OrderType {
     Market,
     Limit,
     Stop,
+    StopLimit,
 }
 
 #[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq)]

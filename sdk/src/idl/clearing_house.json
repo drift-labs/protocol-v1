@@ -3395,6 +3395,9 @@
           },
           {
             "name": "Stop"
+          },
+          {
+            "name": "StopLimit"
           }
         ]
       }

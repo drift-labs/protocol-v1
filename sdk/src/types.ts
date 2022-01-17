@@ -20,6 +20,7 @@ export class OracleSource {
 export class OrderType {
 	static readonly LIMIT = { limit: {} };
 	static readonly STOP = { stop: {} };
+	static readonly STOP_LIMIT = { stopLimit: {} };
 	static readonly MARKET = { market: {} };
 }
 
