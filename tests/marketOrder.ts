@@ -4,7 +4,7 @@ import BN from 'bn.js';
 
 import { Program } from '@project-serum/anchor';
 
-import { Keypair, PublicKey } from '@solana/web3.js';
+import { Keypair } from '@solana/web3.js';
 
 import {
 	Admin,
@@ -38,9 +38,6 @@ describe('market order', () => {
 
 	let clearingHouse: Admin;
 	let clearingHouseUser: ClearingHouseUser;
-
-	let userAccountPublicKey: PublicKey;
-	let userOrdersAccountPublicKey: PublicKey;
 
 	let usdcMint;
 	let userUSDCAccount;
@@ -102,13 +99,12 @@ describe('market order', () => {
 			new BN(60000000) // btc-ish price level
 		);
 
-		[, userAccountPublicKey] =
-			await clearingHouse.initializeUserAccountAndDepositCollateral(
-				usdcAmount,
-				userUSDCAccount.publicKey
-			);
+		await clearingHouse.initializeUserAccountAndDepositCollateral(
+			usdcAmount,
+			userUSDCAccount.publicKey
+		);
 
-		userOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(
+		await getUserOrdersAccountPublicKey(
 			clearingHouse.program.programId,
 			provider.wallet.publicKey
 		);
@@ -256,13 +252,10 @@ describe('market order', () => {
 			price
 		);
 		await clearingHouse.placeAndFillOrder(orderParams);
-		const orderIndex = new BN(0);
 
 		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
 		await fillerUser.fetchAccounts();
-
-		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
 
 		const userPositionsAccount = clearingHouseUser.getUserPositionsAccount();
 		const firstPosition = userPositionsAccount.positions[0];
