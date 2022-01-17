@@ -8,18 +8,23 @@ use std::cell::{Ref, RefMut};
 use std::cmp::min;
 use std::ops::Div;
 
+use crate::controller::amm::SwapDirection;
 use crate::controller::position::PositionDirection;
 use crate::controller::position::{add_new_position, get_position_index};
 use crate::error::*;
+use crate::math::amm::calculate_swap_output;
+use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math::constants::{
     AMM_TO_QUOTE_PRECISION_RATIO, MARGIN_PRECISION, MARK_PRICE_PRECISION,
 };
 use crate::math::margin::calculate_free_collateral;
+use crate::math::quote_asset::asset_to_reserve_amount;
 use crate::state::market::Markets;
+use crate::state::state::State;
 use crate::state::user::{MarketPosition, User, UserPositions};
 
-pub fn calculate_base_asset_amount_to_trade(
+pub fn calculate_base_asset_amount_market_can_execute(
     order: &Order,
     market: &Market,
     precomputed_mark_price: Option<u128>,
@@ -101,7 +106,59 @@ fn calculate_base_asset_amount_to_trade_for_stop_limit(
     calculate_base_asset_amount_to_trade_for_limit(order, market)
 }
 
-pub fn calculate_available_quote_asset_for_order(
+pub fn calculate_base_asset_amount_user_can_execute(
+    state: &State,
+    user: &mut User,
+    user_positions: &mut RefMut<UserPositions>,
+    order: &mut Order,
+    markets: &mut RefMut<Markets>,
+    market_index: u64,
+) -> ClearingHouseResult<u128> {
+    let position_index = get_position_index(user_positions, market_index)?;
+
+    let quote_asset_amount = calculate_available_quote_asset_user_can_execute(
+        user,
+        order,
+        position_index,
+        user_positions,
+        markets,
+        state.margin_ratio_initial,
+    )?;
+
+    let market = markets.get_market_mut(market_index);
+
+    let order_swap_direction = match order.direction {
+        PositionDirection::Long => SwapDirection::Add,
+        PositionDirection::Short => SwapDirection::Remove,
+    };
+
+    // Extra check in case user have more collateral than market has reserves
+    let quote_asset_reserve_amount = min(
+        market
+            .amm
+            .quote_asset_reserve
+            .checked_sub(1)
+            .ok_or_else(math_error!())?,
+        asset_to_reserve_amount(quote_asset_amount, market.amm.peg_multiplier)?,
+    );
+
+    let initial_base_asset_amount = market.amm.base_asset_reserve;
+    let (new_base_asset_amount, _new_quote_asset_amount) = calculate_swap_output(
+        quote_asset_reserve_amount,
+        market.amm.quote_asset_reserve,
+        order_swap_direction,
+        market.amm.sqrt_k,
+    )?;
+
+    let base_asset_amount = cast_to_i128(initial_base_asset_amount)?
+        .checked_sub(cast(new_base_asset_amount)?)
+        .ok_or_else(math_error!())?
+        .unsigned_abs();
+
+    Ok(base_asset_amount)
+}
+
+pub fn calculate_available_quote_asset_user_can_execute(
     user: &User,
     order: &Order,
     position_index: usize,

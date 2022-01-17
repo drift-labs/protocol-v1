@@ -57,7 +57,6 @@ pub fn calculate_margin_ratio(
     ))
 }
 
-// todo: &RefMut vs &mut
 pub fn calculate_free_collateral(
     user: &User,
     user_positions: &mut UserPositions,
@@ -86,17 +85,10 @@ pub fn calculate_free_collateral(
     }
 
     let total_collateral: u128;
-    // let margin_ratio: u128;
     if base_asset_value == 0 {
         total_collateral = user.collateral;
-        // margin_ratio = u128::MAX;
     } else {
         total_collateral = calculate_updated_collateral(user.collateral, unrealized_pnl)?;
-        // margin_ratio = total_collateral
-        //     .checked_mul(MARGIN_PRECISION)
-        //     .ok_or_else(math_error!())?
-        //     .checked_div(base_asset_value)
-        //     .ok_or_else(math_error!())?;
     }
     let initial_margin_req_collateral = base_asset_value
         .checked_div(max_leverage)

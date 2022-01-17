@@ -627,61 +627,33 @@ pub fn execute_non_market_order(
     mark_price_before: u128,
     now: i64,
 ) -> ClearingHouseResult<(u128, u128, bool)> {
-    let position_index = get_position_index(user_positions, market_index)?;
-
-    let available_quote_asset_for_order = calculate_available_quote_asset_for_order(
+    // Determine the base asset amount the user can fill
+    let base_asset_amount_user_can_execute = calculate_base_asset_amount_user_can_execute(
+        state,
         user,
-        order,
-        position_index,
         user_positions,
+        order,
         markets,
-        state.margin_ratio_initial,
+        market_index,
     )?;
 
-    let market_position = &mut user_positions.positions[position_index];
+    // Determine the base asset amount the market can fill
     let market = markets.get_market_mut(market_index);
-    let minimum_base_asset_trade_size = market.amm.minimum_base_asset_trade_size;
+    let base_asset_amount_market_can_execute =
+        calculate_base_asset_amount_market_can_execute(order, market, Some(mark_price_before))?;
 
-    let base_asset_amount: u128;
-
-    let order_swap_direction = match order.direction {
-        PositionDirection::Long => SwapDirection::Add,
-        PositionDirection::Short => SwapDirection::Remove,
-    };
-
-    let quote_asset_reserve_amount = min(
-        market
-            .amm
-            .quote_asset_reserve
-            .checked_sub(1)
-            .ok_or_else(math_error!())?,
-        asset_to_reserve_amount(available_quote_asset_for_order, market.amm.peg_multiplier)?,
+    let mut base_asset_amount = min(
+        base_asset_amount_market_can_execute,
+        base_asset_amount_user_can_execute,
     );
 
-    let initial_base_asset_amount = market.amm.base_asset_reserve;
-    let (new_base_asset_amount, _new_quote_asset_amount) = amm::calculate_swap_output(
-        quote_asset_reserve_amount,
-        market.amm.quote_asset_reserve,
-        order_swap_direction,
-        market.amm.sqrt_k,
-    )?;
-
-    let max_user_base_asset_amount = cast_to_i128(initial_base_asset_amount)?
-        .checked_sub(cast(new_base_asset_amount)?)
-        .ok_or_else(math_error!())?
-        .unsigned_abs();
-
-    let trade_base_asset_amount =
-        calculate_base_asset_amount_to_trade(order, market, Some(mark_price_before))?;
-
-    let proposed_base_asset_amount = min(max_user_base_asset_amount, trade_base_asset_amount);
-
+    let minimum_base_asset_trade_size = market.amm.minimum_base_asset_trade_size;
     let base_asset_amount_left_to_fill = order
         .base_asset_amount
         .checked_sub(
             order
                 .base_asset_amount_filled
-                .checked_add(proposed_base_asset_amount)
+                .checked_add(base_asset_amount)
                 .ok_or_else(math_error!())?,
         )
         .ok_or_else(math_error!())?;
@@ -689,16 +661,17 @@ pub fn execute_non_market_order(
     if base_asset_amount_left_to_fill > 0
         && base_asset_amount_left_to_fill < minimum_base_asset_trade_size
     {
-        base_asset_amount = proposed_base_asset_amount
+        base_asset_amount = base_asset_amount
             .checked_add(base_asset_amount_left_to_fill)
             .ok_or_else(math_error!())?;
-    } else {
-        base_asset_amount = proposed_base_asset_amount;
     }
 
     if base_asset_amount == 0 {
         return Ok((0, 0, false));
     }
+
+    let position_index = get_position_index(user_positions, market_index)?;
+    let market_position = &mut user_positions.positions[position_index];
 
     let (potentially_risk_increasing, _, quote_asset_amount) =
         controller::position::update_position_with_base_asset_amount(
