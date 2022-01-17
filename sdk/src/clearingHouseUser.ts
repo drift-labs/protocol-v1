@@ -4,7 +4,6 @@ import { EventEmitter } from 'events';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import { ClearingHouse } from './clearingHouse';
 import {
-	isVariant,
 	Order,
 	UserAccount,
 	UserOrdersAccount,
@@ -838,10 +837,6 @@ export class ClearingHouseUser {
 		const market = this.clearingHouse.getMarket(order.marketIndex);
 
 		if (isEmptyPosition(userPosition)) {
-			return false;
-		}
-
-		if (isVariant(order.orderType, 'market')) {
 			return false;
 		}
 

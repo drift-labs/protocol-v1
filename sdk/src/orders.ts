@@ -183,6 +183,9 @@ function calculateAmountToTrade(market: Market, order: Order): BN {
 		return calculateAmountToTradeForLimit(market, order);
 	} else if (isVariant(order.orderType, 'stopLimit')) {
 		return calculateAmountToTradeForStopLimit(market, order);
+	} else if (isVariant(order.orderType, 'market')) {
+		// should never be a market order queued
+		return ZERO;
 	} else {
 		return calculateAmountToTradeForStop(market, order);
 	}
