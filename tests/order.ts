@@ -38,6 +38,7 @@ import {
 import {
 	AMM_RESERVE_PRECISION,
 	calculateMarkPrice,
+	findComputeUnitConsumption,
 	TEN_THOUSAND,
 	ZERO,
 } from '../sdk';
@@ -106,7 +107,10 @@ describe('orders', () => {
 		clearingHouse = Admin.from(
 			connection,
 			provider.wallet,
-			chProgram.programId
+			chProgram.programId,
+			{
+				commitment: 'confirmed',
+			}
 		);
 		await clearingHouse.initialize(usdcMint.publicKey, true);
 		await clearingHouse.subscribeToAll();
@@ -1422,10 +1426,16 @@ describe('orders', () => {
 			false,
 			true
 		);
-		await clearingHouse.placeAndFillOrder(
+		const txSig = await clearingHouse.placeAndFillOrder(
 			orderParams,
 			discountTokenAccount.address
 		);
+		const computeUnits = await findComputeUnitConsumption(
+			clearingHouse.program.programId,
+			connection,
+			txSig
+		);
+		console.log('placeAndFill compute units', computeUnits[0]);
 
 		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
