@@ -1,4 +1,3 @@
-import { ClearingHouseUser } from './clearingHouseUser';
 import {
 	isVariant,
 	Market,
@@ -22,26 +21,6 @@ import {
 	findDirectionToClose,
 	positionCurrentDirection,
 } from './math/position';
-
-/**
- * Determines if the amm can support trade being filled.
- * Does not consider user margin ratio yet
- *
- * @param user
- * @param order
- */
-export function canFillUserOrder(
-	user: ClearingHouseUser,
-	order: Order
-): boolean {
-	if (isVariant(order.status, 'init')) {
-		return false;
-	}
-
-	const market = user.clearingHouse.getMarket(order.marketIndex);
-	const baseAssetAmountToTrade = calculateAmountToTrade(market, order);
-	return baseAssetAmountToTrade.gt(ZERO);
-}
 
 export function calculateNewStateAfterOrder(
 	userAccount: UserAccount,
