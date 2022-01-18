@@ -139,45 +139,58 @@ pub fn calculate_repeg_validity(
 
 pub fn calculate_optimal_peg_and_cost(
     market: &mut Market,
+    precomputed_mark_price: u128,
     oracle_terminal_price_divergence: i128,
-) -> ClearingHouseResult<(u128, i128)> {
+) -> ClearingHouseResult<(u128, i128, &mut Market)> {
     // does minimum valid repeg allowable iff satisfies the budget
 
-    // budget is half of fee pool
+    // max budget for single repeg is half of fee pool for repegs
     let budget = calculate_fee_pool(market)?
         .checked_div(2)
         .ok_or_else(math_error!())?;
 
+    let current_peg = market.amm.peg_multiplier;
     let mut optimal_peg: u128;
+    let mut repeg_event = false;
+
     if oracle_terminal_price_divergence > 0 {
+        // oracle is above terminal price
+        repeg_event = true;
         optimal_peg = market
             .amm
             .peg_multiplier
             .checked_add(1)
             .ok_or_else(math_error!())?;
     } else if oracle_terminal_price_divergence < 0 {
+        // oracle is below terminal price
+        repeg_event = true;
         optimal_peg = market
             .amm
             .peg_multiplier
             .checked_sub(1)
             .ok_or_else(math_error!())?;
     } else {
-        optimal_peg = market.amm.peg_multiplier;
+        // oracle == terminal price
+        optimal_peg = current_peg;
     }
 
-    let (_, optimal_adjustment_cost) = adjust_peg_cost(market, optimal_peg)?;
+    if repeg_event {
+        let (repegged_market, optimal_adjustment_cost) = adjust_peg_cost(market, optimal_peg)?;
 
-    let candidate_peg: u128;
-    let candidate_cost: i128;
-    if optimal_adjustment_cost > 0 && optimal_adjustment_cost.unsigned_abs() > budget {
-        candidate_peg = market.amm.peg_multiplier;
-        candidate_cost = 0;
+        let candidate_peg: u128;
+        let candidate_cost: i128;
+        if optimal_adjustment_cost > 0 && optimal_adjustment_cost.unsigned_abs() > budget {
+            candidate_peg = current_peg;
+            candidate_cost = 0;
+        } else {
+            candidate_peg = optimal_peg;
+            candidate_cost = optimal_adjustment_cost;
+        }
+
+        Ok((candidate_peg, candidate_cost, repegged_market))
     } else {
-        candidate_peg = optimal_peg;
-        candidate_cost = optimal_adjustment_cost;
+        Ok((market.amm.peg_multiplier, 0, market))
     }
-
-    Ok((candidate_peg, candidate_cost))
 }
 
 pub fn adjust_peg_cost(

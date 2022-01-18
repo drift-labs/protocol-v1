@@ -84,6 +84,7 @@ pub fn repeg(
 
 pub fn formulaic_repeg(
     market: &mut Market,
+    precomputed_mark_price: u128,
     oracle_price: i128,
     oracle_conf: u128,
     oracle_is_valid: bool,
@@ -98,8 +99,8 @@ pub fn formulaic_repeg(
         .checked_div(oracle_price)
         .ok_or_else(math_error!())?;
 
-    let (new_peg_candidate, adjustment_cost) =
-        repeg::calculate_optimal_peg_and_cost(market, oracle_terminal_divergence_pct_before)?;
+    let (new_peg_candidate, adjustment_cost, repegged_market) =
+        repeg::calculate_optimal_peg_and_cost(market, precomputed_mark_price, oracle_terminal_divergence_pct_before)?;
 
     let (
         oracle_is_valid,
@@ -108,7 +109,7 @@ pub fn formulaic_repeg(
         price_impact_valid,
         oracle_terminal_divergence_pct_after,
     ) = repeg::calculate_repeg_validity(
-        market,
+        repegged_market,
         oracle_price,
         oracle_conf,
         oracle_is_valid,
