@@ -109,8 +109,19 @@ pub fn place_order(
     };
 
     let market_index = params.market_index;
+
+    // max quote asset allowable before a user would be partially liquidated 
+    let allowable_quote_asset = calculate_available_quote_asset_user_can_execute(
+        user,
+        new_order.direction,
+        get_position_index(user_positions, market_index)?,
+        user_positions,
+        markets,
+        state.margin_ratio_partial,
+    )?;
+
     let market = markets.get_market(market_index);
-    validate_order(&new_order, market, order_state)?;
+    validate_order(&new_order, market, order_state, allowable_quote_asset)?;
 
     user_orders.orders[new_order_idx] = new_order;
 

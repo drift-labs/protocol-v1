@@ -13,12 +13,13 @@ pub fn validate_order(
     order: &Order,
     market: &Market,
     order_state: &OrderState,
+    allowable_value: u128,
 ) -> ClearingHouseResult {
     match order.order_type {
         OrderType::Market => validate_market_order(order, market)?,
-        OrderType::Limit => validate_limit_order(order, market, order_state)?,
-        OrderType::Stop => validate_stop_order(order, market, order_state)?,
-        OrderType::StopLimit => validate_stop_limit_order(order, market, order_state)?,
+        OrderType::Limit => validate_limit_order(order, market, order_state, allowable_value)?,
+        OrderType::Stop => validate_stop_order(order, market, order_state, allowable_value)?,
+        OrderType::StopLimit => validate_stop_limit_order(order, market, order_state, allowable_value)?,
     }
 
     Ok(())
@@ -48,6 +49,7 @@ fn validate_limit_order(
     order: &Order,
     market: &Market,
     order_state: &OrderState,
+    allowable_value: u128,
 ) -> ClearingHouseResult {
     validate_base_asset_amount(order, market)?;
 
@@ -76,6 +78,11 @@ fn validate_limit_order(
         return Err(ErrorCode::InvalidOrder.into());
     }
 
+    if approx_market_value > allowable_value {
+        msg!("Order value ({:?}) > allowable_value ({:?})", approx_market_value, allowable_value);
+        return Err(ErrorCode::InvalidOrder.into()); 
+    }
+
     Ok(())
 }
 
@@ -83,6 +90,7 @@ fn validate_stop_limit_order(
     order: &Order,
     market: &Market,
     order_state: &OrderState,
+    allowable_value: u128,
 ) -> ClearingHouseResult {
     validate_base_asset_amount(order, market)?;
 
@@ -132,6 +140,11 @@ fn validate_stop_limit_order(
         return Err(ErrorCode::InvalidOrder.into());
     }
 
+    if approx_market_value > allowable_value {
+        msg!("Order value ({:?}) > allowable_value ({:?})", approx_market_value, allowable_value);
+        return Err(ErrorCode::InvalidOrder.into()); 
+    }
+
     Ok(())
 }
 
@@ -139,6 +152,7 @@ fn validate_stop_order(
     order: &Order,
     market: &Market,
     order_state: &OrderState,
+    allowable_value: u128,
 ) -> ClearingHouseResult {
     validate_base_asset_amount(order, market)?;
 
@@ -163,6 +177,11 @@ fn validate_stop_order(
     if approx_market_value < order_state.min_order_quote_asset_amount {
         msg!("Order value < $0.50 ({:?})", approx_market_value);
         return Err(ErrorCode::InvalidOrder.into());
+    }
+
+    if approx_market_value > allowable_value {
+        msg!("Order value ({:?}) > allowable_value ({:?})", approx_market_value, allowable_value);
+        return Err(ErrorCode::InvalidOrder.into()); 
     }
 
     Ok(())

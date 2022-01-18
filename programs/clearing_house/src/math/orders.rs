@@ -118,7 +118,7 @@ pub fn calculate_base_asset_amount_user_can_execute(
 
     let quote_asset_amount = calculate_available_quote_asset_user_can_execute(
         user,
-        order,
+        order.direction,
         position_index,
         user_positions,
         markets,
@@ -160,7 +160,7 @@ pub fn calculate_base_asset_amount_user_can_execute(
 
 pub fn calculate_available_quote_asset_user_can_execute(
     user: &User,
-    order: &Order,
+    order_direction: PositionDirection,
     position_index: usize,
     user_positions: &mut UserPositions,
     markets: &Markets,
@@ -173,8 +173,8 @@ pub fn calculate_available_quote_asset_user_can_execute(
         .ok_or_else(math_error!())?;
 
     let risk_increasing = market_position.base_asset_amount == 0
-        || market_position.base_asset_amount > 0 && order.direction == PositionDirection::Long
-        || market_position.base_asset_amount < 0 && order.direction == PositionDirection::Short;
+        || market_position.base_asset_amount > 0 && order_direction == PositionDirection::Long
+        || market_position.base_asset_amount < 0 && order_direction == PositionDirection::Short;
 
     let (total_collateral, base_asset_value, free_collateral) =
         calculate_free_collateral(user, user_positions, markets, max_leverage)?;
