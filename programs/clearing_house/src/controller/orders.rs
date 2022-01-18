@@ -496,7 +496,9 @@ pub fn fill_order(
     });
 
     // Cant reset order until after its been logged in order history
-    if order.base_asset_amount == order.base_asset_amount_filled {
+    if order.base_asset_amount == order.base_asset_amount_filled
+        || order.order_type == OrderType::Market
+    {
         *order = Order::default();
         let position_index = get_position_index(user_positions, market_index)?;
         let market_position = &mut user_positions.positions[position_index];
