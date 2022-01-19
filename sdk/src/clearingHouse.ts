@@ -20,6 +20,7 @@ import {
 	OrderHistoryAccount,
 	OrderStateAccount,
 	OrderParams,
+	Order,
 } from './types';
 import * as anchor from '@project-serum/anchor';
 import clearingHouseIDL from './idl/clearing_house.json';
@@ -767,14 +768,14 @@ export class ClearingHouse {
 	public async fillOrder(
 		userAccountPublicKey: PublicKey,
 		userOrdersAccountPublicKey: PublicKey,
-		orderId: BN
+		order: Order
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
 			wrapInTx(
 				await this.getFillOrderIx(
 					userAccountPublicKey,
 					userOrdersAccountPublicKey,
-					orderId
+					order
 				)
 			),
 			[],
@@ -785,22 +786,13 @@ export class ClearingHouse {
 	public async getFillOrderIx(
 		userAccountPublicKey: PublicKey,
 		userOrdersAccountPublicKey: PublicKey,
-		orderId: BN
+		order: Order
 	): Promise<TransactionInstruction> {
 		const fillerPublicKey = await this.getUserAccountPublicKey();
 		const userAccount: any = await this.program.account.user.fetch(
 			userAccountPublicKey
 		);
 
-		const userOrdersAccount: any = await this.program.account.userOrders.fetch(
-			userOrdersAccountPublicKey
-		);
-		const order = userOrdersAccount.orders.find((order) =>
-			order.orderId.eq(orderId)
-		);
-		if (!order) {
-			throw new Error(`${orderId.toString()} does not exist`);
-		}
 		const marketIndex = order.marketIndex;
 		const oracle = this.getMarket(marketIndex).amm.oracle;
 
@@ -816,6 +808,7 @@ export class ClearingHouse {
 			});
 		}
 
+		const orderId = order.orderId;
 		return await this.program.instruction.fillOrder(orderId, {
 			accounts: {
 				state: await this.getStatePublicKey(),

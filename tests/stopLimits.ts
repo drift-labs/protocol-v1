@@ -210,10 +210,12 @@ describe('stop limit', () => {
 		await clearingHouse.placeOrder(orderParams, discountTokenAccount.address);
 		const orderId = new BN(2);
 		const orderIndex = new BN(0);
+		await clearingHouseUser.fetchAccounts();
+		let order = clearingHouseUser.getOrder(orderId);
 		await fillerClearingHouse.fillOrder(
 			userAccountPublicKey,
 			userOrdersAccountPublicKey,
-			orderId
+			order
 		);
 
 		await clearingHouse.fetchAccounts();
@@ -221,7 +223,7 @@ describe('stop limit', () => {
 		await fillerUser.fetchAccounts();
 
 		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
-		const order = userOrdersAccount.orders[orderIndex.toString()];
+		order = userOrdersAccount.orders[orderIndex.toString()];
 
 		assert(order.baseAssetAmount.eq(new BN(0)));
 		assert(order.price.eq(new BN(0)));

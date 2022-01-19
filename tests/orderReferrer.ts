@@ -220,7 +220,6 @@ describe('order referrer', () => {
 			referrerUserAccountPublicKey
 		);
 
-		const orderId = new BN(1);
 		const orderIndex = new BN(0);
 
 		await clearingHouse.fetchAccounts();
@@ -231,7 +230,7 @@ describe('order referrer', () => {
 		await fillerClearingHouse.fillOrder(
 			userAccountPublicKey,
 			userOrdersAccountPublicKey,
-			orderId
+			order
 		);
 
 		await clearingHouse.fetchAccounts();

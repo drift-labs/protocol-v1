@@ -297,13 +297,14 @@ describe('orders', () => {
 	});
 
 	it('Fail to fill reduce only order', async () => {
-		const orderIndex = new BN(1);
+		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
+		const order = userOrdersAccount.orders[0];
 
 		try {
 			await fillerClearingHouse.fillOrder(
 				userAccountPublicKey,
 				userOrdersAccountPublicKey,
-				orderIndex
+				order
 			);
 		} catch (e) {
 			return;
@@ -363,10 +364,12 @@ describe('orders', () => {
 		await clearingHouse.placeOrder(orderParams, discountTokenAccount.address);
 		const orderIndex = new BN(0);
 		const orderId = new BN(2);
+		await clearingHouseUser.fetchAccounts();
+		let order = clearingHouseUser.getOrder(orderId);
 		await fillerClearingHouse.fillOrder(
 			userAccountPublicKey,
 			userOrdersAccountPublicKey,
-			orderId
+			order
 		);
 
 		await clearingHouse.fetchAccounts();
@@ -374,7 +377,7 @@ describe('orders', () => {
 		await fillerUser.fetchAccounts();
 
 		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
-		const order = userOrdersAccount.orders[orderIndex.toString()];
+		order = userOrdersAccount.orders[orderIndex.toString()];
 
 		const fillerUserAccount = fillerUser.getUserAccount();
 		const expectedFillerReward = new BN(95);
@@ -464,10 +467,12 @@ describe('orders', () => {
 		await clearingHouse.placeOrder(orderParams, discountTokenAccount.address);
 		const orderId = new BN(3);
 		const orderIndex = new BN(0);
+		await clearingHouseUser.fetchAccounts();
+		let order = clearingHouseUser.getOrder(orderId);
 		await fillerClearingHouse.fillOrder(
 			userAccountPublicKey,
 			userOrdersAccountPublicKey,
-			orderId
+			order
 		);
 
 		await clearingHouse.fetchAccounts();
@@ -475,7 +480,7 @@ describe('orders', () => {
 		await fillerUser.fetchAccounts();
 
 		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
-		const order = userOrdersAccount.orders[orderIndex.toString()];
+		order = userOrdersAccount.orders[orderIndex.toString()];
 
 		const fillerUserAccount = fillerUser.getUserAccount();
 		const expectedFillerReward = new BN(190);
@@ -571,10 +576,12 @@ describe('orders', () => {
 
 		const orderId = new BN(4);
 		try {
+			await clearingHouseUser.fetchAccounts();
+			const order = clearingHouseUser.getOrder(orderId);
 			await fillerClearingHouse.fillOrder(
 				userAccountPublicKey,
 				userOrdersAccountPublicKey,
-				orderId
+				order
 			);
 			await clearingHouse.cancelOrder(orderId);
 		} catch (e) {
@@ -632,7 +639,7 @@ describe('orders', () => {
 		await fillerClearingHouse.fillOrder(
 			userAccountPublicKey,
 			userOrdersAccountPublicKey,
-			orderId
+			order
 		);
 
 		await clearingHouse.fetchAccounts();
@@ -749,7 +756,7 @@ describe('orders', () => {
 		await fillerClearingHouse.fillOrder(
 			userAccountPublicKey,
 			userOrdersAccountPublicKey,
-			orderId
+			order
 		);
 
 		await clearingHouse.fetchAccounts();
@@ -884,11 +891,10 @@ describe('orders', () => {
 			convertToNumber(userNetGainPriceMove, QUOTE_PRECISION)
 		);
 
-		const orderId = order.orderId;
 		await fillerClearingHouse.fillOrder(
 			userAccountPublicKey,
 			userOrdersAccountPublicKey,
-			orderId
+			order
 		);
 
 		await clearingHouse.fetchAccounts();
@@ -1002,7 +1008,7 @@ describe('orders', () => {
 		await fillerClearingHouse.fillOrder(
 			userAccountPublicKey,
 			userOrdersAccountPublicKey,
-			orderId
+			order
 		);
 
 		await clearingHouse.fetchAccounts();
@@ -1144,11 +1150,10 @@ describe('orders', () => {
 			convertToNumber(userNetGainPriceMove, QUOTE_PRECISION)
 		);
 
-		const orderId = order.orderId;
 		await fillerClearingHouse.fillOrder(
 			userAccountPublicKey,
 			userOrdersAccountPublicKey,
-			orderId
+			order
 		);
 
 		await clearingHouse.fetchAccounts();
@@ -1263,7 +1268,7 @@ describe('orders', () => {
 		await fillerClearingHouse.fillOrder(
 			userAccountPublicKey,
 			userOrdersAccountPublicKey,
-			orderId
+			order
 		);
 
 		await clearingHouse.fetchAccounts();
@@ -1367,7 +1372,7 @@ describe('orders', () => {
 		await fillerClearingHouse.fillOrder(
 			userAccountPublicKey,
 			userOrdersAccountPublicKey,
-			orderId
+			order
 		);
 
 		await clearingHouse.fetchAccounts();
@@ -1536,11 +1541,10 @@ describe('orders', () => {
 			convertToNumber(markPrice3)
 		);
 
-		const orderId = order.orderId;
 		await fillerClearingHouse.fillOrder(
 			userAccountPublicKey,
 			userOrdersAccountPublicKey,
-			orderId
+			order
 		);
 
 		await clearingHouseUser.fetchAccounts();
@@ -1599,7 +1603,7 @@ describe('orders', () => {
 			await whaleClearingHouse.fillOrder(
 				whaleAccountPublicKey,
 				whaleOrdersAccountPublicKey,
-				order.orderId
+				order
 			);
 		} catch (e) {
 			await whaleClearingHouse.cancelOrder(order.orderId);
@@ -1639,7 +1643,7 @@ describe('orders', () => {
 		await fillerClearingHouse.fillOrder(
 			whaleAccountPublicKey,
 			whaleOrdersAccountPublicKey,
-			order.orderId
+			order
 		);
 
 		await whaleClearingHouse.fetchAccounts();
