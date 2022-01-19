@@ -46,7 +46,7 @@ pub fn calculate_funding_rate_long_short(
         .ok_or_else(math_error!())?;
     
     // clearing house is paying part of funding imbalance
-    if capped_funding_pnl != 0 {
+    if capped_funding_pnl < 0 {
         let total_fee_minus_distributions_lower_bound = market
             .amm
             .total_fee

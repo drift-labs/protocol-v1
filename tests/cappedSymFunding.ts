@@ -621,7 +621,7 @@ describe('capped funding', () => {
 			feeAlloced + Math.abs(fundingPnLForShortsNum) >= fundingPnLForLongsNum
 		);
 	});
-	it('capped sym funding: ($2000 long, $1000 short, oracle > mark)', async () => {
+	it('capped sym funding: ($2000 long, $1000 short, oracle > mark), clamped to 2% price spread', async () => {
 		const marketIndex = new BN(rollingMarketNum);
 		rollingMarketNum += 1;
 
@@ -640,6 +640,78 @@ describe('capped funding', () => {
 			marketIndex,
 			ammInitialBaseAssetAmount,
 			[41, 44.5],
+			[2000, 1000]
+		);
+
+		//ensure it was clamped :)
+		const marketNew = await clearingHouse.getMarketsAccount().markets[
+			marketIndex.toNumber()
+		];
+		const clampedFundingRatePct = (new BN(.02 * MARK_PRICE_PRECISION.toNumber()/24)).mul(FUNDING_PAYMENT_PRECISION);
+		const clampedFundingRate = (marketNew.amm.lastOraclePriceTwap.mul(FUNDING_PAYMENT_PRECISION).div(new BN(24)));
+		console.log('clamped funding:', convertToNumber(clampedFundingRate)/FUNDING_PAYMENT_PRECISION.toNumber(),
+		 'pct:', convertToNumber(clampedFundingRatePct)/FUNDING_PAYMENT_PRECISION.toNumber());
+		console.log('short funding:', convertToNumber(fundingRateShort)/FUNDING_PAYMENT_PRECISION.toNumber());
+
+		assert(fundingRateShort.abs().eq(fundingRateLong.abs()));
+		assert(fundingRateShort.abs().eq(clampedFundingRate));
+		assert(fundingRateLong.lt(new BN(0)));
+		assert(fundingRateShort.lt(new BN(0)));
+
+		assert(fundingPnLForLongs.gt(new BN(0)));
+		assert(fundingPnLForShorts.lt(new BN(0)));
+
+		assert(fundingPnLForShorts.abs().lt(fundingPnLForLongs.abs()));
+
+		const feeAlloced =
+			convertToNumber(totalFee, QUOTE_PRECISION) -
+			convertToNumber(cumulativeFee, QUOTE_PRECISION);
+
+		const precisionFundingPay = AMM_RESERVE_PRECISION;
+		const fundingPnLForLongsNum = convertToNumber(
+			fundingPnLForLongs.div(
+				MARK_PRICE_PRECISION.mul(FUNDING_PAYMENT_PRECISION)
+			),
+			precisionFundingPay
+		);
+		const fundingPnLForShortsNum = convertToNumber(
+			fundingPnLForShorts.div(
+				MARK_PRICE_PRECISION.mul(FUNDING_PAYMENT_PRECISION)
+			),
+			precisionFundingPay
+		);
+
+		// amount of money inflow must be greater than or equal to money outflow
+		console.log(
+			feeAlloced,
+			'+',
+			Math.abs(fundingPnLForShortsNum),
+			'>=',
+			fundingPnLForLongsNum
+		);
+		assert(
+			feeAlloced + Math.abs(fundingPnLForShortsNum) >= fundingPnLForLongsNum
+		);
+	});
+	it('capped sym funding: ($2000 long, $1000 short, oracle > mark)', async () => {
+		const marketIndex = new BN(rollingMarketNum);
+		rollingMarketNum += 1;
+
+		const [
+			fundingRateLong,
+			fundingRateShort,
+			fundingPnLForLongs,
+			fundingPnLForShorts,
+			totalFee,
+			cumulativeFee,
+		] = await cappedSymFundingScenario(
+			clearingHouse,
+			userAccount,
+			clearingHouse2,
+			userAccount2,
+			marketIndex,
+			ammInitialBaseAssetAmount,
+			[41, 42.9],
 			[2000, 1000]
 		);
 
