@@ -342,7 +342,7 @@ export type Order = {
 	price: BN;
 	baseAssetAmount: BN;
 	baseAssetAmountFilled: BN;
-	quoteAssetAmount:BN;
+	quoteAssetAmount: BN;
 	quoteAssetAmountFilled: BN;
 	fee: BN;
 	direction: PositionDirection;
@@ -352,7 +352,7 @@ export type Order = {
 	discountTier: OrderDiscountTier;
 	referrer: PublicKey;
 	postOnly: boolean;
-	immediateOrCancel:boolean;
+	immediateOrCancel: boolean;
 };
 
 export type OrderParams = {
