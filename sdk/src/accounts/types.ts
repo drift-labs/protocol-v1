@@ -1,6 +1,7 @@
 import {
 	CurveHistoryAccount,
 	DepositHistoryAccount,
+	ExtendedCurveHistoryAccount,
 	FundingPaymentHistoryAccount,
 	FundingRateHistoryAccount,
 	LiquidationHistoryAccount,
@@ -64,7 +65,7 @@ export interface ClearingHouseAccountSubscriber {
 	getDepositHistoryAccount(): DepositHistoryAccount;
 	getFundingPaymentHistoryAccount(): FundingPaymentHistoryAccount;
 	getFundingRateHistoryAccount(): FundingRateHistoryAccount;
-	getCurveHistoryAccount(): CurveHistoryAccount;
+	getCurveHistoryAccount(): ExtendedCurveHistoryAccount;
 	getLiquidationHistoryAccount(): LiquidationHistoryAccount;
 }
 

@@ -28,7 +28,7 @@ declare_id!("AsW7LnXB9UA1uec9wi9MctYTgTz7YH9snhxd16GsFaGX");
 #[program]
 pub mod clearing_house {
     use crate::math;
-    use crate::state::history::curve::CurveRecord;
+    use crate::state::history::curve::ExtendedCurveRecord;
     use crate::state::history::deposit::{DepositDirection, DepositRecord};
     use crate::state::history::liquidation::LiquidationRecord;
 
@@ -143,14 +143,13 @@ pub mod clearing_house {
                 },
                 use_for_liquidations: true,
             },
+            extended_curve_history: Pubkey::default(),
             padding0: 0,
             padding1: 0,
             padding2: 0,
             padding3: 0,
             padding4: 0,
             padding5: 0,
-            padding6: 0,
-            padding7: 0,
         };
 
         return Ok(());
@@ -182,14 +181,14 @@ pub mod clearing_house {
         let funding_payment_history = ctx.accounts.funding_payment_history.to_account_info().key;
         let funding_rate_history = ctx.accounts.funding_rate_history.to_account_info().key;
         let liquidation_history = ctx.accounts.liquidation_history.to_account_info().key;
-        let curve_history = ctx.accounts.curve_history.to_account_info().key;
+        let extended_curve_history = ctx.accounts.curve_history.to_account_info().key;
 
         state.deposit_history = *deposit_history;
         state.trade_history = *trade_history;
         state.funding_rate_history = *funding_rate_history;
         state.funding_payment_history = *funding_payment_history;
         state.liquidation_history = *liquidation_history;
-        state.curve_history = *curve_history;
+        state.extended_curve_history = *extended_curve_history;
 
         Ok(())
     }
@@ -1376,7 +1375,7 @@ pub mod clearing_house {
 
         let curve_history = &mut ctx.accounts.curve_history.load_mut()?;
         let record_id = curve_history.next_record_id();
-        curve_history.append(CurveRecord {
+        curve_history.append(ExtendedCurveRecord {
             ts: now,
             record_id,
             market_index,
@@ -1570,7 +1569,7 @@ pub mod clearing_house {
 
         let curve_history = &mut ctx.accounts.curve_history.load_mut()?;
         let record_id = curve_history.next_record_id();
-        curve_history.append(CurveRecord {
+        curve_history.append(ExtendedCurveRecord {
             ts: now,
             record_id,
             market_index,
@@ -1591,6 +1590,40 @@ pub mod clearing_house {
             total_fee_minus_distributions,
         });
 
+        Ok(())
+    }
+
+    pub fn update_curve_history(ctx: Context<UpdateCurveHistory>) -> ProgramResult {
+        let curve_history = &ctx.accounts.curve_history.load()?;
+        let extended_curve_history = &mut ctx.accounts.extended_curve_history.load_init()?;
+
+        for old_record in curve_history.deposit_records.iter() {
+            let new_record = ExtendedCurveRecord {
+                ts: old_record.ts,
+                record_id: old_record.record_id,
+                market_index: old_record.market_index,
+                peg_multiplier_before: old_record.peg_multiplier_before,
+                base_asset_reserve_before: old_record.base_asset_reserve_before,
+                quote_asset_reserve_before: old_record.quote_asset_reserve_before,
+                sqrt_k_before: old_record.sqrt_k_before,
+                peg_multiplier_after: old_record.peg_multiplier_after,
+                base_asset_reserve_after: old_record.base_asset_reserve_after,
+                quote_asset_reserve_after: old_record.quote_asset_reserve_after,
+                sqrt_k_after: old_record.sqrt_k_after,
+                base_asset_amount_long: old_record.base_asset_amount_long,
+                base_asset_amount_short: old_record.base_asset_amount_short,
+                base_asset_amount: old_record.base_asset_amount,
+                open_interest: old_record.open_interest,
+                total_fee: old_record.total_fee,
+                total_fee_minus_distributions: old_record.total_fee_minus_distributions,
+                adjustment_cost: old_record.adjustment_cost,
+            };
+            extended_curve_history.append(new_record);
+        }
+
+        extended_curve_history.head = curve_history.head;
+        let state = &mut ctx.accounts.state;
+        state.extended_curve_history = ctx.accounts.extended_curve_history.key();
         Ok(())
     }
 

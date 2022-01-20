@@ -957,6 +957,32 @@
       ]
     },
     {
+      "name": "updateCurveHistory",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "state",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "extendedCurveHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "curveHistory",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "updateMarginRatio",
       "accounts": [
         {
@@ -1382,6 +1408,29 @@
       }
     },
     {
+      "name": "ExtendedCurveHistory",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "head",
+            "type": "u64"
+          },
+          {
+            "name": "depositRecords",
+            "type": {
+              "array": [
+                {
+                  "defined": "ExtendedCurveRecord"
+                },
+                1024
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "DepositHistory",
       "type": {
         "kind": "struct",
@@ -1638,6 +1687,10 @@
             "type": "u128"
           },
           {
+            "name": "extendedCurveHistory",
+            "type": "publicKey"
+          },
+          {
             "name": "padding0",
             "type": "u128"
           },
@@ -1659,14 +1712,6 @@
           },
           {
             "name": "padding5",
-            "type": "u128"
-          },
-          {
-            "name": "padding6",
-            "type": "u128"
-          },
-          {
-            "name": "padding7",
             "type": "u128"
           }
         ]
@@ -1806,6 +1851,86 @@
     },
     {
       "name": "CurveRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "ts",
+            "type": "i64"
+          },
+          {
+            "name": "recordId",
+            "type": "u128"
+          },
+          {
+            "name": "marketIndex",
+            "type": "u64"
+          },
+          {
+            "name": "pegMultiplierBefore",
+            "type": "u128"
+          },
+          {
+            "name": "baseAssetReserveBefore",
+            "type": "u128"
+          },
+          {
+            "name": "quoteAssetReserveBefore",
+            "type": "u128"
+          },
+          {
+            "name": "sqrtKBefore",
+            "type": "u128"
+          },
+          {
+            "name": "pegMultiplierAfter",
+            "type": "u128"
+          },
+          {
+            "name": "baseAssetReserveAfter",
+            "type": "u128"
+          },
+          {
+            "name": "quoteAssetReserveAfter",
+            "type": "u128"
+          },
+          {
+            "name": "sqrtKAfter",
+            "type": "u128"
+          },
+          {
+            "name": "baseAssetAmountLong",
+            "type": "u128"
+          },
+          {
+            "name": "baseAssetAmountShort",
+            "type": "u128"
+          },
+          {
+            "name": "baseAssetAmount",
+            "type": "i128"
+          },
+          {
+            "name": "openInterest",
+            "type": "u128"
+          },
+          {
+            "name": "totalFee",
+            "type": "u128"
+          },
+          {
+            "name": "totalFeeMinusDistributions",
+            "type": "u128"
+          },
+          {
+            "name": "adjustmentCost",
+            "type": "i128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ExtendedCurveRecord",
       "type": {
         "kind": "struct",
         "fields": [

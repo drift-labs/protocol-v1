@@ -153,7 +153,7 @@ export class Admin extends ClearingHouse {
 					await this.program.account.depositHistory.createInstruction(
 						depositHistory
 					),
-					await this.program.account.curveHistory.createInstruction(
+					await this.program.account.extendedCurveHistory.createInstruction(
 						curveHistory
 					),
 				],
@@ -237,6 +237,25 @@ export class Admin extends ClearingHouse {
 				markets: state.markets,
 				curveHistory: state.curveHistory,
 			},
+		});
+	}
+
+	public async updateCurveHistory(): Promise<TransactionSignature> {
+		const extendedCurveHistory = anchor.web3.Keypair.generate();
+
+		const state = this.getStateAccount();
+		return await this.program.rpc.updateCurveHistory({
+			accounts: {
+				state: await this.getStatePublicKey(),
+				admin: this.wallet.publicKey,
+				curveHistory: state.curveHistory,
+				extendedCurveHistory: extendedCurveHistory.publicKey,
+			},
+			instructions: [
+				await this.program.account.extendedCurveHistory.createInstruction(
+					extendedCurveHistory
+				),
+			],
 		});
 	}
 
