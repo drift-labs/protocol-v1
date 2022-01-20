@@ -93,21 +93,26 @@ pub fn formulaic_repeg(
     let oracle_terminal_spread_before = oracle_price
         .checked_sub(cast_to_i128(terminal_price_before)?)
         .ok_or_else(math_error!())?;
-    let oracle_terminal_divergence_pct_before = oracle_terminal_spread_before
-        .checked_shl(10)
-        .ok_or_else(math_error!())?
-        .checked_div(oracle_price)
-        .ok_or_else(math_error!())?;
+    // let oracle_terminal_divergence_pct_before = oracle_terminal_spread_before
+    //     .checked_shl(10)
+    //     .ok_or_else(math_error!())?
+    //     .checked_div(oracle_price)
+    //     .ok_or_else(math_error!())?;
 
     let (new_peg_candidate, adjustment_cost, repegged_market) =
-        repeg::calculate_optimal_peg_and_cost(market, precomputed_mark_price, oracle_terminal_divergence_pct_before)?;
+        repeg::calculate_optimal_peg_and_cost(
+            market,
+            oracle_price,
+            precomputed_mark_price,
+            terminal_price_before,
+        )?;
 
     let (
         oracle_is_valid,
         direction_valid,
         profitability_valid,
         price_impact_valid,
-        oracle_terminal_divergence_pct_after,
+        _oracle_terminal_divergence_pct_after,
     ) = repeg::calculate_repeg_validity(
         repegged_market,
         oracle_price,
