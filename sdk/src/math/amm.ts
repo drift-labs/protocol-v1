@@ -1,7 +1,7 @@
 import { BN } from '@project-serum/anchor';
 import {
+	AMM_TIMES_PEG_TO_QUOTE_PRECISION_RATIO,
 	MARK_PRICE_PRECISION,
-	ONE,
 	PEG_PRECISION,
 	ZERO,
 } from '../constants/numericConstants';
@@ -57,17 +57,9 @@ export function calculateAmmReservesAfterSwap(
 	let newBaseAssetReserve;
 
 	if (inputAssetType === 'quote') {
-		const swapAmountIntermediate = swapAmount.mul(MARK_PRICE_PRECISION);
-		swapAmount = swapAmountIntermediate.div(amm.pegMultiplier);
-
-		// Because ints round down by default, we need to add 1 back when removing from
-		// AMM to avoid giving users extra pnl when they short
-		const roundUp =
-			swapDirection === SwapDirection.REMOVE &&
-			!swapAmountIntermediate.mod(amm.pegMultiplier).eq(ZERO);
-		if (roundUp) {
-			swapAmount = swapAmount.add(ONE);
-		}
+		swapAmount = swapAmount
+			.mul(AMM_TIMES_PEG_TO_QUOTE_PRECISION_RATIO)
+			.div(amm.pegMultiplier);
 
 		[newQuoteAssetReserve, newBaseAssetReserve] = calculateSwapOutput(
 			amm.quoteAssetReserve,
@@ -227,18 +219,22 @@ export function calculateRepegCost(
  * @param market
  * @returns cost : Precision MARK_PRICE_PRECISION
  */
-export function calculateTerminalPrice(market: Market){
+export function calculateTerminalPrice(market: Market) {
+	if (!market.initialized) {
+		return new BN(0);
+	}
+
 	const directionToClose = market.baseAssetAmount.gt(ZERO)
-	? PositionDirection.SHORT
-	: PositionDirection.LONG;
+		? PositionDirection.SHORT
+		: PositionDirection.LONG;
 
 	const [newQuoteAssetReserve, newBaseAssetReserve] =
-	calculateAmmReservesAfterSwap(
-		market.amm,
-		'base',
-		market.baseAssetAmount.abs(),
-		getSwapDirection('base', directionToClose)
-	);
+		calculateAmmReservesAfterSwap(
+			market.amm,
+			'base',
+			market.baseAssetAmount.abs(),
+			getSwapDirection('base', directionToClose)
+		);
 	const terminalPrice = newQuoteAssetReserve
 		.mul(MARK_PRICE_PRECISION)
 		.mul(market.amm.pegMultiplier)

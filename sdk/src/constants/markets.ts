@@ -51,4 +51,25 @@ export const Markets: Market[] = [
 		devnetPythOracle: 'GwzBgrXb4PG59zjce24SF2b9JXbLEjJJTBkmytuEZj1b',
 		mainnetPythOracle: '4CkQJBxhU8EZ2UjhigbtdaPbpTe6mqf811fipYBFbSYN',
 	},
+	{
+		symbol: 'MATIC-PERP',
+		baseAssetSymbol: 'MATIC',
+		marketIndex: new BN(6),
+		devnetPythOracle: 'FBirwuDFuRAu4iSGc7RGxN5koHB7EJM1wbCmyPuQoGur',
+		mainnetPythOracle: '7KVswB9vkCgeM3SHP7aGDijvdRAHK8P5wi9JXViCrtYh',
+	},
+	{
+		symbol: 'ATOM-PERP',
+		baseAssetSymbol: 'ATOM',
+		marketIndex: new BN(7),
+		devnetPythOracle: '7YAze8qFUMkBnyLVdKT4TFUUFui99EwS5gfRArMcrvFk',
+		mainnetPythOracle: 'CrCpTerNqtZvqLcKqz1k13oVeXV9WkMD2zA9hBKXrsbN',
+	},
+	{
+		symbol: 'DOT-PERP',
+		baseAssetSymbol: 'DOT',
+		marketIndex: new BN(8),
+		devnetPythOracle: '4dqq5VBpN4EwYb7wyywjjfknvMKu7m78j9mKZRXTj462',
+		mainnetPythOracle: 'EcV1X1gY2yb4KXxjVQtTHTbioum2gvmPnFk4zYAt7zne',
+	},
 ];

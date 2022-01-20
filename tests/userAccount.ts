@@ -91,6 +91,7 @@ describe('User Account', () => {
 		expectedMarginRatio: BN
 	) => {
 		// todo: dont hate me
+		await userAccount.fetchAccounts();
 		const buyingPower = userAccount.getBuyingPower();
 		assert(buyingPower.eq(expectedBuyingPower));
 		const pnl = userAccount.getUnrealizedPNL();
@@ -203,10 +204,10 @@ describe('User Account', () => {
 	it('Close Position', async () => {
 		await clearingHouse.closePosition(marketIndex);
 
-		const expectedBuyingPower = new BN(148694265);
-		const expectedFreeCollateral = new BN(29738853);
+		const expectedBuyingPower = new BN(148694370);
+		const expectedFreeCollateral = new BN(29738874);
 		const expectedPNL = new BN(0);
-		const expectedTotalCollateral = new BN(29738853);
+		const expectedTotalCollateral = new BN(29738874);
 		const expectedLeverage = new BN(0);
 		const expectedMarginRatio = new BN(Number.MAX_SAFE_INTEGER);
 

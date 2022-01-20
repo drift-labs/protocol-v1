@@ -16,7 +16,6 @@ import {
 	PositionDirection,
 	TradeHistoryAccount,
 	UserAccount,
-	UserPositionsAccount,
 	Market,
 } from './types';
 import * as anchor from '@project-serum/anchor';
@@ -138,6 +137,13 @@ export class ClearingHouse {
 			'liquidationHistoryAccount',
 			'tradeHistoryAccount',
 		]);
+	}
+
+	/**
+	 *	Forces the accountSubscriber to fetch account updates from rpc
+	 */
+	public async fetchAccounts(): Promise<void> {
+		await this.accountSubscriber.fetch();
 	}
 
 	/**
@@ -454,7 +460,7 @@ export class ClearingHouse {
 		collateralAccountPublicKey: PublicKey
 	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
-		const user: UserAccount = await this.program.account.user.fetch(
+		const user: any = await this.program.account.user.fetch(
 			userAccountPublicKey
 		);
 
@@ -659,7 +665,7 @@ export class ClearingHouse {
 		const liquidateeUserAccount: any = await this.program.account.user.fetch(
 			liquidateeUserAccountPublicKey
 		);
-		const liquidateePositions: UserPositionsAccount =
+		const liquidateePositions: any =
 			await this.program.account.userPositions.fetch(
 				liquidateeUserAccount.positions
 			);

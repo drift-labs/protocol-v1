@@ -10,7 +10,7 @@ use crate::math::bn::U192;
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
 use crate::math::constants::{MARK_PRICE_PRECISION, ONE_HOUR, THIRTY_DAYS, PRICE_TO_PEG_PRECISION_RATIO};
 use crate::math::position::_calculate_base_asset_value_and_pnl;
-use crate::math::quote_asset::asset_to_reserve_precision;
+use crate::math::quote_asset::{asset_to_reserve_amount, reserve_to_asset_amount};
 use crate::math_error;
 use crate::state::{
     market::{Market, AMM},
@@ -18,18 +18,18 @@ use crate::state::{
     user::{User},
 };
 pub fn calculate_price(
-    unpegged_quote_asset_amount: u128,
-    base_asset_amount: u128,
+    quote_asset_reserve: u128,
+    base_asset_reserve: u128,
     peg_multiplier: u128,
 ) -> ClearingHouseResult<u128> {
-    let peg_quote_asset_amount = unpegged_quote_asset_amount
+    let peg_quote_asset_amount = quote_asset_reserve
         .checked_mul(peg_multiplier)
         .ok_or_else(math_error!())?;
 
     return U192::from(peg_quote_asset_amount)
         .checked_mul(U192::from(PRICE_TO_PEG_PRECISION_RATIO))
         .ok_or_else(math_error!())?
-        .checked_div(U192::from(base_asset_amount))
+        .checked_div(U192::from(base_asset_reserve))
         .ok_or_else(math_error!())?
         .try_to_u128();
 }
@@ -80,7 +80,9 @@ pub fn calculate_new_mark_twap(
     ))?;
     let from_start = max(
         1,
-        ONE_HOUR.checked_sub(since_last).ok_or_else(math_error!())?,
+        cast_to_i128(amm.funding_period)?
+            .checked_sub(since_last)
+            .ok_or_else(math_error!())?,
     );
     let current_price = match precomputed_mark_price {
         Some(mark_price) => mark_price,
@@ -122,7 +124,8 @@ pub fn calculate_new_oracle_price_twap(
     let from_start = max(
         1,
         cast_to_i128(amm.funding_period)?
-        .checked_sub(since_last).ok_or_else(math_error!())?,
+            .checked_sub(since_last)
+            .ok_or_else(math_error!())?,
     );
 
     let new_twap = calculate_twap(
@@ -146,7 +149,7 @@ pub fn update_quote_volume_30d(
 
     let since_last = cast_to_i128(max(
         1,
-        now.checked_sub(user.quote_volume_30d_ts)
+        now.checked_sub(user.last_trade_ts)
             .ok_or_else(math_error!())?,
     ))?;
     let from_start = max(
@@ -162,7 +165,7 @@ pub fn update_quote_volume_30d(
         .ok_or_else(math_error!())?;
 
     user.quote_volume_30d = cast_to_u128(new_weighted_sum)?;
-    user.quote_volume_30d_ts = now;
+    user.last_trade_ts = now;
 
     return Ok(new_weighted_sum);
 }
@@ -214,6 +217,25 @@ pub fn calculate_swap_output(
         .try_to_u128()?;
 
     return Ok((new_output_amount, new_input_amount));
+}
+
+pub fn calculate_quote_asset_amount_swapped(
+    quote_asset_reserve_before: u128,
+    quote_asset_reserve_after: u128,
+    swap_direction: SwapDirection,
+    peg_multiplier: u128,
+) -> ClearingHouseResult<u128> {
+    let quote_asset_reserve_change = match swap_direction {
+        SwapDirection::Add => quote_asset_reserve_before
+            .checked_sub(quote_asset_reserve_after)
+            .ok_or_else(math_error!())?,
+
+        SwapDirection::Remove => quote_asset_reserve_after
+            .checked_sub(quote_asset_reserve_before)
+            .ok_or_else(math_error!())?,
+    };
+
+    reserve_to_asset_amount(quote_asset_reserve_change, peg_multiplier)
 }
 
 pub fn calculate_oracle_mark_spread(
@@ -333,24 +355,37 @@ pub fn adjust_k_cost(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouse
     let (current_net_market_value, _) =
         _calculate_base_asset_value_and_pnl(market.base_asset_amount, 0, &market.amm)?;
 
+    let ratio_scalar = bn::U256::from(MARK_PRICE_PRECISION);
+
     let sqrt_k_ratio = new_sqrt_k
-        .checked_mul(bn::U256::from(MARK_PRICE_PRECISION))
+        .checked_mul(ratio_scalar)
         .ok_or_else(math_error!())?
         .checked_div(bn::U256::from(market.amm.sqrt_k))
         .ok_or_else(math_error!())?;
+
+    // if decreasing k, max decrease ratio for single transaction is 2.5%
+    if sqrt_k_ratio
+        < ratio_scalar
+            .checked_mul(bn::U256::from(975))
+            .ok_or_else(math_error!())?
+            .checked_div(bn::U256::from(1000))
+            .ok_or_else(math_error!())?
+    {
+        return Err(ErrorCode::InvalidUpdateK.into());
+    }
 
     market.amm.sqrt_k = new_sqrt_k.try_to_u128().unwrap();
     market.amm.base_asset_reserve = bn::U256::from(market.amm.base_asset_reserve)
         .checked_mul(sqrt_k_ratio)
         .ok_or_else(math_error!())?
-        .checked_div(bn::U256::from(MARK_PRICE_PRECISION))
+        .checked_div(ratio_scalar)
         .ok_or_else(math_error!())?
         .try_to_u128()
         .unwrap();
     market.amm.quote_asset_reserve = bn::U256::from(market.amm.quote_asset_reserve)
         .checked_mul(sqrt_k_ratio)
         .ok_or_else(math_error!())?
-        .checked_div(bn::U256::from(MARK_PRICE_PRECISION))
+        .checked_div(ratio_scalar)
         .ok_or_else(math_error!())?
         .try_to_u128()
         .unwrap();
@@ -379,7 +414,7 @@ pub fn should_round_trade(
             .ok_or_else(math_error!())?
     };
 
-    let quote_asset_reserve_amount = asset_to_reserve_precision(amm, difference, false)?;
+    let quote_asset_reserve_amount = asset_to_reserve_amount(difference, amm.peg_multiplier)?;
 
     return Ok(quote_asset_reserve_amount < amm.minimum_trade_size);
 }

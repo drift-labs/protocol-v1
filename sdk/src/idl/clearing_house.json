@@ -156,11 +156,11 @@
           "type": "u64"
         },
         {
-          "name": "ammBaseAssetAmount",
+          "name": "ammBaseAssetReserve",
           "type": "u128"
         },
         {
-          "name": "ammQuoteAssetAmount",
+          "name": "ammQuoteAssetReserve",
           "type": "u128"
         },
         {
@@ -759,7 +759,59 @@
         },
         {
           "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "rent",
           "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "userNonce",
+          "type": "u8"
+        },
+        {
+          "name": "optionalAccounts",
+          "type": {
+            "defined": "InitializeUserOptionalAccounts"
+          }
+        }
+      ]
+    },
+    {
+      "name": "initializeUserWithExplicitPayer",
+      "accounts": [
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "userPositions",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "payer",
+          "isMut": true,
           "isSigner": true
         },
         {
@@ -1685,7 +1737,7 @@
             "type": "u128"
           },
           {
-            "name": "quoteVolume30dTs",
+            "name": "lastTradeTs",
             "type": "i64"
           },
           {

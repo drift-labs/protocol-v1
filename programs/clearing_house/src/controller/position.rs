@@ -6,7 +6,7 @@ use crate::controller::amm::SwapDirection;
 use crate::error::*;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
-use crate::math::position::calculate_base_asset_value_and_pnl;
+use crate::math::pnl::calculate_pnl;
 use crate::math_error;
 use crate::{Market, MarketPosition, User};
 use solana_program::msg;
@@ -30,9 +30,9 @@ pub fn increase(
     market: &mut Market,
     market_position: &mut MarketPosition,
     now: i64,
-) -> ClearingHouseResult {
+) -> ClearingHouseResult<i128> {
     if new_quote_asset_notional_amount == 0 {
-        return Ok(());
+        return Ok(0);
     }
 
     // Update funding rate if this is a new position
@@ -88,7 +88,7 @@ pub fn increase(
             .ok_or_else(math_error!())?;
     }
 
-    Ok(())
+    Ok(base_asset_acquired)
 }
 
 pub fn reduce<'info>(
@@ -99,7 +99,7 @@ pub fn reduce<'info>(
     market_position: &mut MarketPosition,
     now: i64,
     precomputed_mark_price: Option<u128>,
-) -> ClearingHouseResult {
+) -> ClearingHouseResult<i128> {
     let swap_direction = match direction {
         PositionDirection::Long => SwapDirection::Add,
         PositionDirection::Short => SwapDirection::Remove,
@@ -169,7 +169,7 @@ pub fn reduce<'info>(
 
     user.collateral = calculate_updated_collateral(user.collateral, pnl)?;
 
-    Ok(())
+    Ok(base_asset_swapped)
 }
 
 pub fn close(
@@ -177,10 +177,10 @@ pub fn close(
     market: &mut Market,
     market_position: &mut MarketPosition,
     now: i64,
-) -> ClearingHouseResult {
+) -> ClearingHouseResult<(u128, i128)> {
     // If user has no base asset, return early
     if market_position.base_asset_amount == 0 {
-        return Ok(());
+        return Ok((0, 0));
     }
 
     let swap_direction = if market_position.base_asset_amount > 0 {
@@ -189,14 +189,16 @@ pub fn close(
         SwapDirection::Remove
     };
 
-    let (_base_asset_value, pnl) =
-        calculate_base_asset_value_and_pnl(&market_position, &market.amm)?;
-
-    controller::amm::swap_base_asset(
+    let base_asset_value = controller::amm::swap_base_asset(
         &mut market.amm,
         market_position.base_asset_amount.unsigned_abs(),
         swap_direction,
         now,
+    )?;
+    let pnl = calculate_pnl(
+        base_asset_value,
+        market_position.quote_asset_amount,
+        swap_direction,
     )?;
 
     user.collateral = calculate_updated_collateral(user.collateral, pnl)?;
@@ -227,7 +229,8 @@ pub fn close(
             .ok_or_else(math_error!())?;
     }
 
+    let base_asset_amount = market_position.base_asset_amount;
     market_position.base_asset_amount = 0;
 
-    Ok(())
+    Ok((base_asset_value, base_asset_amount))
 }
