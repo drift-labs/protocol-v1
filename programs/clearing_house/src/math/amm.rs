@@ -102,9 +102,38 @@ pub fn update_oracle_price_twap(
     now: i64,
     oracle_price: i128,
 ) -> ClearingHouseResult<i128> {
-    let oracle_price_twap = calculate_new_oracle_price_twap(amm, now, oracle_price)?;
-    amm.last_oracle_price_twap = oracle_price_twap;
-    amm.last_oracle_price_twap_ts = now;
+    let new_oracle_price_spread = oracle_price
+        .checked_sub(amm.last_oracle_price_twap)
+        .ok_or_else(math_error!())?;
+
+    // cap new oracle update 
+    let oracle_price_20pct = oracle_price.checked_div(5).ok_or_else(math_error!())?;
+
+    let new_oracle_update_price =
+        if new_oracle_price_spread.unsigned_abs() > oracle_price_20pct.unsigned_abs() {
+            if oracle_price > amm.last_oracle_price_twap {
+                amm.last_oracle_price_twap
+                    .checked_add(oracle_price_20pct)
+                    .ok_or_else(math_error!())?
+            } else {
+                amm.last_oracle_price_twap
+                    .checked_sub(oracle_price_20pct)
+                    .ok_or_else(math_error!())?
+            }
+        } else {
+            oracle_price
+        };
+
+    // sanity check
+    let oracle_price_twap: i128;
+    if new_oracle_update_price > 0 && oracle_price > 0
+    {
+        oracle_price_twap = calculate_new_oracle_price_twap(amm, now, new_oracle_update_price)?;
+        amm.last_oracle_price_twap = oracle_price_twap;
+        amm.last_oracle_price_twap_ts = now;
+    } else {
+        oracle_price_twap = amm.last_oracle_price_twap
+    }
 
     return Ok(oracle_price_twap);
 }
