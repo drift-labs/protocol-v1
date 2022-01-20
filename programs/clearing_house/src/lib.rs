@@ -667,6 +667,7 @@ pub mod clearing_house {
             fees::calculate(
                 quote_asset_amount,
                 &ctx.accounts.state.fee_structure,
+                user.quote_volume_30d,
                 discount_token,
                 &referrer,
             )?;
@@ -884,6 +885,7 @@ pub mod clearing_house {
             fees::calculate(
                 quote_asset_amount,
                 &ctx.accounts.state.fee_structure,
+                user.quote_volume_30d,
                 discount_token,
                 &referrer,
             )?;
@@ -967,7 +969,7 @@ pub mod clearing_house {
         {
             return Err(ErrorCode::OracleMarkSpreadLimit.into());
         }
-    
+
         amm::update_quote_volume_30d(user, now, quote_asset_amount)?;
 
         // Add to the trade history account
@@ -1359,7 +1361,7 @@ pub mod clearing_house {
 
         // The admin can move fees from the insurance fund back to the protocol so that money in
         // the insurance fund can be used to make market more optimal
-        // 100% goes to user fee pool (symmetric funding, repeg, and k adjustments) 
+        // 100% goes to user fee pool (symmetric funding, repeg, and k adjustments)
         market.amm.total_fee_minus_distributions = market
             .amm
             .total_fee_minus_distributions

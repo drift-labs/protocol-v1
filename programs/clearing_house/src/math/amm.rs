@@ -8,14 +8,16 @@ use crate::error::*;
 use crate::math::bn;
 use crate::math::bn::U192;
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
-use crate::math::constants::{MARK_PRICE_PRECISION, ONE_HOUR, THIRTY_DAYS, PRICE_TO_PEG_PRECISION_RATIO};
+use crate::math::constants::{
+    MARK_PRICE_PRECISION, ONE_HOUR, PRICE_TO_PEG_PRECISION_RATIO, THIRTY_DAYS,
+};
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math::quote_asset::{asset_to_reserve_amount, reserve_to_asset_amount};
 use crate::math_error;
 use crate::state::{
     market::{Market, AMM},
     state::{PriceDivergenceGuardRails, ValidityGuardRails},
-    user::{User},
+    user::User,
 };
 pub fn calculate_price(
     quote_asset_reserve: u128,
@@ -144,7 +146,7 @@ pub fn update_quote_volume_30d(
     quote_asset_amount: u128,
 ) -> ClearingHouseResult<i128> {
     // calculate EWM-sum of user's volume within drift protocol
-    // rolling sum of 30d volume  ~= 
+    // rolling sum of 30d volume  ~=
     // ((30days - since_last)/30days) * quote_volume_30d + new trade volume
 
     let since_last = cast_to_i128(max(
@@ -153,12 +155,16 @@ pub fn update_quote_volume_30d(
             .ok_or_else(math_error!())?,
     ))?;
     let from_start = max(
-        1,
-        THIRTY_DAYS.checked_sub(since_last).ok_or_else(math_error!())?,
+        0,
+        THIRTY_DAYS
+            .checked_sub(since_last)
+            .ok_or_else(math_error!())?,
     );
     let prev_twap_99 = cast_to_i128(user.quote_volume_30d)?
-                .checked_mul(from_start).ok_or_else(math_error!())?
-                .checked_div(THIRTY_DAYS).ok_or_else(math_error!())?;
+        .checked_mul(from_start)
+        .ok_or_else(math_error!())?
+        .checked_div(THIRTY_DAYS)
+        .ok_or_else(math_error!())?;
     let latest_price_01 = cast_to_i128(quote_asset_amount)?;
     let new_weighted_sum = prev_twap_99
         .checked_add(latest_price_01)

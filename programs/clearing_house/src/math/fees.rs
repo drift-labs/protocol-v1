@@ -1,4 +1,5 @@
 use crate::error::*;
+use crate::math::constants::QUOTE_PRECISION;
 use crate::math_error;
 use crate::state::state::{DiscountTokenTier, FeeStructure};
 use crate::state::user::User;
@@ -9,6 +10,7 @@ use spl_token::state::Account as TokenAccount;
 pub fn calculate(
     quote_asset_amount: u128,
     fee_structure: &FeeStructure,
+    volume_30d: u128,
     discount_token: Option<TokenAccount>,
     referrer: &Option<Account<User>>,
 ) -> ClearingHouseResult<(u128, u128, u128, u128, u128)> {
@@ -19,6 +21,8 @@ pub fn calculate(
         .ok_or_else(math_error!())?;
 
     let token_discount = calculate_token_discount(fee, fee_structure, discount_token);
+
+    let volume_discount = calculate_volume_discount(fee, fee_structure, volume_30d);
 
     let (referrer_reward, referee_discount) =
         calculate_referral_reward_and_referee_discount(fee, fee_structure, referrer)?;
@@ -40,6 +44,26 @@ pub fn calculate(
         referrer_reward,
         referee_discount,
     ));
+}
+
+fn calculate_volume_discount(fee: u128, fee_structure: &FeeStructure, volume_30d: u128) -> ClearingHouseResult<u128>  {
+    let volume_tier_1_discount = QUOTE_PRECISION
+        .checked_mul(QUOTE_PRECISION)
+        .ok_or_else(math_error!())?;
+    let volume_tier_1_numerator = 999;
+    let volume_tier_1_denomator = 1000;
+
+    if volume_30d > volume_tier_1_discount {
+        let discount = fee
+            .checked_mul(volume_tier_1_numerator)
+            .ok_or_else(math_error!())?
+            .checked_div(volume_tier_1_denomator)
+            .ok_or_else(math_error!())?;
+        
+        return Ok(discount);
+    }
+
+    return Ok(0);
 }
 
 fn calculate_token_discount(
