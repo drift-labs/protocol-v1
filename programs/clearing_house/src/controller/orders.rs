@@ -639,10 +639,20 @@ pub fn execute_non_market_order(
         market_index,
     )?;
 
+    if (base_asset_amount_user_can_execute == 0) {
+        msg!("User cant execute order");
+        return Ok((0, 0, false));
+    }
+
     // Determine the base asset amount the market can fill
     let market = markets.get_market_mut(market_index);
     let base_asset_amount_market_can_execute =
         calculate_base_asset_amount_market_can_execute(order, market, Some(mark_price_before))?;
+
+    if (base_asset_amount_market_can_execute == 0) {
+        msg!("Market cant execute order");
+        return Ok((0, 0, false));
+    }
 
     let mut base_asset_amount = min(
         base_asset_amount_market_can_execute,
