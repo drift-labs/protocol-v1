@@ -641,7 +641,7 @@ describe('capped funding', () => {
 			feeAlloced + Math.abs(fundingPnLForShortsNum) >= fundingPnLForLongsNum
 		);
 	});
-	it('capped sym funding: ($2000 long, $1000 short, oracle > mark), clamped to 2% price spread', async () => {
+	it('capped sym funding: ($2000 long, $1000 short, oracle > mark), clamped to 5% price spread', async () => {
 		const marketIndex = new BN(rollingMarketNum);
 		rollingMarketNum += 1;
 
@@ -840,7 +840,7 @@ describe('capped funding', () => {
 			userAccount2,
 			marketIndex,
 			ammInitialBaseAssetAmount,
-			[41, 42.9],
+			[41, 41.4],
 			[2000, 1000]
 		);
 
