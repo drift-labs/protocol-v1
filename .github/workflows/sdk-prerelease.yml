@@ -2,9 +2,9 @@ name: SDK prerelease
 on:
   push:
     branches:
-      - master
+      - crispheaney/sdk-prerelease
     paths:
-      - 'sdk/src/*'
+      - './sdk/src/*'
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -22,7 +22,7 @@ jobs:
         run: yarn
       - run: yarn build
       - name: Update package version
-        run: npm version prerelease --preid=master
+        run: npm version prerelease --preid=prerelease-test
       - name: Git commit
         run: |
           VERSION=$(node -e "console.log(require('./package.json').version);")
