@@ -3,8 +3,8 @@ on:
   push:
     branches:
       - crispheaney/sdk-prerelease
-    paths:
-      - './sdk/src/*'
+#    paths:
+#      - './sdk/src/*'
 jobs:
   release:
     runs-on: ubuntu-latest
