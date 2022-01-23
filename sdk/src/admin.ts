@@ -18,7 +18,7 @@ import { DefaultTxSender } from './tx/defaultTxSender';
 import { calculateTargetPriceTrade } from './math/trade';
 import { calculateAmmReservesAfterSwap, getSwapDirection } from './math/amm';
 
-// test commit
+// test commit 2
 export class Admin extends ClearingHouse {
 	public static from(
 		connection: Connection,
