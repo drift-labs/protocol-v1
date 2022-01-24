@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::cmp::{max, min};
 
 use anchor_lang::prelude::AccountInfo;
 use solana_program::msg;
@@ -106,10 +106,10 @@ pub fn update_oracle_price_twap(
         .checked_sub(amm.last_oracle_price_twap)
         .ok_or_else(math_error!())?;
 
-    // cap new oracle update 
+    // cap new oracle update
     let oracle_price_20pct = oracle_price.checked_div(5).ok_or_else(math_error!())?;
 
-    let new_oracle_update_price =
+    let capped_oracle_update_price =
         if new_oracle_price_spread.unsigned_abs() > oracle_price_20pct.unsigned_abs() {
             if oracle_price > amm.last_oracle_price_twap {
                 amm.last_oracle_price_twap
@@ -126,9 +126,8 @@ pub fn update_oracle_price_twap(
 
     // sanity check
     let oracle_price_twap: i128;
-    if new_oracle_update_price > 0 && oracle_price > 0
-    {
-        oracle_price_twap = calculate_new_oracle_price_twap(amm, now, new_oracle_update_price)?;
+    if capped_oracle_update_price > 0 && oracle_price > 0 {
+        oracle_price_twap = calculate_new_oracle_price_twap(amm, now, capped_oracle_update_price)?;
         amm.last_oracle_price_twap = oracle_price_twap;
         amm.last_oracle_price_twap_ts = now;
     } else {
@@ -239,30 +238,74 @@ pub fn calculate_oracle_mark_spread(
     window: u32,
     clock_slot: u64,
     precomputed_mark_price: Option<u128>,
+    normalise: bool,
 ) -> ClearingHouseResult<(i128, i128)> {
     let mark_price: i128;
 
     let (oracle_price, oracle_twap, _oracle_conf, _oracle_twac, _oracle_delay) =
         amm.get_oracle_price(price_oracle, clock_slot)?;
 
+    let oracle_processed: i128;
+
     if window > 0 {
         mark_price = cast_to_i128(amm.last_mark_price_twap)?;
+        oracle_processed = if normalise {
+            if mark_price > oracle_twap {
+                min(
+                    mark_price,
+                    oracle_twap
+                        .checked_add(cast_to_i128(_oracle_twac)?)
+                        .ok_or_else(math_error!())?,
+                )
+            } else {
+                max(
+                    mark_price,
+                    oracle_twap
+                        .checked_sub(cast_to_i128(_oracle_twac)?)
+                        .ok_or_else(math_error!())?,
+                )
+            }
+        } else {
+            oracle_twap
+        };
+
+        // don't use processed, only used for divergence spread check
         let price_spread = mark_price
             .checked_sub(oracle_twap)
             .ok_or_else(math_error!())?;
 
-        Ok((oracle_twap, price_spread))
+        Ok((oracle_processed, price_spread))
     } else {
         mark_price = match precomputed_mark_price {
             Some(mark_price) => cast_to_i128(mark_price)?,
             None => cast_to_i128(amm.mark_price()?)?,
         };
+        oracle_processed = if normalise {
+            if mark_price > oracle_price {
+                min(
+                    mark_price,
+                    oracle_price
+                        .checked_add(cast_to_i128(_oracle_conf)?)
+                        .ok_or_else(math_error!())?,
+                )
+            } else {
+                max(
+                    mark_price,
+                    oracle_price
+                        .checked_sub(cast_to_i128(_oracle_conf)?)
+                        .ok_or_else(math_error!())?,
+                )
+            }
+        } else {
+            oracle_price
+        };
 
+        // don't use processed, only used for divergence spread check
         let price_spread = mark_price
             .checked_sub(oracle_price)
             .ok_or_else(math_error!())?;
 
-        Ok((oracle_price, price_spread))
+        Ok((oracle_processed, price_spread))
     }
 }
 
@@ -279,6 +322,7 @@ pub fn calculate_oracle_mark_spread_pct(
         window,
         clock_slot,
         precomputed_mark_price,
+        true,
     )?;
 
     let price_spread_pct = price_spread
