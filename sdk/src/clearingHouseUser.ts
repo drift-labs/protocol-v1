@@ -143,7 +143,7 @@ export class ClearingHouseUser {
 	}
 
 	/**
-	 * calculates Free Collateral = (TC - TPV) * MAX_LEVERAGE
+	 * calculates Free Collateral which can be used to take new positions = (Total Collateral - TPV) / MAX_LEVERAGE
 	 * @returns : Precision QUOTE_PRECISION
 	 */
 	public getFreeCollateral(): BN {
@@ -155,7 +155,7 @@ export class ClearingHouseUser {
 	}
 
 	/**
-	 * calculates Max Withdrawal = (TC - TPV) * MAX_LEVERAGE
+	 * calculates Max Withdrawal = (Collateral - TPV) / MAX_LEVERAGE
 	 * @returns : Precision QUOTE_PRECISION
 	 */
 	public getMaxWithdrawal(): BN {
