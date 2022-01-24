@@ -155,6 +155,21 @@ export class ClearingHouseUser {
 	}
 
 	/**
+	 * calculates Max Withdrawal = (TC - TPV) * MAX_LEVERAGE
+	 * @returns : Precision QUOTE_PRECISION
+	 */
+	public getMaxWithdrawal(): BN {
+		return BN.max(
+			(this.getUserAccount()?.collateral ?? ZERO)
+			.sub(
+				this.getTotalPositionValue()
+					.mul(TEN_THOUSAND)
+					.div(this.getMaxLeverage('Initial'))
+			), ZERO
+		);
+	}
+
+	/**
 	 * calculates unrealized position price pnl
 	 * @returns : Precision QUOTE_PRECISION
 	 */
