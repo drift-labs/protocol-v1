@@ -423,7 +423,6 @@ pub struct OpenPosition<'info> {
 
 #[derive(Accounts)]
 pub struct FillOrder<'info> {
-    #[account(mut)]
     pub state: Box<Account<'info, State>>,
     #[account(
         constraint = &state.order_state.eq(&order_state.key())
