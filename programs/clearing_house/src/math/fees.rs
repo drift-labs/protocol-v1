@@ -26,8 +26,11 @@ pub fn calculate_fee_for_market_order(
 
     let token_discount = calculate_token_discount(fee, fee_structure, discount_token);
 
-    let (referrer_reward, referee_discount) =
-        calculate_referral_reward_and_referee_discount(fee, fee_structure, referrer)?;
+    let (referrer_reward, referee_discount) = if referrer.is_some() {
+        calculate_referral_reward_and_referee_discount(fee, fee_structure)?
+    } else {
+        (0, 0)
+    };
 
     let user_fee = fee
         .checked_sub(token_discount)
@@ -119,12 +122,7 @@ fn belongs_to_tier(tier: &DiscountTokenTier, discount_token: TokenAccount) -> bo
 fn calculate_referral_reward_and_referee_discount(
     fee: u128,
     fee_structure: &FeeStructure,
-    referrer: &Option<Account<User>>,
 ) -> ClearingHouseResult<(u128, u128)> {
-    if referrer.is_none() {
-        return Ok((0, 0));
-    }
-
     let referrer_reward = fee
         .checked_mul(fee_structure.referral_discount.referrer_reward_numerator)
         .ok_or_else(math_error!())?
@@ -188,7 +186,7 @@ pub fn calculate_fee_for_limit_order(
     order_fee_tier: &OrderDiscountTier,
     order_ts: i64,
     now: i64,
-    referrer: &Option<Account<User>>,
+    referrer: &mut Option<Account<User>>,
     filler_is_taker: bool,
 ) -> ClearingHouseResult<(u128, u128, u128, u128, u128, u128)> {
     let fee = quote_asset_amount
@@ -200,8 +198,11 @@ pub fn calculate_fee_for_limit_order(
     let token_discount =
         calculate_token_discount_for_limit_order(fee, fee_structure, order_fee_tier)?;
 
-    let (referrer_reward, referee_discount) =
-        calculate_referral_reward_and_referee_discount(fee, fee_structure, referrer)?;
+    let (referrer_reward, referee_discount) = if referrer.is_some() {
+        calculate_referral_reward_and_referee_discount(fee, fee_structure)?
+    } else {
+        (0, 0)
+    };
 
     let user_fee = fee
         .checked_sub(referee_discount)

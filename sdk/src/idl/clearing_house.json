@@ -608,7 +608,7 @@
       "accounts": [
         {
           "name": "state",
-          "isMut": true,
+          "isMut": false,
           "isSigner": false
         },
         {
@@ -749,6 +749,101 @@
           "type": {
             "defined": "OrderParams"
           }
+        }
+      ]
+    },
+    {
+      "name": "fillAndMatchOrder",
+      "accounts": [
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orderState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "filler",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "firstUser",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "firstUserPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "firstUserOrders",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "secondUser",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "secondUserPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "secondUserOrders",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "markets",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tradeHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fundingPaymentHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fundingRateHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "orderHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracle",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "firstOrderId",
+          "type": "u128"
+        },
+        {
+          "name": "secondOrderId",
+          "type": "u128"
         }
       ]
     },
@@ -3715,6 +3810,11 @@
       "code": 6054,
       "name": "MarketOrderMustBeInPlaceAndFill",
       "msg": "Market order must be in place and fill"
+    },
+    {
+      "code": 6055,
+      "name": "InvalidOrdersForFillAndMatch",
+      "msg": "Invalid orders for fill and match"
     }
   ]
 }

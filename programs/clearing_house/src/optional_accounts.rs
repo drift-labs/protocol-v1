@@ -141,12 +141,7 @@ pub fn get_referrer_for_fill_order<'a, 'b, 'c>(
     let user_orders = &user_orders
         .load()
         .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
-    let order_index = user_orders
-        .orders
-        .iter()
-        .position(|order| order.order_id == order_id)
-        .ok_or(ErrorCode::OrderDoesNotExist)?;
-    let order = &user_orders.orders[order_index];
+    let order = user_orders.get_order_by_id(order_id)?;
     let mut referrer = None;
     if !order.referrer.eq(&Pubkey::default()) {
         referrer = get_referrer(

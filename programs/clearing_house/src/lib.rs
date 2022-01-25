@@ -40,6 +40,7 @@ pub mod clearing_house {
 
     use super::*;
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
+    use crate::order_validation::validate_orders_are_matchable;
     use crate::state::history::order_history::{OrderAction, OrderRecord};
     use crate::state::order_state::{OrderFillerRewardStructure, OrderState};
 
@@ -942,7 +943,7 @@ pub mod clearing_house {
     )]
     pub fn fill_order<'info>(ctx: Context<FillOrder>, order_id: u128) -> ProgramResult {
         let account_info_iter = &mut ctx.remaining_accounts.iter();
-        let referrer = get_referrer_for_fill_order(
+        let referrer = &mut get_referrer_for_fill_order(
             account_info_iter,
             &ctx.accounts.user.key(),
             order_id,
@@ -975,6 +976,7 @@ pub mod clearing_house {
     }
 
     #[access_control(
+        exchange_not_paused(&ctx.accounts.state) &&
         market_initialized(&ctx.accounts.markets, params.market_index) &&
         valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, params.market_index)
     )]
@@ -989,7 +991,7 @@ pub mod clearing_house {
             &ctx.accounts.state.discount_mint,
             &ctx.accounts.authority.key,
         )?;
-        let referrer = get_referrer(
+        let referrer = &mut get_referrer(
             params.optional_accounts.referrer,
             account_info_iter,
             &ctx.accounts.user.key(),
@@ -1006,7 +1008,7 @@ pub mod clearing_house {
             &ctx.accounts.funding_payment_history,
             &ctx.accounts.order_history,
             discount_token,
-            &referrer,
+            referrer,
             &Clock::get()?,
             params,
         )?;
@@ -1033,6 +1035,86 @@ pub mod clearing_house {
             &ctx.accounts.order_history,
             &ctx.accounts.funding_rate_history,
             referrer,
+            &Clock::get()?,
+        )?;
+
+        Ok(())
+    }
+
+    #[access_control(
+        exchange_not_paused(&ctx.accounts.state)
+    )]
+    pub fn fill_and_match_order<'info>(
+        ctx: Context<FillAndMatchOrder>,
+        first_order_id: u128,
+        second_order_id: u128,
+    ) -> ProgramResult {
+        {
+            let first_user_orders = &ctx.accounts.first_user_orders.load()?;
+            let first_order = first_user_orders.get_order_by_id(first_order_id)?;
+
+            let second_user_orders = &ctx.accounts.second_user_orders.load()?;
+            let second_order = second_user_orders.get_order_by_id(second_order_id)?;
+
+            validate_orders_are_matchable(first_order, second_order)?;
+        }
+
+        let account_info_iter = &mut ctx.remaining_accounts.iter();
+        let first_user_referrer = &mut get_referrer_for_fill_order(
+            account_info_iter,
+            &ctx.accounts.first_user.key(),
+            first_order_id,
+            &ctx.accounts.first_user_orders,
+        )?;
+
+        let base_asset_amount = controller::orders::fill_order(
+            first_order_id,
+            &ctx.accounts.state,
+            &ctx.accounts.order_state,
+            &mut ctx.accounts.first_user,
+            &ctx.accounts.first_user_positions,
+            &ctx.accounts.markets,
+            &ctx.accounts.oracle,
+            &ctx.accounts.first_user_orders,
+            &mut ctx.accounts.filler,
+            &ctx.accounts.funding_payment_history,
+            &ctx.accounts.trade_history,
+            &ctx.accounts.order_history,
+            &ctx.accounts.funding_rate_history,
+            first_user_referrer,
+            &Clock::get()?,
+        )?;
+
+        if base_asset_amount == 0 {
+            return Err(ErrorCode::CouldNotFillOrder.into());
+        }
+
+        let second_user_referrer = &mut get_referrer_for_fill_order(
+            account_info_iter,
+            &ctx.accounts.second_user.key(),
+            second_order_id,
+            &ctx.accounts.second_user_orders,
+        )?;
+
+        controller::orders::match_order(
+            first_order_id,
+            second_order_id,
+            &ctx.accounts.state,
+            &ctx.accounts.order_state,
+            &mut ctx.accounts.first_user,
+            &ctx.accounts.first_user_positions,
+            &ctx.accounts.first_user_orders,
+            &mut ctx.accounts.second_user,
+            &ctx.accounts.second_user_positions,
+            &ctx.accounts.second_user_orders,
+            &ctx.accounts.markets,
+            &ctx.accounts.oracle,
+            &mut ctx.accounts.filler,
+            &ctx.accounts.funding_payment_history,
+            &ctx.accounts.trade_history,
+            &ctx.accounts.order_history,
+            first_user_referrer,
+            second_user_referrer,
             &Clock::get()?,
         )?;
 

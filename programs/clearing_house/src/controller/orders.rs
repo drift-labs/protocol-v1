@@ -226,7 +226,7 @@ pub fn fill_order(
     trade_history: &AccountLoader<TradeHistory>,
     order_history: &AccountLoader<OrderHistory>,
     funding_rate_history: &AccountLoader<FundingRateHistory>,
-    referrer: Option<Account<User>>,
+    referrer: &mut Option<Account<User>>,
     clock: &Clock,
 ) -> ClearingHouseResult<(u128)> {
     let now = clock.unix_timestamp;
@@ -254,12 +254,7 @@ pub fn fill_order(
     let user_orders = &mut user_orders
         .load_mut()
         .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
-    let order_index = user_orders
-        .orders
-        .iter()
-        .position(|order| order.order_id == order_id)
-        .ok_or(ErrorCode::OrderDoesNotExist)?;
-    let order = &mut user_orders.orders[order_index];
+    let order = user_orders.get_order_by_id_mut(order_id)?;
 
     if order.status != OrderStatus::Open {
         return Err(ErrorCode::OrderNotOpen.into());
@@ -383,7 +378,7 @@ pub fn fill_order(
             &discount_tier,
             order.ts,
             now,
-            &referrer,
+            referrer,
             filler.key() == user.key(),
         )?;
 
@@ -429,7 +424,7 @@ pub fn fill_order(
 
     // Update the referrer's collateral with their reward
     if referrer.is_some() {
-        let mut referrer = referrer.unwrap();
+        let mut referrer = referrer.as_mut().unwrap();
         referrer.total_referral_reward = referrer
             .total_referral_reward
             .checked_add(referrer_reward)
@@ -738,6 +733,68 @@ pub fn update_order_after_trade(
     }
 
     order.fee = order.fee.checked_add(fee).ok_or_else(math_error!())?;
+
+    Ok(())
+}
+
+pub fn match_order(
+    first_order_id: u128,
+    second_order_id: u128,
+    state: &State,
+    order_state: &OrderState,
+    first_user: &mut Box<Account<User>>,
+    first_user_positions: &AccountLoader<UserPositions>,
+    first_user_orders: &AccountLoader<UserOrders>,
+    second_user: &mut Box<Account<User>>,
+    second_user_positions: &AccountLoader<UserPositions>,
+    second_user_orders: &AccountLoader<UserOrders>,
+    markets: &AccountLoader<Markets>,
+    oracle: &AccountInfo,
+    filler: &mut Box<Account<User>>,
+    funding_payment_history: &AccountLoader<FundingPaymentHistory>,
+    trade_history: &AccountLoader<TradeHistory>,
+    order_history: &AccountLoader<OrderHistory>,
+    first_referrer: &mut Option<Account<User>>,
+    second_referrer: &mut Option<Account<User>>,
+    clock: &Clock,
+) -> ClearingHouseResult {
+    let now = clock.unix_timestamp;
+    let clock_slot = clock.slot;
+
+    let second_user_positions = &mut second_user_positions
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+    let funding_payment_history = &mut funding_payment_history
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+    {
+        let markets = &markets
+            .load()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        controller::funding::settle_funding_payment(
+            second_user,
+            second_user_positions,
+            markets,
+            funding_payment_history,
+            now,
+        )?;
+    }
+
+    let first_user_orders = &mut first_user_orders
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+    let first_order = first_user_orders.get_order_by_id_mut(first_order_id)?;
+    let second_user_orders = &mut second_user_orders
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+    let second_user_orders = &mut second_user_orders.get_order_by_id_mut(second_order_id);
+    let markets = &mut markets
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+    let market = markets.get_market_mut(first_order.market_index);
+
+    let base_asset_amount =
+        calculate_base_asset_amount_market_can_execute(first_order, market, None)?;
 
     Ok(())
 }

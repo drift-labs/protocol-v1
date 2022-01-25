@@ -198,3 +198,56 @@ fn validate_quote_asset_amount(order: &Order, market: &Market) -> ClearingHouseR
 
     Ok(())
 }
+
+pub fn validate_orders_are_matchable(
+    first_order: &Order,
+    second_order: &Order,
+) -> ClearingHouseResult {
+    if first_order.ts > second_order.ts {
+        msg!(
+            "First order timestamp ({}) must be before second order timestamp ({})",
+            first_order.ts,
+            second_order.ts
+        );
+        return Err(ErrorCode::InvalidOrdersForFillAndMatch.into())?;
+    }
+
+    if first_order.order_type != OrderType::Limit || first_order.order_type != OrderType::StopLimit
+    {
+        msg!("First order must be limit or stop limit");
+        return Err(ErrorCode::InvalidOrdersForFillAndMatch.into())?;
+    }
+
+    if second_order.order_type != OrderType::Limit
+        || second_order.order_type != OrderType::StopLimit
+    {
+        msg!("Second order must be limit or stop limit");
+        return Err(ErrorCode::InvalidOrdersForFillAndMatch.into())?;
+    }
+
+    if first_order.market_index != second_order.market_index {
+        msg!("Orders must be in same market");
+        return Err(ErrorCode::InvalidOrdersForFillAndMatch.into())?;
+    }
+
+    if first_order.direction == second_order.direction {
+        msg!("Orders must be in different directions");
+        return Err(ErrorCode::InvalidOrdersForFillAndMatch.into())?;
+    }
+
+    let (long_order, short_order) = match first_order.direction {
+        PositionDirection::Long => (first_order, second_order),
+        PositionDirection::Short => (second_order, first_order),
+    };
+
+    if long_order.price <= short_order.price {
+        msg!(
+            "Long order price ({}) must be more than short order price ({})",
+            long_order.price,
+            short_order.price
+        );
+        return Err(ErrorCode::InvalidOrdersForFillAndMatch.into())?;
+    }
+
+    Ok(())
+}

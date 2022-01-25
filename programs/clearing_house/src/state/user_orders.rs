@@ -1,4 +1,5 @@
 use crate::controller::position::PositionDirection;
+use crate::error::{ClearingHouseResult, ErrorCode};
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
 
@@ -20,6 +21,26 @@ impl Default for UserOrders {
 impl UserOrders {
     pub fn index_from_u64(index: u64) -> usize {
         return std::convert::TryInto::try_into(index).unwrap();
+    }
+
+    pub fn get_order_by_id(&self, order_id: u128) -> ClearingHouseResult<&Order> {
+        let order_index = self
+            .orders
+            .iter()
+            .position(|order| order.order_id == order_id)
+            .ok_or(ErrorCode::OrderDoesNotExist)?;
+
+        Ok(&self.orders[order_index])
+    }
+
+    pub fn get_order_by_id_mut(&mut self, order_id: u128) -> ClearingHouseResult<&mut Order> {
+        let order_index = self
+            .orders
+            .iter_mut()
+            .position(|order| order.order_id == order_id)
+            .ok_or(ErrorCode::OrderDoesNotExist)?;
+
+        Ok(&mut self.orders[order_index])
     }
 }
 
