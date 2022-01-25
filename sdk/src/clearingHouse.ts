@@ -7,7 +7,6 @@ import {
 import {
 	MarketsAccount,
 	StateAccount,
-	CurveHistoryAccount,
 	DepositHistoryAccount,
 	FundingPaymentHistoryAccount,
 	FundingRateHistoryAccount,

@@ -940,6 +940,11 @@
           "isSigner": false
         },
         {
+          "name": "oracle",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
           "name": "curveHistory",
           "isMut": true,
           "isSigner": false
@@ -2004,6 +2009,10 @@
           },
           {
             "name": "adjustmentCost",
+            "type": "i128"
+          },
+          {
+            "name": "oraclePrice",
             "type": "i128"
           }
         ]

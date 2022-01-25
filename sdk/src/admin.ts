@@ -230,12 +230,17 @@ export class Admin extends ClearingHouse {
 		marketIndex: BN
 	): Promise<TransactionSignature> {
 		const state = this.getStateAccount();
+		const markets = this.getMarketsAccount();
+		const marketData = markets.markets[marketIndex.toNumber()];
+		const ammData = marketData.amm;
+
 		return await this.program.rpc.updateK(sqrtK, marketIndex, {
 			accounts: {
 				state: await this.getStatePublicKey(),
 				admin: this.wallet.publicKey,
 				markets: state.markets,
-				curveHistory: state.curveHistory,
+				curveHistory: state.extendedCurveHistory,
+				oracle: ammData.oracle,
 			},
 		});
 	}
@@ -308,7 +313,7 @@ export class Admin extends ClearingHouse {
 				admin: this.wallet.publicKey,
 				oracle: ammData.oracle,
 				markets: state.markets,
-				curveHistory: state.curveHistory,
+				curveHistory: state.extendedCurveHistory,
 			},
 		});
 	}

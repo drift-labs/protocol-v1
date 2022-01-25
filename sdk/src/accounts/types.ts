@@ -1,5 +1,4 @@
 import {
-	CurveHistoryAccount,
 	DepositHistoryAccount,
 	ExtendedCurveHistoryAccount,
 	FundingPaymentHistoryAccount,
@@ -35,7 +34,7 @@ export interface ClearingHouseAccountEvents {
 	tradeHistoryAccountUpdate: (payload: TradeHistoryAccount) => void;
 	liquidationHistoryAccountUpdate: (payload: LiquidationHistoryAccount) => void;
 	depositHistoryAccountUpdate: (payload: DepositHistoryAccount) => void;
-	curveHistoryAccountUpdate: (payload: CurveHistoryAccount) => void;
+	curveHistoryAccountUpdate: (payload: ExtendedCurveHistoryAccount) => void;
 	update: void;
 }
 

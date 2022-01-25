@@ -5,7 +5,6 @@ import {
 } from './types';
 import { AccountSubscriber, NotSubscribedError } from './types';
 import {
-	CurveHistoryAccount,
 	DepositHistoryAccount,
 	ExtendedCurveHistoryAccount,
 	FundingPaymentHistoryAccount,

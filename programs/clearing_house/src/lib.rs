@@ -1352,6 +1352,7 @@ pub mod clearing_house {
         let market =
             &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
         let price_oracle = &ctx.accounts.oracle;
+        let (oracle_price, _, _, _, _) = market.amm.get_oracle_price(price_oracle, 0)?;
 
         let peg_multiplier_before = market.amm.peg_multiplier;
         let base_asset_reserve_before = market.amm.base_asset_reserve;
@@ -1394,6 +1395,7 @@ pub mod clearing_house {
             total_fee: market.amm.total_fee,
             total_fee_minus_distributions: market.amm.total_fee_minus_distributions,
             adjustment_cost: adjustment_cost,
+            oracle_price,
         });
 
         Ok(())
@@ -1491,6 +1493,7 @@ pub mod clearing_house {
     #[allow(unused_must_use)]
     #[access_control(
         market_initialized(&ctx.accounts.markets, market_index) &&
+        valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index) &&
         exchange_not_paused(&ctx.accounts.state)
     )]
     pub fn update_k(ctx: Context<AdminUpdateK>, sqrt_k: u128, market_index: u64) -> ProgramResult {
@@ -1567,6 +1570,8 @@ pub mod clearing_house {
         let total_fee = amm.total_fee;
         let total_fee_minus_distributions = amm.total_fee_minus_distributions;
 
+        let (oracle_price, _, _, _, _) = amm.get_oracle_price(&ctx.accounts.oracle, 0)?;
+
         let curve_history = &mut ctx.accounts.curve_history.load_mut()?;
         let record_id = curve_history.next_record_id();
         curve_history.append(ExtendedCurveRecord {
@@ -1588,6 +1593,7 @@ pub mod clearing_house {
             adjustment_cost,
             total_fee,
             total_fee_minus_distributions,
+            oracle_price,
         });
 
         Ok(())
@@ -1617,6 +1623,7 @@ pub mod clearing_house {
                 total_fee: old_record.total_fee,
                 total_fee_minus_distributions: old_record.total_fee_minus_distributions,
                 adjustment_cost: old_record.adjustment_cost,
+                oracle_price: 0,
             };
             extended_curve_history.append(new_record);
         }

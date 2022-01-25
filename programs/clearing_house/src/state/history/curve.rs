@@ -122,4 +122,5 @@ pub struct ExtendedCurveRecord {
     pub total_fee: u128,
     pub total_fee_minus_distributions: u128,
     pub adjustment_cost: i128,
+    pub oracle_price: i128,
 }

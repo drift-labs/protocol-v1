@@ -527,7 +527,7 @@ pub struct RepegCurve<'info> {
     pub admin: Signer<'info>,
     #[account(
         mut,
-        constraint = &state.curve_history.eq(&curve_history.key())
+        constraint = &state.extended_curve_history.eq(&curve_history.key())
     )]
     pub curve_history: AccountLoader<'info, ExtendedCurveHistory>,
 }
@@ -569,7 +569,11 @@ pub struct AdminUpdateK<'info> {
         constraint = &state.markets.eq(&markets.key())
     )]
     pub markets: AccountLoader<'info, Markets>,
-    #[account(mut)]
+    pub oracle: AccountInfo<'info>,
+    #[account(
+        mut,
+        constraint = &state.extended_curve_history.eq(&curve_history.key())
+    )]
     pub curve_history: AccountLoader<'info, ExtendedCurveHistory>,
 }
 
