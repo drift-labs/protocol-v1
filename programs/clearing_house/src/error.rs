@@ -82,6 +82,8 @@ pub enum ErrorCode {
     InvalidFundingProfitability,
     #[msg("Casting Failure")]
     CastingFailure,
+    #[msg("Cannot withdraw beyond refferal credit")]
+    WithdrawalExceedsCredit,
 }
 
 #[macro_export]

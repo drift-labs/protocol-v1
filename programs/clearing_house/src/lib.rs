@@ -363,9 +363,31 @@ pub mod clearing_house {
             now,
         )?;
 
-        if cast_to_u128(amount)? > user.collateral {
+        let amount_u128 = cast_to_u128(amount)?;
+
+        if amount_u128 > user.collateral {
             return Err(ErrorCode::InsufficientCollateral.into());
         }
+
+        if user.total_referral_reward > user.total_fee_paid {
+            let account_credit = user
+            .total_referral_reward
+            .checked_sub(user.total_fee_paid)
+            .ok_or_else(math_error!())?;
+
+            let (total_collateral_0, _unrealized_pnl, _base_asset_value, _margin_ratio) =
+            calculate_margin_ratio(user, user_positions, markets)?;
+    
+            if account_credit
+                > total_collateral_0
+                    .checked_sub(amount_u128)
+                    .ok_or_else(math_error!())?
+            {
+                return Err(ErrorCode::WithdrawalExceedsCredit.into());
+            }
+        }
+
+
 
         let (collateral_account_withdrawal, insurance_account_withdrawal) =
             calculate_withdrawal_amounts(
@@ -1363,6 +1385,33 @@ pub mod clearing_house {
         market.amm.total_fee_minus_distributions = market
             .amm
             .total_fee_minus_distributions
+            .checked_add(cast(amount)?)
+            .ok_or_else(math_error!())?;
+
+        controller::token::send(
+            &ctx.accounts.token_program,
+            &ctx.accounts.insurance_vault,
+            &ctx.accounts.collateral_vault,
+            &ctx.accounts.insurance_vault_authority,
+            ctx.accounts.state.insurance_vault_nonce,
+            amount,
+        )?;
+        Ok(())
+    }
+
+
+    pub fn withdraw_from_insurance_vault_to_user(
+        ctx: Context<WithdrawFromInsuranceVaultToUser>,
+        amount: u64,
+    ) -> ProgramResult {
+        let user = &ctx.accounts.user;
+
+        // The admin can move fees from the insurance fund to users as a line of credit
+        // importantly: user's cannot withdraw this line of credit past the fees they've paid
+        user.collateral = user.collateral.checked_add(cast(amount)?).unwrap();
+
+        user.total_referral_reward = user
+            .total_referral_reward
             .checked_add(cast(amount)?)
             .ok_or_else(math_error!())?;
 
