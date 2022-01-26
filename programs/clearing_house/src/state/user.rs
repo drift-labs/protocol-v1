@@ -13,7 +13,7 @@ pub struct User {
     pub positions: Pubkey,
 
     // upgrade-ability
-    pub quote_volume_30d: u128,
+    pub quote_volume_30d: u128, // todo make this a u64
     pub last_trade_ts: i64,
     pub padding1: i64,
     pub padding2: u128,
