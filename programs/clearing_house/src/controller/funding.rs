@@ -153,20 +153,10 @@ pub fn update_funding_rate(
             .ok_or_else(math_error!())?;
 
         // clamp price divergence to 3% for funding rate calculation
-        let mut clamped_price_spread: i128;
         let max_price_spread = oracle_price_twap
             .checked_div(33)
             .ok_or_else(math_error!())?; // 3%
-        if max_price_spread > 0 {
-            clamped_price_spread = max(-max_price_spread, min(price_spread, max_price_spread));
-
-            // ensure accidently magnitude issue
-            if clamped_price_spread.unsigned_abs() > price_spread.unsigned_abs() {
-                clamped_price_spread = price_spread;
-            }
-        } else {
-            clamped_price_spread = 0;
-        }
+        let clamped_price_spread = max(-max_price_spread, min(price_spread, max_price_spread));
 
         let funding_rate = clamped_price_spread
             .checked_mul(cast(FUNDING_PAYMENT_PRECISION)?)

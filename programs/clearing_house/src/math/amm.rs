@@ -241,6 +241,7 @@ pub fn calculate_oracle_mark_spread(
     normalise: bool,
 ) -> ClearingHouseResult<(i128, i128)> {
     let mark_price: i128;
+    let mark_price_1bp: i128;
 
     let (oracle_price, oracle_twap, _oracle_conf, _oracle_twac, _oracle_delay) =
         amm.get_oracle_price(price_oracle, clock_slot)?;
@@ -249,19 +250,32 @@ pub fn calculate_oracle_mark_spread(
 
     if window > 0 {
         mark_price = cast_to_i128(amm.last_mark_price_twap)?;
+        mark_price_1bp = mark_price.checked_div(10000).ok_or_else(math_error!())?;
+        let conf_int = cast_to_i128(_oracle_twac)?;
+
         oracle_processed = if normalise {
             if mark_price > oracle_twap {
                 min(
-                    mark_price,
+                    max(
+                        mark_price
+                            .checked_sub(mark_price_1bp)
+                            .ok_or_else(math_error!())?,
+                        oracle_twap,
+                    ),
                     oracle_twap
-                        .checked_add(cast_to_i128(_oracle_twac)?)
+                        .checked_add(conf_int)
                         .ok_or_else(math_error!())?,
                 )
             } else {
                 max(
-                    mark_price,
+                    min(
+                        mark_price
+                            .checked_add(mark_price_1bp)
+                            .ok_or_else(math_error!())?,
+                        oracle_twap,
+                    ),
                     oracle_twap
-                        .checked_sub(cast_to_i128(_oracle_twac)?)
+                        .checked_sub(conf_int)
                         .ok_or_else(math_error!())?,
                 )
             }
@@ -280,19 +294,37 @@ pub fn calculate_oracle_mark_spread(
             Some(mark_price) => cast_to_i128(mark_price)?,
             None => cast_to_i128(amm.mark_price()?)?,
         };
+
+        // normalises oracle toward mark price based on the oracle's confidence interval
+        //  if mark above oracle: use oracle+conf unless it exceeds .9999 * mark price
+        //  if mark below oracle: use oracle-conf unless it less than 1.0001 * mark price
+        //  (this guarantees more reasonable funding rates in volatile periods)
         oracle_processed = if normalise {
+            mark_price_1bp = mark_price.checked_div(10000).ok_or_else(math_error!())?;
+            let conf_int = cast_to_i128(_oracle_conf)?;
+
             if mark_price > oracle_price {
                 min(
-                    mark_price,
+                    max(
+                        mark_price
+                            .checked_sub(mark_price_1bp)
+                            .ok_or_else(math_error!())?,
+                        oracle_price,
+                    ),
                     oracle_price
-                        .checked_add(cast_to_i128(_oracle_conf)?)
+                        .checked_add(conf_int)
                         .ok_or_else(math_error!())?,
                 )
             } else {
                 max(
-                    mark_price,
+                    min(
+                        mark_price
+                            .checked_add(mark_price_1bp)
+                            .ok_or_else(math_error!())?,
+                        oracle_price,
+                    ),
                     oracle_price
-                        .checked_sub(cast_to_i128(_oracle_conf)?)
+                        .checked_sub(conf_int)
                         .ok_or_else(math_error!())?,
                 )
             }
