@@ -33,6 +33,7 @@ import {
 	PositionDirection,
 	getUserOrdersAccountPublicKey,
 	calculateNewStateAfterOrder,
+	calculateTradeSlippage,
 } from '.';
 import { getUserAccountPublicKey } from './addresses';
 
@@ -615,7 +616,7 @@ export class ClearingHouseUser {
 		}
 
 		let priceDelt;
-		if (currentMarketPositionBaseSize.lt(ZERO)) {
+		if (proposedBaseAssetAmount.lt(ZERO)) {
 			priceDelt = tc
 				.mul(thisLev)
 				.sub(tpv)
@@ -629,9 +630,22 @@ export class ClearingHouseUser {
 				.div(thisLev.sub(new BN(1)));
 		}
 
-		const currentPrice = calculateMarkPrice(
-			this.clearingHouse.getMarket(targetMarket.marketIndex)
-		);
+		let currentPrice;
+		if (positionBaseSizeChange.eq(ZERO)) {
+			currentPrice = calculateMarkPrice(
+				this.clearingHouse.getMarket(targetMarket.marketIndex)
+			);
+		} else {
+			const direction = positionBaseSizeChange.gt(ZERO)
+				? PositionDirection.LONG
+				: PositionDirection.SHORT;
+			currentPrice = calculateTradeSlippage(
+				direction,
+				positionBaseSizeChange.abs(),
+				this.clearingHouse.getMarket(targetMarket.marketIndex),
+				'base'
+			)[3]; // newPrice after swap
+		}
 
 		// if the position value after the trade is less than total collateral, there is no liq price
 		if (
@@ -646,6 +660,10 @@ export class ClearingHouseUser {
 		const eatMargin2 = priceDelt
 			.mul(AMM_RESERVE_PRECISION)
 			.div(proposedBaseAssetAmount);
+
+		if (eatMargin2.gt(currentPrice)) {
+			return new BN(-1);
+		}
 
 		const liqPrice = currentPrice.sub(eatMargin2);
 		return liqPrice;
