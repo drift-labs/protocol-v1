@@ -302,6 +302,7 @@ pub fn calculate_oracle_mark_spread(
         oracle_processed = if normalise {
             mark_price_1bp = mark_price.checked_div(10000).ok_or_else(math_error!())?;
             let conf_int = cast_to_i128(_oracle_conf)?;
+            msg!("conf_int: {:?}", conf_int);
 
             if mark_price > oracle_price {
                 min(
@@ -328,14 +329,23 @@ pub fn calculate_oracle_mark_spread(
                         .ok_or_else(math_error!())?,
                 )
             }
+
+
         } else {
             oracle_price
         };
+        msg!("mark_price: {:?}", mark_price);
+        msg!("oracle_price: {:?}", oracle_price);
+
+        
 
         // don't use processed, only used for divergence spread check
         let price_spread = mark_price
             .checked_sub(oracle_price)
             .ok_or_else(math_error!())?;
+
+        msg!("oracle_processed: {:?}", oracle_processed);
+        assert_eq!(oracle_processed>0, true);
 
         Ok((oracle_processed, price_spread))
     }
@@ -356,7 +366,7 @@ pub fn calculate_oracle_mark_spread_pct(
         precomputed_mark_price,
         true,
     )?;
-
+    msg!("oracle price: {:?}", oracle_price);
     let price_spread_pct = price_spread
         .checked_shl(10)
         .ok_or_else(math_error!())?
