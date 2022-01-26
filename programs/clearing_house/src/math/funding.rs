@@ -101,10 +101,10 @@ fn calculate_capped_funding_rate(
                     .total_fee_minus_distributions
                     .checked_sub(total_fee_minus_distributions_lower_bound)
                     .ok_or_else(math_error!())?)
-                    .checked_mul(2)
-                    .ok_or_else(math_error!())?
-                    .checked_div(3)
-                    .ok_or_else(math_error!())?,
+                .checked_mul(2)
+                .ok_or_else(math_error!())?
+                .checked_div(3)
+                .ok_or_else(math_error!())?,
             )?
         } else {
             0
