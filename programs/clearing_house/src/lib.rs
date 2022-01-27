@@ -1512,6 +1512,8 @@ pub mod clearing_house {
             total_fee_minus_distributions: market.amm.total_fee_minus_distributions,
             adjustment_cost: adjustment_cost,
             oracle_price,
+            trade_record: 0,
+            padding: [0; 5],
         });
 
         Ok(())
@@ -1719,6 +1721,8 @@ pub mod clearing_house {
             total_fee,
             total_fee_minus_distributions,
             oracle_price,
+            trade_record: 0,
+            padding: [0; 5],
         });
 
         Ok(())
@@ -1750,6 +1754,8 @@ pub mod clearing_house {
                     total_fee_minus_distributions: old_record.total_fee_minus_distributions,
                     adjustment_cost: old_record.adjustment_cost,
                     oracle_price: 0,
+                    trade_record: 0,
+                    padding: [0; 5],
                 };
                 extended_curve_history.append(new_record);
             }

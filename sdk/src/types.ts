@@ -136,6 +136,7 @@ export type ExtendedCurveRecord = {
 	baseAssetAmount: BN;
 	openInterest: BN;
 	oraclePrice: BN;
+	tradeId: BN;
 };
 
 export type TradeRecord = {
