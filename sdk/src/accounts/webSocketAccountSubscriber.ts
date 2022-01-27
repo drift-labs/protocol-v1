@@ -32,14 +32,18 @@ export class WebSocketAccountSubscriber<T> implements AccountSubscriber<T> {
 	}
 
 	async fetch(): Promise<void> {
-		const newData = (await this.program.account[this.accountName].fetch(
-			this.accountPublicKey
-		)) as T;
+		try {
+			const newData = (await this.program.account[this.accountName].fetch(
+				this.accountPublicKey
+			)) as T;
 
-		// if data has changed trigger update
-		if (JSON.stringify(newData) !== JSON.stringify(this.data)) {
-			this.data = newData;
-			this.onChange(this.data);
+			// if data has changed trigger update
+			if (JSON.stringify(newData) !== JSON.stringify(this.data)) {
+				this.data = newData;
+				this.onChange(this.data);
+			}
+		} catch (error) {
+			console.error(error)
 		}
 	}
 
