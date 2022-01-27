@@ -31,7 +31,7 @@ export class WebSocketAccountSubscriber<T> implements AccountSubscriber<T> {
 			});
 	}
 
-	async fetch(): Promise<void> {
+	async fetch(retryAttempt = 0): Promise<void> {
 		try {
 			const newData = (await this.program.account[this.accountName].fetch(
 				this.accountPublicKey
@@ -44,6 +44,11 @@ export class WebSocketAccountSubscriber<T> implements AccountSubscriber<T> {
 			}
 		} catch (error) {
 			console.error(error)
+			if (retryAttempt < 5) {
+				setTimeout(() => {
+					this.fetch(retryAttemp+1)
+				}, 1000 * retryAttempt)
+			}
 		}
 	}
 
