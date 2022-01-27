@@ -2004,6 +2004,15 @@
           {
             "name": "minOrderQuoteAssetAmount",
             "type": "u128"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u128",
+                10
+              ]
+            }
           }
         ]
       }
@@ -3005,6 +3014,15 @@
           {
             "name": "fillerReward",
             "type": "u128"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u64",
+                10
+              ]
+            }
           }
         ]
       }
@@ -3421,6 +3439,15 @@
           {
             "name": "referrer",
             "type": "publicKey"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
           }
         ]
       }

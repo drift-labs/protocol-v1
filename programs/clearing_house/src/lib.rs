@@ -221,6 +221,7 @@ pub mod clearing_house {
                 time_based_reward_lower_bound: 10_000, // 1 cent
             },
             min_order_quote_asset_amount: 500_000, // 50 cents
+            padding: [0; 10],
         };
 
         Ok(())

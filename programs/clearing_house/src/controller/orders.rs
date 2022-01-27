@@ -106,6 +106,7 @@ pub fn place_order(
         // always false until we add support
         post_only: false,
         immediate_or_cancel: false,
+        padding: [0; 3],
     };
 
     let market_index = params.market_index;
@@ -135,6 +136,7 @@ pub fn place_order(
         quote_asset_amount_filled: 0,
         filler_reward: 0,
         fee: 0,
+        padding: [0; 10],
     });
 
     Ok(())
@@ -201,6 +203,7 @@ pub fn cancel_order(
         quote_asset_amount_filled: 0,
         filler_reward: 0,
         fee: 0,
+        padding: [0; 10],
     });
 
     // Decrement open orders for existing position
@@ -493,6 +496,7 @@ pub fn fill_order(
         quote_asset_amount_filled: quote_asset_amount,
         filler_reward,
         fee: user_fee,
+        padding: [0; 10],
     });
 
     // Cant reset order until after its been logged in order history
