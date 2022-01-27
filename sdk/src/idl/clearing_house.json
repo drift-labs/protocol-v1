@@ -667,6 +667,11 @@
           "isSigner": false
         },
         {
+          "name": "extendedCurveHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "oracle",
           "isMut": false,
           "isSigner": false
@@ -734,6 +739,11 @@
         },
         {
           "name": "orderHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "extendedCurveHistory",
           "isMut": true,
           "isSigner": false
         },

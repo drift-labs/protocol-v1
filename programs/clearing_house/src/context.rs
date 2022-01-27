@@ -474,6 +474,11 @@ pub struct FillOrder<'info> {
         constraint = &order_state.order_history.eq(&order_history.key())
     )]
     pub order_history: AccountLoader<'info, OrderHistory>,
+    #[account(
+        mut,
+        constraint = &state.extended_curve_history.eq(&extended_curve_history.key())
+    )]
+    pub extended_curve_history: AccountLoader<'info, ExtendedCurveHistory>,
     pub oracle: AccountInfo<'info>,
 }
 
@@ -594,6 +599,11 @@ pub struct PlaceAndFillOrder<'info> {
         constraint = &order_state.order_history.eq(&order_history.key())
     )]
     pub order_history: AccountLoader<'info, OrderHistory>,
+    #[account(
+        mut,
+        constraint = &state.extended_curve_history.eq(&extended_curve_history.key())
+    )]
+    pub extended_curve_history: AccountLoader<'info, ExtendedCurveHistory>,
     pub oracle: AccountInfo<'info>,
 }
 
