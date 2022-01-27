@@ -37,7 +37,7 @@ pub struct Market {
     pub amm: AMM,
 
     // upgrade-ability
-    pub padding0: i128,
+    pub padding0: u128,
     pub padding1: u128,
     pub padding2: u128,
     pub padding3: u128,

@@ -1445,6 +1445,10 @@ pub mod clearing_house {
         Ok(())
     }
 
+    #[allow(unused_must_use)]
+    #[access_control( market_initialized(&ctx.accounts.markets, market_index) &&
+     valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
+     )]
     pub fn update_amm_oracle_twap(ctx: Context<RepegCurve>, market_index: u64) -> ProgramResult {
         // allow update to amm's oracle twap iff price gap is reduced and thus more tame funding
         // otherwise if oracle error or funding flip: set oracle twap to mark twap (0 gap)
@@ -1488,6 +1492,38 @@ pub mod clearing_house {
                 return Err(ErrorCode::OracleMarkSpreadLimit.into());
             }
         } else {
+            return Err(ErrorCode::InvalidOracle.into());
+        }
+
+        Ok(())
+    }
+
+    #[allow(unused_must_use)]
+    #[access_control( market_initialized(&ctx.accounts.markets, market_index) &&
+     valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
+     )]
+    pub fn reset_amm_oracle_twap(ctx: Context<RepegCurve>, market_index: u64) -> ProgramResult {
+        // allow update to amm's oracle twap iff price gap is reduced and thus more tame funding
+        // otherwise if oracle error or funding flip: set oracle twap to mark twap (0 gap)
+
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+        let clock_slot = clock.slot;
+
+        let market =
+            &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
+        let price_oracle = &ctx.accounts.oracle;
+        let (oracle_price, oracle_twap, _oracle_conf, _oracle_twac, _oracle_delay) =
+            market.amm.get_oracle_price(price_oracle, clock_slot)?;
+
+        let is_oracle_valid = amm::is_oracle_valid(
+            &market.amm,
+            &ctx.accounts.oracle,
+            clock_slot,
+            &ctx.accounts.state.oracle_guard_rails.validity,
+        )?;
+
+        if !is_oracle_valid {
             market.amm.last_oracle_price_twap = cast_to_i128(market.amm.last_mark_price_twap)?;
             market.amm.last_oracle_price_twap_ts = now;
         }

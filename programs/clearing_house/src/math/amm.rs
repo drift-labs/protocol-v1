@@ -155,8 +155,28 @@ pub fn calculate_new_oracle_price_twap(
             .ok_or_else(math_error!())?,
     );
 
-    let linearly_interpolated_oracle_price = amm
-        .last_oracle_price
+    // ensure/cap last_oracle_price within 2% of new oracle price
+    let capped_last_oracle_price = if amm.last_oracle_price > 0 {
+        min(
+            oracle_price
+                .checked_mul(102)
+                .ok_or_else(math_error!())?
+                .checked_div(100)
+                .ok_or_else(math_error!())?,
+            max(
+                oracle_price
+                    .checked_mul(98)
+                    .ok_or_else(math_error!())?
+                    .checked_div(100)
+                    .ok_or_else(math_error!())?,
+                amm.last_oracle_price,
+            ),
+        )
+    } else {
+        oracle_price
+    };
+
+    let linearly_interpolated_oracle_price = capped_last_oracle_price
         .checked_add(oracle_price)
         .ok_or_else(math_error!())?
         .checked_div(2)
