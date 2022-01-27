@@ -740,6 +740,42 @@
       ]
     },
     {
+      "name": "updateAmmOracleTwap",
+      "accounts": [
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "markets",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracle",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "curveHistory",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "marketIndex",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "initializeUser",
       "accounts": [
         {
@@ -2266,7 +2302,7 @@
           },
           {
             "name": "padding0",
-            "type": "u128"
+            "type": "i128"
           },
           {
             "name": "padding1",
@@ -2379,12 +2415,12 @@
             "type": "i64"
           },
           {
-            "name": "padding0",
-            "type": "u64"
+            "name": "lastOraclePrice",
+            "type": "i128"
           },
           {
             "name": "padding1",
-            "type": "u128"
+            "type": "u64"
           },
           {
             "name": "padding2",

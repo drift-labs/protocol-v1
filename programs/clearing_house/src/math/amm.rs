@@ -128,6 +128,7 @@ pub fn update_oracle_price_twap(
     let oracle_price_twap: i128;
     if capped_oracle_update_price > 0 && oracle_price > 0 {
         oracle_price_twap = calculate_new_oracle_price_twap(amm, now, capped_oracle_update_price)?;
+        amm.last_oracle_price = capped_oracle_update_price;
         amm.last_oracle_price_twap = oracle_price_twap;
         amm.last_oracle_price_twap_ts = now;
     } else {
@@ -154,8 +155,15 @@ pub fn calculate_new_oracle_price_twap(
             .ok_or_else(math_error!())?,
     );
 
+    let linearly_interpolated_oracle_price = amm
+        .last_oracle_price
+        .checked_add(oracle_price)
+        .ok_or_else(math_error!())?
+        .checked_div(2)
+        .ok_or_else(math_error!())?;
+
     let new_twap = calculate_twap(
-        oracle_price,
+        linearly_interpolated_oracle_price,
         amm.last_oracle_price_twap,
         since_last,
         from_start,
