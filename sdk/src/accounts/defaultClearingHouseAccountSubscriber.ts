@@ -5,8 +5,8 @@ import {
 } from './types';
 import { AccountSubscriber, NotSubscribedError } from './types';
 import {
-	CurveHistoryAccount,
 	DepositHistoryAccount,
+	ExtendedCurveHistoryAccount,
 	FundingPaymentHistoryAccount,
 	FundingRateHistoryAccount,
 	LiquidationHistoryAccount,
@@ -34,7 +34,7 @@ export class DefaultClearingHouseAccountSubscriber
 	depositHistoryAccountSubscriber?: AccountSubscriber<DepositHistoryAccount>;
 	fundingPaymentHistoryAccountSubscriber?: AccountSubscriber<FundingPaymentHistoryAccount>;
 	fundingRateHistoryAccountSubscriber?: AccountSubscriber<FundingRateHistoryAccount>;
-	curveHistoryAccountSubscriber?: AccountSubscriber<CurveHistoryAccount>;
+	curveHistoryAccountSubscriber?: AccountSubscriber<ExtendedCurveHistoryAccount>;
 	liquidationHistoryAccountSubscriber?: AccountSubscriber<LiquidationHistoryAccount>;
 	orderStateAccountSubscriber?: AccountSubscriber<OrderStateAccount>;
 	orderHistoryAccountSubscriber?: AccountSubscriber<OrderHistoryAccount>;
@@ -145,9 +145,9 @@ export class DefaultClearingHouseAccountSubscriber
 		);
 
 		this.curveHistoryAccountSubscriber = new WebSocketAccountSubscriber(
-			'curveHistory',
+			'extendedCurveHistory',
 			this.program,
-			state.curveHistory
+			state.extendedCurveHistory
 		);
 
 		this.orderHistoryAccountSubscriber = new WebSocketAccountSubscriber(
@@ -343,7 +343,7 @@ export class DefaultClearingHouseAccountSubscriber
 		return this.fundingRateHistoryAccountSubscriber.data;
 	}
 
-	public getCurveHistoryAccount(): CurveHistoryAccount {
+	public getCurveHistoryAccount(): ExtendedCurveHistoryAccount {
 		this.assertIsSubscribed();
 		this.assertOptionalIsSubscribed('curveHistoryAccount');
 		return this.curveHistoryAccountSubscriber.data;

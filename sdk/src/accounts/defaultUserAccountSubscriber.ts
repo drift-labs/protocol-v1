@@ -100,9 +100,9 @@ export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
 			return;
 		}
 
-		this.userDataAccountSubscriber.unsubscribe();
-		this.userPositionsAccountSubscriber.unsubscribe();
-		this.userOrdersAccountSubscriber.unsubscribe();
+		await this.userDataAccountSubscriber.unsubscribe();
+		await this.userPositionsAccountSubscriber.unsubscribe();
+		await this.userOrdersAccountSubscriber.unsubscribe();
 
 		this.isSubscribed = false;
 	}
