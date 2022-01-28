@@ -1,33 +1,27 @@
 use crate::controller::position::{add_new_position, get_position_index};
 use crate::error::ClearingHouseResult;
 use crate::error::*;
-use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
+use crate::math::casting::cast;
 use crate::math_error;
 use crate::state::user_orders::Order;
 use anchor_lang::prelude::*;
-use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::msg;
-use std::cmp::{max, min};
+use std::cmp::min;
 
 use crate::context::*;
-use crate::error::*;
-use crate::math::quote_asset::{asset_to_reserve_amount, reserve_to_asset_amount};
-use crate::math::{amm, bn, constants::*, fees, margin::*, orders::*, position::*, withdrawal::*};
+use crate::math::{amm, fees, margin::*, orders::*};
 use crate::state::{
     history::order_history::{OrderHistory, OrderRecord},
     history::trade::{TradeHistory, TradeRecord},
-    market::{Market, Markets, OracleSource, AMM},
+    market::Markets,
     order_state::*,
     state::*,
-    user::{MarketPosition, User, UserPositions},
+    user::{User, UserPositions},
     user_orders::*,
 };
-use controller::amm::SwapDirection;
-use controller::position::PositionDirection;
 
 use crate::controller;
 use crate::math::fees::calculate_order_fee_tier;
-use crate::optional_accounts::get_discount_token;
 use crate::order_validation::validate_order;
 use crate::state::history::funding_payment::FundingPaymentHistory;
 use crate::state::history::funding_rate::FundingRateHistory;
@@ -231,7 +225,7 @@ pub fn fill_order(
     funding_rate_history: &AccountLoader<FundingRateHistory>,
     referrer: Option<Account<User>>,
     clock: &Clock,
-) -> ClearingHouseResult<(u128)> {
+) -> ClearingHouseResult<u128> {
     let now = clock.unix_timestamp;
     let clock_slot = clock.slot;
 
@@ -643,7 +637,7 @@ pub fn execute_non_market_order(
         market_index,
     )?;
 
-    if (base_asset_amount_user_can_execute == 0) {
+    if base_asset_amount_user_can_execute == 0 {
         msg!("User cant execute order");
         return Ok((0, 0, false));
     }
@@ -653,7 +647,7 @@ pub fn execute_non_market_order(
     let base_asset_amount_market_can_execute =
         calculate_base_asset_amount_market_can_execute(order, market, Some(mark_price_before))?;
 
-    if (base_asset_amount_market_can_execute == 0) {
+    if base_asset_amount_market_can_execute == 0 {
         msg!("Market cant execute order");
         return Ok((0, 0, false));
     }

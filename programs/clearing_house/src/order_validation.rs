@@ -71,7 +71,6 @@ fn validate_limit_order(
         .ok_or_else(math_error!())?;
 
     if approx_market_value < order_state.min_order_quote_asset_amount {
-        msg!("Order {:?} @ {:?}", order.base_asset_amount, order.price);
         msg!("Order value < $0.50 ({:?})", approx_market_value);
         return Err(ErrorCode::InvalidOrder.into());
     }
@@ -127,7 +126,6 @@ fn validate_stop_limit_order(
         .ok_or_else(math_error!())?;
 
     if approx_market_value < order_state.min_order_quote_asset_amount {
-        msg!("Order {:?} @ {:?}", order.base_asset_amount, order.price);
         msg!("Order value < $0.50 ({:?})", approx_market_value);
         return Err(ErrorCode::InvalidOrder.into());
     }

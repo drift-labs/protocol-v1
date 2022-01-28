@@ -4,17 +4,15 @@ use crate::math_error;
 use crate::state::market::Market;
 use crate::state::user_orders::{Order, OrderTriggerCondition, OrderType};
 use solana_program::msg;
-use std::cell::{Ref, RefMut};
+use std::cell::RefMut;
 use std::cmp::min;
 use std::ops::Div;
 
 use crate::controller::amm::SwapDirection;
+use crate::controller::position::get_position_index;
 use crate::controller::position::PositionDirection;
-use crate::controller::position::{add_new_position, get_position_index};
-use crate::error::*;
 use crate::math::amm::calculate_swap_output;
 use crate::math::casting::{cast, cast_to_i128};
-use crate::math::collateral::calculate_updated_collateral;
 use crate::math::constants::{
     AMM_TO_QUOTE_PRECISION_RATIO, MARGIN_PRECISION, MARK_PRICE_PRECISION,
 };
@@ -22,7 +20,7 @@ use crate::math::margin::calculate_free_collateral;
 use crate::math::quote_asset::asset_to_reserve_amount;
 use crate::state::market::Markets;
 use crate::state::state::State;
-use crate::state::user::{MarketPosition, User, UserPositions};
+use crate::state::user::{User, UserPositions};
 
 pub fn calculate_base_asset_amount_market_can_execute(
     order: &Order,

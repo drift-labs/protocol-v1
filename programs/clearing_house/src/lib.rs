@@ -14,7 +14,6 @@ use crate::state::{
     user::{MarketPosition, User, UserPositions},
     user_orders::*,
 };
-use std::cell::RefMut;
 
 pub mod context;
 pub mod controller;
@@ -40,7 +39,6 @@ pub mod clearing_house {
 
     use super::*;
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
-    use crate::state::history::order_history::{OrderAction, OrderRecord};
     use crate::state::order_state::{OrderFillerRewardStructure, OrderState};
 
     pub fn initialize(
@@ -506,13 +504,6 @@ pub mod clearing_house {
             .or_else(|_| add_new_position(user_positions, market_index))?;
         let market_position = &mut user_positions.positions[position_index];
 
-        // A trade is risk increasing if it increases the users leverage
-        // If a trade is risk increasing and brings the user's margin ratio below initial requirement
-        // the trade fails
-        // If a trade is risk increasing and it pushes the mark price too far away from the oracle price
-        // the trade fails
-        let mut potentially_risk_increasing = true;
-
         // Collect data about position/market before trade is executed so that it can be stored in trade history
         let mark_price_before: u128;
         let oracle_mark_spread_pct_before: i128;
@@ -542,6 +533,11 @@ pub mod clearing_house {
             }
         }
 
+        // A trade is risk increasing if it increases the users leverage
+        // If a trade is risk increasing and brings the user's margin ratio below initial requirement
+        // the trade fails
+        // If a trade is risk increasing and it pushes the mark price too far away from the oracle price
+        // the trade fails
         let potentially_risk_increasing;
         let base_asset_amount;
         let mut quote_asset_amount = quote_asset_amount;
@@ -775,14 +771,13 @@ pub mod clearing_house {
 
         // Collect data about market before trade is executed so that it can be stored in trade history
         let mark_price_before = market.amm.mark_price()?;
-        let (oracle_price, _, oracle_mark_spread_pct_before) =
-            amm::calculate_oracle_mark_spread_pct(
-                &market.amm,
-                &ctx.accounts.oracle,
-                0,
-                clock_slot,
-                Some(mark_price_before),
-            )?;
+        let (price, _, oracle_mark_spread_pct_before) = amm::calculate_oracle_mark_spread_pct(
+            &market.amm,
+            &ctx.accounts.oracle,
+            0,
+            clock_slot,
+            Some(mark_price_before),
+        )?;
         let direction_to_close =
             math::position::direction_to_close_position(market_position.base_asset_amount);
         let (quote_asset_amount, base_asset_amount) =
@@ -1016,6 +1011,7 @@ pub mod clearing_house {
         Ok(())
     }
 
+    #[allow(unused_must_use)]
     #[access_control(
         market_initialized(&ctx.accounts.markets, params.market_index) &&
         valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, params.market_index)
