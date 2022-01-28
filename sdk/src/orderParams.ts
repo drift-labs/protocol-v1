@@ -28,6 +28,9 @@ export function getLimitOrderParams(
 		reduceOnly,
 		postOnly: false,
 		immediateOrCancel: false,
+		positionLimit: ZERO,
+		padding0: true,
+		padding1: ZERO,
 		optionalAccounts: {
 			discountToken,
 			referrer,
@@ -59,6 +62,9 @@ export function getStopOrderParams(
 		reduceOnly,
 		postOnly: false,
 		immediateOrCancel: false,
+		positionLimit: ZERO,
+		padding0: true,
+		padding1: ZERO,
 		optionalAccounts: {
 			discountToken,
 			referrer,
@@ -91,6 +97,9 @@ export function getStopLimitOrderParams(
 		reduceOnly,
 		postOnly: false,
 		immediateOrCancel: false,
+		positionLimit: ZERO,
+		padding0: true,
+		padding1: ZERO,
 		optionalAccounts: {
 			discountToken,
 			referrer,
@@ -125,6 +134,9 @@ export function getMarketOrderParams(
 		reduceOnly,
 		postOnly: false,
 		immediateOrCancel: false,
+		positionLimit: ZERO,
+		padding0: true,
+		padding1: ZERO,
 		optionalAccounts: {
 			discountToken,
 			referrer,

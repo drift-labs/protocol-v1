@@ -536,6 +536,9 @@ pub struct OrderParams {
     pub trigger_price: u128,
     pub trigger_condition: OrderTriggerCondition,
     pub optional_accounts: OrderParamsOptionalAccounts,
+    pub position_limit: u128,
+    pub padding0: bool,
+    pub padding1: bool,
 }
 
 impl Default for OrderType {

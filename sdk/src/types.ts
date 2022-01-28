@@ -372,6 +372,9 @@ export type OrderParams = {
 	immediateOrCancel: boolean;
 	triggerPrice: BN;
 	triggerCondition: OrderTriggerCondition;
+	positionLimit: BN;
+	padding0: boolean;
+	padding1: BN;
 	optionalAccounts: {
 		discountToken: boolean;
 		referrer: boolean;

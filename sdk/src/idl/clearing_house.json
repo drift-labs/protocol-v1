@@ -2536,6 +2536,18 @@
             "type": {
               "defined": "OrderParamsOptionalAccounts"
             }
+          },
+          {
+            "name": "positionLimit",
+            "type": "u128"
+          },
+          {
+            "name": "padding0",
+            "type": "bool"
+          },
+          {
+            "name": "padding1",
+            "type": "bool"
           }
         ]
       }
