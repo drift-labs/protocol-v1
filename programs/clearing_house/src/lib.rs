@@ -1446,8 +1446,9 @@ pub mod clearing_house {
     }
 
     #[allow(unused_must_use)]
-    #[access_control( market_initialized(&ctx.accounts.markets, market_index) &&
-     valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
+    #[access_control( 
+        market_initialized(&ctx.accounts.markets, market_index) &&
+        valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
      )]
     pub fn update_amm_oracle_twap(ctx: Context<RepegCurve>, market_index: u64) -> ProgramResult {
         // allow update to amm's oracle twap iff price gap is reduced and thus more tame funding
@@ -1499,12 +1500,12 @@ pub mod clearing_house {
     }
 
     #[allow(unused_must_use)]
-    #[access_control( market_initialized(&ctx.accounts.markets, market_index) &&
-     valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
+    #[access_control( 
+        market_initialized(&ctx.accounts.markets, market_index) &&
+        valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
      )]
     pub fn reset_amm_oracle_twap(ctx: Context<RepegCurve>, market_index: u64) -> ProgramResult {
-        // allow update to amm's oracle twap iff price gap is reduced and thus more tame funding
-        // otherwise if oracle error or funding flip: set oracle twap to mark twap (0 gap)
+        // if oracle is invalid, failsafe to reset amm oracle_twap to the mark_twap
 
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
