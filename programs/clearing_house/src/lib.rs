@@ -959,8 +959,26 @@ pub mod clearing_house {
     }
 
     pub fn cancel_order<'info>(ctx: Context<CancelOrder>, order_id: u128) -> ProgramResult {
-        controller::orders::cancel_order(
+        controller::orders::cancel_order_by_order_id(
             order_id,
+            &mut ctx.accounts.user,
+            &ctx.accounts.user_positions,
+            &ctx.accounts.markets,
+            &ctx.accounts.user_orders,
+            &ctx.accounts.funding_payment_history,
+            &ctx.accounts.order_history,
+            &Clock::get()?,
+        )?;
+
+        Ok(())
+    }
+
+    pub fn cancel_order_by_user_id<'info>(
+        ctx: Context<CancelOrder>,
+        user_order_id: u8,
+    ) -> ProgramResult {
+        controller::orders::cancel_order_by_user_order_id(
+            user_order_id,
             &mut ctx.accounts.user,
             &ctx.accounts.user_positions,
             &ctx.accounts.markets,

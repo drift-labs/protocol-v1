@@ -114,6 +114,8 @@ pub enum ErrorCode {
     CouldNotDeserializeReferrer,
     #[msg("Market order must be in place and fill")]
     MarketOrderMustBeInPlaceAndFill,
+    #[msg("User Order Id Already In Use")]
+    UserOrderIdAlreadyInUse,
 }
 
 #[macro_export]

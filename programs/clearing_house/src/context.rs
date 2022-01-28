@@ -525,6 +525,7 @@ pub struct PlaceOrder<'info> {
 pub struct OrderParams {
     pub order_type: OrderType,
     pub direction: PositionDirection,
+    pub user_order_id: u8,
     pub quote_asset_amount: u128,
     pub base_asset_amount: u128,
     pub price: u128,

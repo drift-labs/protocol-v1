@@ -604,6 +604,62 @@
       ]
     },
     {
+      "name": "cancelOrderByUserId",
+      "accounts": [
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orderState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "markets",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userOrders",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fundingPaymentHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "orderHistory",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "userOrderId",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "fillOrder",
       "accounts": [
         {
@@ -2434,6 +2490,10 @@
             }
           },
           {
+            "name": "userOrderId",
+            "type": "u8"
+          },
+          {
             "name": "quoteAssetAmount",
             "type": "u128"
           },
@@ -3456,6 +3516,10 @@
             "type": "u128"
           },
           {
+            "name": "userOrderId",
+            "type": "u8"
+          },
+          {
             "name": "marketIndex",
             "type": "u64"
           },
@@ -3967,6 +4031,11 @@
       "code": 6054,
       "name": "MarketOrderMustBeInPlaceAndFill",
       "msg": "Market order must be in place and fill"
+    },
+    {
+      "code": 6055,
+      "name": "UserOrderIdAlreadyInUse",
+      "msg": "User Order Id Already In Use"
     }
   ]
 }

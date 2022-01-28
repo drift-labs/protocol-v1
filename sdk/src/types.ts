@@ -341,6 +341,7 @@ export type Order = {
 	orderType: OrderType;
 	ts: BN;
 	orderId: BN;
+	userOrderId: number;
 	marketIndex: BN;
 	price: BN;
 	baseAssetAmount: BN;
@@ -360,6 +361,7 @@ export type Order = {
 
 export type OrderParams = {
 	orderType: OrderType;
+	userOrderId: number;
 	direction: PositionDirection;
 	quoteAssetAmount: BN;
 	baseAssetAmount: BN;

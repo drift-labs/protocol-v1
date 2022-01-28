@@ -74,12 +74,26 @@ pub fn place_order(
     let order_history_account = &mut order_history
         .load_mut()
         .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+
+    if params.user_order_id > 0 {
+        let user_order_id_already_used = user_orders
+            .orders
+            .iter()
+            .position(|order| order.user_order_id == params.user_order_id);
+
+        if user_order_id_already_used.is_some() {
+            msg!("user_order_id is already in use {}", params.user_order_id);
+            return Err(ErrorCode::UserOrderIdAlreadyInUse.into());
+        }
+    }
+
     let order_id = order_history_account.next_order_id();
     let new_order = Order {
         status: OrderStatus::Open,
         order_type: params.order_type,
         ts: now,
         order_id,
+        user_order_id: params.user_order_id,
         market_index: params.market_index,
         price: params.price,
         base_asset_amount: params.base_asset_amount,
@@ -136,12 +150,75 @@ pub fn place_order(
     Ok(())
 }
 
-pub fn cancel_order(
+pub fn cancel_order_by_order_id(
     order_id: u128,
     user: &mut Box<Account<User>>,
     user_positions: &AccountLoader<UserPositions>,
     markets: &AccountLoader<Markets>,
     user_orders: &AccountLoader<UserOrders>,
+    funding_payment_history: &AccountLoader<FundingPaymentHistory>,
+    order_history: &AccountLoader<OrderHistory>,
+    clock: &Clock,
+) -> ClearingHouseResult {
+    let user_orders = &mut user_orders
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+
+    let order_index = user_orders
+        .orders
+        .iter()
+        .position(|order| order.order_id == order_id)
+        .ok_or(ErrorCode::OrderDoesNotExist)?;
+    let order = &mut user_orders.orders[order_index];
+
+    cancel_order(
+        order,
+        user,
+        user_positions,
+        markets,
+        funding_payment_history,
+        order_history,
+        clock,
+    )
+}
+
+pub fn cancel_order_by_user_order_id(
+    user_order_id: u8,
+    user: &mut Box<Account<User>>,
+    user_positions: &AccountLoader<UserPositions>,
+    markets: &AccountLoader<Markets>,
+    user_orders: &AccountLoader<UserOrders>,
+    funding_payment_history: &AccountLoader<FundingPaymentHistory>,
+    order_history: &AccountLoader<OrderHistory>,
+    clock: &Clock,
+) -> ClearingHouseResult {
+    let user_orders = &mut user_orders
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+
+    let order_index = user_orders
+        .orders
+        .iter()
+        .position(|order| order.user_order_id == user_order_id)
+        .ok_or(ErrorCode::OrderDoesNotExist)?;
+    let order = &mut user_orders.orders[order_index];
+
+    cancel_order(
+        order,
+        user,
+        user_positions,
+        markets,
+        funding_payment_history,
+        order_history,
+        clock,
+    )
+}
+
+pub fn cancel_order(
+    order: &mut Order,
+    user: &mut Box<Account<User>>,
+    user_positions: &AccountLoader<UserPositions>,
+    markets: &AccountLoader<Markets>,
     funding_payment_history: &AccountLoader<FundingPaymentHistory>,
     order_history: &AccountLoader<OrderHistory>,
     clock: &Clock,
@@ -164,16 +241,6 @@ pub fn cancel_order(
         funding_payment_history,
         now,
     )?;
-
-    let user_orders = &mut user_orders
-        .load_mut()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
-    let order_index = user_orders
-        .orders
-        .iter()
-        .position(|order| order.order_id == order_id)
-        .ok_or(ErrorCode::OrderDoesNotExist)?;
-    let order = &mut user_orders.orders[order_index];
 
     if order.status != OrderStatus::Open {
         return Err(ErrorCode::OrderNotOpen.into());

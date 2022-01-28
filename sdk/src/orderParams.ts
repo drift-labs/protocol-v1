@@ -14,10 +14,12 @@ export function getLimitOrderParams(
 	price: BN,
 	reduceOnly: boolean,
 	discountToken = false,
-	referrer = false
+	referrer = false,
+	userOrderId = 0
 ): OrderParams {
 	return {
 		orderType: OrderType.LIMIT,
+		userOrderId,
 		marketIndex,
 		direction,
 		quoteAssetAmount: ZERO,
@@ -43,10 +45,12 @@ export function getStopOrderParams(
 	triggerCondition: OrderTriggerCondition,
 	reduceOnly: boolean,
 	discountToken = false,
-	referrer = false
+	referrer = false,
+	userOrderId = 0
 ): OrderParams {
 	return {
 		orderType: OrderType.STOP,
+		userOrderId,
 		marketIndex,
 		direction,
 		quoteAssetAmount: ZERO,
@@ -73,10 +77,12 @@ export function getStopLimitOrderParams(
 	triggerCondition: OrderTriggerCondition,
 	reduceOnly: boolean,
 	discountToken = false,
-	referrer = false
+	referrer = false,
+	userOrderId = 0
 ): OrderParams {
 	return {
 		orderType: OrderType.STOP_LIMIT,
+		userOrderId,
 		marketIndex,
 		direction,
 		quoteAssetAmount: ZERO,
@@ -110,6 +116,7 @@ export function getMarketOrderParams(
 
 	return {
 		orderType: OrderType.MARKET,
+		userOrderId: 0,
 		marketIndex,
 		direction,
 		quoteAssetAmount,
