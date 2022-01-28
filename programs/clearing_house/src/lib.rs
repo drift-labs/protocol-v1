@@ -770,13 +770,14 @@ pub mod clearing_house {
 
         // Collect data about market before trade is executed so that it can be stored in trade history
         let mark_price_before = market.amm.mark_price()?;
-        let (price, _, oracle_mark_spread_pct_before) = amm::calculate_oracle_mark_spread_pct(
-            &market.amm,
-            &ctx.accounts.oracle,
-            0,
-            clock_slot,
-            Some(mark_price_before),
-        )?;
+        let (_, _, oracle_mark_spread_pct_before) =
+            amm::calculate_oracle_mark_spread_pct(
+                &market.amm,
+                &ctx.accounts.oracle,
+                0,
+                clock_slot,
+                Some(mark_price_before),
+            )?;
         let direction_to_close =
             math::position::direction_to_close_position(market_position.base_asset_amount);
         let (quote_asset_amount, base_asset_amount) =
@@ -864,7 +865,7 @@ pub mod clearing_house {
         // Trade fails if the trade is risk increasing and it pushes to mark price too far
         // away from the oracle price
         let is_oracle_mark_too_divergent_before = amm::is_oracle_mark_too_divergent(
-            oracle_mark_spread_pct_after,
+            oracle_mark_spread_pct_before,
             &ctx.accounts.state.oracle_guard_rails.price_divergence,
         )?;
         let is_oracle_mark_too_divergent_after = amm::is_oracle_mark_too_divergent(
