@@ -40,7 +40,12 @@ async function updateFundingRateHelper(
 
 		const newprice = prices[i];
 		await setFeedPrice(anchor.workspace.Pyth, newprice, priceFeedAddress);
-
+		// just to update funding trade .1 cent
+		await clearingHouse.openPosition(
+			PositionDirection.LONG,
+			QUOTE_PRECISION.div(new BN(100)),
+			marketIndex
+		);
 		const marketsAccount0 = clearingHouse.getMarketsAccount();
 		const marketData0 = marketsAccount0.markets[marketIndex.toNumber()];
 		const ammAccountState0 = marketData0.amm;
@@ -48,6 +53,8 @@ async function updateFundingRateHelper(
 			anchor.workspace.Pyth,
 			ammAccountState0.oracle
 		);
+
+		
 
 		const priceSpread0 =
 			convertToNumber(ammAccountState0.lastMarkPriceTwap) -
@@ -192,7 +199,7 @@ async function cappedSymFundingScenario(
 
 		await setFeedPrice(
 			anchor.workspace.Pyth,
-			priceAction[0] * 1.11,
+			priceAction[0] * 1.5,
 			priceFeedAddress
 		);
 
@@ -748,7 +755,7 @@ describe('capped funding', () => {
 			userAccount2,
 			marketIndex,
 			ammInitialBaseAssetAmount,
-			[41, 44.5],
+			[41, 45.1],
 			[20000, 1000]
 		);
 
@@ -840,7 +847,7 @@ describe('capped funding', () => {
 			userAccount2,
 			marketIndex,
 			ammInitialBaseAssetAmount,
-			[41, 41.4],
+			[41, 43.8],
 			[2000, 1000]
 		);
 
