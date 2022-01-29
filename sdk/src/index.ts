@@ -5,7 +5,7 @@ export * from './pythClient';
 export * from './types';
 export * from './constants/markets';
 export * from './accounts/defaultClearingHouseAccountSubscriber';
-export * from './accounts/pollingClearingHouseAccountSubscriber';
+export * from './accounts/PollingClearingHouseAccountSubscriber';
 export * from './accounts/types';
 export * from './addresses';
 export * from './admin';

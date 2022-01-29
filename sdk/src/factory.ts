@@ -4,6 +4,7 @@ import { IWallet } from './types';
 import { Idl, Program, Provider } from '@project-serum/anchor';
 import clearingHouseIDL from './idl/clearing_house.json';
 import { DefaultTxSender } from './tx/defaultTxSender';
+import { BulkAccountLoader } from './accounts/bulkAccountLoader';
 import { PollingClearingHouseAccountSubscriber } from './accounts/pollingClearingHouseAccountSubscriber';
 
 export function getClearingHouseThatPolls(
@@ -19,9 +20,14 @@ export function getClearingHouseThatPolls(
 		clearingHouseProgramId,
 		provider
 	);
+	const accountLoader = new BulkAccountLoader(
+		connection,
+		opts.commitment,
+		pollingFrequency
+	);
 	const accountSubscriber = new PollingClearingHouseAccountSubscriber(
 		program,
-		pollingFrequency
+		accountLoader
 	);
 	const txSender = new DefaultTxSender(provider);
 	return new ClearingHouse(

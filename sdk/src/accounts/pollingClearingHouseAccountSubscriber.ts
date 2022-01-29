@@ -1,9 +1,13 @@
+import { PublicKey } from '@solana/web3.js';
 import {
-	ClearingHouseAccountSubscriber,
 	ClearingHouseAccountEvents,
+	ClearingHouseAccountSubscriber,
 	ClearingHouseAccountTypes,
+	NotSubscribedError,
 } from './types';
-import { NotSubscribedError } from './types';
+import { Program } from '@project-serum/anchor';
+import StrictEventEmitter from 'strict-event-emitter-types';
+import { EventEmitter } from 'events';
 import {
 	DepositHistoryAccount,
 	ExtendedCurveHistoryAccount,
@@ -14,16 +18,8 @@ import {
 	StateAccount,
 	TradeHistoryAccount,
 } from '../types';
-import { Program } from '@project-serum/anchor';
-import StrictEventEmitter from 'strict-event-emitter-types';
-import { EventEmitter } from 'events';
 import { getClearingHouseStateAccountPublicKey } from '../addresses';
-import { PublicKey } from '@solana/web3.js';
-
-type AccountValue<T> = {
-	raw: string;
-	account: T;
-};
+import { BulkAccountLoader } from './bulkAccountLoader';
 
 type AccountToPoll = {
 	key: string;
@@ -37,20 +33,17 @@ export class PollingClearingHouseAccountSubscriber
 	isSubscribed: boolean;
 	program: Program;
 	eventEmitter: StrictEventEmitter<EventEmitter, ClearingHouseAccountEvents>;
+	accountLoader: BulkAccountLoader;
 	accountsToPoll: AccountToPoll[];
 
-	lastSlot: number;
-	pollingFrequency: number;
-	intervalId?: NodeJS.Timer;
-
-	state?: AccountValue<StateAccount>;
-	markets?: AccountValue<MarketsAccount>;
-	tradeHistory?: AccountValue<TradeHistoryAccount>;
-	depositHistory?: AccountValue<DepositHistoryAccount>;
-	fundingPaymentHistory?: AccountValue<FundingPaymentHistoryAccount>;
-	fundingRateHistory?: AccountValue<FundingRateHistoryAccount>;
-	liquidationHistory?: AccountValue<LiquidationHistoryAccount>;
-	extendedCurveHistory: AccountValue<ExtendedCurveHistoryAccount>;
+	state?: StateAccount;
+	markets?: MarketsAccount;
+	tradeHistory?: TradeHistoryAccount;
+	depositHistory?: DepositHistoryAccount;
+	fundingPaymentHistory?: FundingPaymentHistoryAccount;
+	fundingRateHistory?: FundingRateHistoryAccount;
+	liquidationHistory?: LiquidationHistoryAccount;
+	extendedCurveHistory: ExtendedCurveHistoryAccount;
 
 	optionalExtraSubscriptions: ClearingHouseAccountTypes[] = [];
 
@@ -58,12 +51,11 @@ export class PollingClearingHouseAccountSubscriber
 	private subscriptionPromise: Promise<boolean>;
 	private subscriptionPromiseResolver: (val: boolean) => void;
 
-	public constructor(program: Program, pollingFrequency = 1000) {
+	public constructor(program: Program, accountLoader: BulkAccountLoader) {
 		this.isSubscribed = false;
 		this.program = program;
 		this.eventEmitter = new EventEmitter();
-		this.lastSlot = 0;
-		this.pollingFrequency = pollingFrequency;
+		this.accountLoader = accountLoader;
 	}
 
 	public async subscribe(
@@ -86,12 +78,10 @@ export class PollingClearingHouseAccountSubscriber
 		});
 
 		await this.updateAccountsToPoll();
-		await this.pollAccounts();
-
-		this.intervalId = setInterval(
-			this.pollAccounts.bind(this),
-			this.pollingFrequency
-		);
+		await this.addToAccountLoader();
+		this.accountLoader.startPolling();
+		await this.accountLoader.load();
+		this.eventEmitter.emit('update');
 
 		this.isSubscribing = false;
 		this.isSubscribed = true;
@@ -188,57 +178,27 @@ export class PollingClearingHouseAccountSubscriber
 		return value[0].toUpperCase() + value.slice(1).toLowerCase();
 	}
 
-	async pollAccounts(): Promise<void> {
-		const args = [
-			this.accountsToPoll.map((accountToPoll) =>
-				accountToPoll.publicKey.toBase58()
-			),
-			{ commitment: 'recent' },
-		];
-
-		// @ts-ignore
-		const rpcResponse = await this.program.provider.connection._rpcRequest(
-			'getMultipleAccounts',
-			args
-		);
-
-		const newSlot = rpcResponse.result.context.slot;
-		if (newSlot <= this.lastSlot) {
-			return;
-		}
-
-		this.lastSlot = newSlot;
-
-		this.accountsToPoll.forEach((accountToPoll, i) => {
-			const raw: string = rpcResponse.result.value[i].data[0];
-			const dataType = rpcResponse.result.value[i].data[1];
-			const buffer = Buffer.from(raw, dataType);
-
-			const account = this.program.account[
-				accountToPoll.key
-			].coder.accounts.decode(
+	async addToAccountLoader(): Promise<void> {
+		this.accountsToPoll.forEach((accountToPoll) => {
+			const onChange = (buffer: Buffer) => {
+				const account = this.program.account[
+					accountToPoll.key
+				].coder.accounts.decode(this.capitalize(accountToPoll.key), buffer);
 				// @ts-ignore
-				this.capitalize(accountToPoll.key),
-				buffer
-			);
-
-			const newValue = {
-				raw,
-				account,
-			};
-			const oldValue = this[accountToPoll.key];
-
-			if (oldValue === undefined || oldValue.raw !== newValue.raw) {
-				this[accountToPoll.key] = newValue;
-				// @ts-ignore
-				this.eventEmitter.emit(accountToPoll.eventType, newValue.account);
+				this.eventEmitter.emit(accountToPoll.eventType, account);
 				this.eventEmitter.emit('update');
-			}
+				this[accountToPoll.key] = account;
+			};
+			onChange.bind(this);
+			this.accountLoader.addAccount({
+				publicKey: accountToPoll.publicKey,
+				onChange,
+			});
 		});
 	}
 
 	public async fetch(): Promise<void> {
-		await this.pollAccounts();
+		await this.accountLoader.load();
 	}
 
 	public async unsubscribe(): Promise<void> {
@@ -246,9 +206,11 @@ export class PollingClearingHouseAccountSubscriber
 			return;
 		}
 
-		clearInterval(this.intervalId);
+		for (const accountToPoll of this.accountsToPoll) {
+			this.accountLoader.removeAccount(accountToPoll.publicKey);
+		}
+
 		this.accountsToPoll = [];
-		this.intervalId = undefined;
 		this.isSubscribed = false;
 	}
 
@@ -278,47 +240,47 @@ export class PollingClearingHouseAccountSubscriber
 
 	public getStateAccount(): StateAccount {
 		this.assertIsSubscribed();
-		return this.state.account;
+		return this.state;
 	}
 
 	public getMarketsAccount(): MarketsAccount {
 		this.assertIsSubscribed();
-		return this.markets.account;
+		return this.markets;
 	}
 
 	public getTradeHistoryAccount(): TradeHistoryAccount {
 		this.assertIsSubscribed();
 		this.assertOptionalIsSubscribed('tradeHistoryAccount');
-		return this.tradeHistory.account;
+		return this.tradeHistory;
 	}
 
 	public getDepositHistoryAccount(): DepositHistoryAccount {
 		this.assertIsSubscribed();
 		this.assertOptionalIsSubscribed('depositHistoryAccount');
-		return this.depositHistory.account;
+		return this.depositHistory;
 	}
 
 	public getFundingPaymentHistoryAccount(): FundingPaymentHistoryAccount {
 		this.assertIsSubscribed();
 		this.assertOptionalIsSubscribed('fundingPaymentHistoryAccount');
-		return this.fundingPaymentHistory.account;
+		return this.fundingPaymentHistory;
 	}
 
 	public getFundingRateHistoryAccount(): FundingRateHistoryAccount {
 		this.assertIsSubscribed();
 		this.assertOptionalIsSubscribed('fundingRateHistoryAccount');
-		return this.fundingRateHistory.account;
+		return this.fundingRateHistory;
 	}
 
 	public getCurveHistoryAccount(): ExtendedCurveHistoryAccount {
 		this.assertIsSubscribed();
 		this.assertOptionalIsSubscribed('curveHistoryAccount');
-		return this.extendedCurveHistory.account;
+		return this.extendedCurveHistory;
 	}
 
 	public getLiquidationHistoryAccount(): LiquidationHistoryAccount {
 		this.assertIsSubscribed();
 		this.assertOptionalIsSubscribed('liquidationHistoryAccount');
-		return this.liquidationHistory.account;
+		return this.liquidationHistory;
 	}
 }
