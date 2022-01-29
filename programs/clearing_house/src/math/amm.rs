@@ -162,31 +162,25 @@ pub fn calculate_new_oracle_price_twap(
         oracle_price
     };
 
-    // ensure/cap oracle_price within 2% of last_oracle_price
-    let capped_new_oracle_price = min(
+    let capped_last_oracle_price_10bp = capped_last_oracle_price
+        .checked_div(1000)
+        .ok_or_else(math_error!())?;
+
+    // push last_oracle_price up to .1% toward oracle price
+    let interpolated_oracle_price = min(
         capped_last_oracle_price
-            .checked_mul(102)
-            .ok_or_else(math_error!())?
-            .checked_div(100)
+            .checked_add(capped_last_oracle_price_10bp)
             .ok_or_else(math_error!())?,
         max(
             capped_last_oracle_price
-                .checked_mul(98)
-                .ok_or_else(math_error!())?
-                .checked_div(100)
+                .checked_sub(capped_last_oracle_price_10bp)
                 .ok_or_else(math_error!())?,
             oracle_price,
         ),
     );
 
-    let linearly_interpolated_oracle_price = capped_last_oracle_price
-        .checked_add(capped_new_oracle_price)
-        .ok_or_else(math_error!())?
-        .checked_div(2)
-        .ok_or_else(math_error!())?;
-
     let new_twap = calculate_twap(
-        linearly_interpolated_oracle_price,
+        interpolated_oracle_price,
         amm.last_oracle_price_twap,
         since_last,
         from_start,
