@@ -106,8 +106,8 @@ pub fn update_oracle_price_twap(
         .checked_sub(amm.last_oracle_price_twap)
         .ok_or_else(math_error!())?;
 
-    // cap new oracle update to 50% delta
-    let oracle_price_50pct = oracle_price.checked_div(2).ok_or_else(math_error!())?;
+    // cap new oracle update to 33% delta from twap
+    let oracle_price_50pct = oracle_price.checked_div(3).ok_or_else(math_error!())?;
 
     let capped_oracle_update_price =
         if new_oracle_price_spread.unsigned_abs() > oracle_price_50pct.unsigned_abs() {
@@ -162,11 +162,11 @@ pub fn calculate_new_oracle_price_twap(
         oracle_price
     };
 
+    // nudge last_oracle_price up to .1% toward oracle price
     let capped_last_oracle_price_10bp = capped_last_oracle_price
         .checked_div(1000)
         .ok_or_else(math_error!())?;
 
-    // push last_oracle_price up to .1% toward oracle price
     let interpolated_oracle_price = min(
         capped_last_oracle_price
             .checked_add(capped_last_oracle_price_10bp)
