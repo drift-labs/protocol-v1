@@ -107,17 +107,17 @@ pub fn update_oracle_price_twap(
         .ok_or_else(math_error!())?;
 
     // cap new oracle update to 33% delta from twap
-    let oracle_price_50pct = oracle_price.checked_div(3).ok_or_else(math_error!())?;
+    let oracle_price_33pct = oracle_price.checked_div(3).ok_or_else(math_error!())?;
 
     let capped_oracle_update_price =
-        if new_oracle_price_spread.unsigned_abs() > oracle_price_50pct.unsigned_abs() {
+        if new_oracle_price_spread.unsigned_abs() > oracle_price_33pct.unsigned_abs() {
             if oracle_price > amm.last_oracle_price_twap {
                 amm.last_oracle_price_twap
-                    .checked_add(oracle_price_50pct)
+                    .checked_add(oracle_price_33pct)
                     .ok_or_else(math_error!())?
             } else {
                 amm.last_oracle_price_twap
-                    .checked_sub(oracle_price_50pct)
+                    .checked_sub(oracle_price_33pct)
                     .ok_or_else(math_error!())?
             }
         } else {
