@@ -4,3 +4,6 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "./test-scripts/run-ts-mocha"
+
+[programs.localnet]
+clearing_house = "HiZ8CnfEE9LrBZTfc8hBneWrPg1Cbsn8Wdy6SPLfae9V"
