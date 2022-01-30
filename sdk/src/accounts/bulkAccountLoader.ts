@@ -12,6 +12,8 @@ type RPCResponse = {
 	buffer: Buffer | null;
 };
 
+const GET_MULTIPLE_ACCOUNTS_CHUNK_SIZE = 99;
+
 export class BulkAccountLoader {
 	connection: Connection;
 	commitment: Commitment;
@@ -40,16 +42,34 @@ export class BulkAccountLoader {
 		this.accountsToLoad.delete(publicKey.toString());
 	}
 
+	chunks<T>(array: readonly T[], size: number): T[][] {
+		return new Array(Math.ceil(array.length / size))
+			.fill(null)
+			.map((_, index) => index * size)
+			.map((begin) => array.slice(begin, begin + size));
+	}
+
 	public async load(): Promise<void> {
-		const accountsToLoadEntries = [...this.accountsToLoad];
-		if (accountsToLoadEntries.length === 0) {
+		const chunks = this.chunks(
+			Array.from(this.accountsToLoad.values()),
+			GET_MULTIPLE_ACCOUNTS_CHUNK_SIZE
+		);
+
+		await Promise.all(
+			chunks.map((chunk) => {
+				this.loadChunk(chunk);
+			})
+		);
+	}
+
+	async loadChunk(accountsToLoad: AccountToLoad[]): Promise<void> {
+		if (accountsToLoad.length === 0) {
 			return;
 		}
 
 		const args = [
-			accountsToLoadEntries.map((entry) => {
-				const { publicKey } = entry[1];
-				return publicKey.toBase58();
+			accountsToLoad.map((accountToLoad) => {
+				return accountToLoad.publicKey.toBase58();
 			}),
 			{ commitment: this.commitment },
 		];
@@ -62,8 +82,9 @@ export class BulkAccountLoader {
 
 		const newSlot = rpcResponse.result.context.slot;
 
-		for (const i in accountsToLoadEntries) {
-			const [key, accountToLoad] = accountsToLoadEntries[i];
+		for (const i in accountsToLoad) {
+			const accountToLoad = accountsToLoad[i];
+			const key = accountToLoad.publicKey.toString();
 			const oldRPCResponse = this.rpcResponses.get(key);
 
 			let newBuffer: Buffer | null = null;
