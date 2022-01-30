@@ -175,7 +175,7 @@ export class PollingClearingHouseAccountSubscriber
 	}
 
 	capitalize(value: string): string {
-		return value[0].toUpperCase() + value.slice(1).toLowerCase();
+		return value[0].toUpperCase() + value.slice(1);
 	}
 
 	async addToAccountLoader(): Promise<void> {
