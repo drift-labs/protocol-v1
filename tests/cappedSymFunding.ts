@@ -54,8 +54,6 @@ async function updateFundingRateHelper(
 			ammAccountState0.oracle
 		);
 
-		
-
 		const priceSpread0 =
 			convertToNumber(ammAccountState0.lastMarkPriceTwap) -
 			convertToNumber(ammAccountState0.lastOraclePriceTwap);
@@ -124,9 +122,11 @@ async function updateFundingRateHelper(
 
 		assert(ammAccountState.lastFundingRate.abs().gte(lastFundingLong.abs()));
 		console.log(
-			convertToNumber(ammAccountState.lastFundingRate.abs()) / FUNDING_PAYMENT_PRECISION.toNumber(),
+			convertToNumber(ammAccountState.lastFundingRate.abs()) /
+				FUNDING_PAYMENT_PRECISION.toNumber(),
 			'>=',
-			convertToNumber(lastFundingShort.abs()) / FUNDING_PAYMENT_PRECISION.toNumber()
+			convertToNumber(lastFundingShort.abs()) /
+				FUNDING_PAYMENT_PRECISION.toNumber()
 		);
 		assert(ammAccountState.lastFundingRate.abs().gte(lastFundingShort.abs()));
 
