@@ -28,7 +28,7 @@ declare_id!("AsW7LnXB9UA1uec9wi9MctYTgTz7YH9snhxd16GsFaGX");
 #[program]
 pub mod clearing_house {
     use crate::math;
-    use crate::state::history::curve::CurveRecord;
+    use crate::state::history::curve::ExtendedCurveRecord;
     use crate::state::history::deposit::{DepositDirection, DepositRecord};
     use crate::state::history::liquidation::LiquidationRecord;
 
@@ -143,14 +143,13 @@ pub mod clearing_house {
                 },
                 use_for_liquidations: true,
             },
+            extended_curve_history: Pubkey::default(),
             padding0: 0,
             padding1: 0,
             padding2: 0,
             padding3: 0,
             padding4: 0,
             padding5: 0,
-            padding6: 0,
-            padding7: 0,
         };
 
         return Ok(());
@@ -182,14 +181,14 @@ pub mod clearing_house {
         let funding_payment_history = ctx.accounts.funding_payment_history.to_account_info().key;
         let funding_rate_history = ctx.accounts.funding_rate_history.to_account_info().key;
         let liquidation_history = ctx.accounts.liquidation_history.to_account_info().key;
-        let curve_history = ctx.accounts.curve_history.to_account_info().key;
+        let extended_curve_history = ctx.accounts.curve_history.to_account_info().key;
 
         state.deposit_history = *deposit_history;
         state.trade_history = *trade_history;
         state.funding_rate_history = *funding_rate_history;
         state.funding_payment_history = *funding_payment_history;
         state.liquidation_history = *liquidation_history;
-        state.curve_history = *curve_history;
+        state.extended_curve_history = *extended_curve_history;
 
         Ok(())
     }
@@ -228,7 +227,7 @@ pub mod clearing_house {
             .ok_or_else(math_error!())?;
 
         // Verify oracle is readable
-        let (_, oracle_price_twap, _, _, _) = market
+        let (oracle_price, oracle_price_twap, _, _, _) = market
             .amm
             .get_oracle_price(&ctx.accounts.oracle, clock_slot)
             .unwrap();
@@ -266,7 +265,7 @@ pub mod clearing_house {
                 total_fee_minus_distributions: 0,
                 minimum_trade_size: 10000000,
                 last_oracle_price_twap_ts: now,
-                padding0: 0,
+                last_oracle_price: oracle_price,
                 padding1: 0,
                 padding2: 0,
                 padding3: 0,
@@ -856,14 +855,13 @@ pub mod clearing_house {
 
         // Collect data about market before trade is executed so that it can be stored in trade history
         let mark_price_before = market.amm.mark_price()?;
-        let (oracle_price, _, oracle_mark_spread_pct_before) =
-            amm::calculate_oracle_mark_spread_pct(
-                &market.amm,
-                &ctx.accounts.oracle,
-                0,
-                clock_slot,
-                Some(mark_price_before),
-            )?;
+        let (_, _, oracle_mark_spread_pct_before) = amm::calculate_oracle_mark_spread_pct(
+            &market.amm,
+            &ctx.accounts.oracle,
+            0,
+            clock_slot,
+            Some(mark_price_before),
+        )?;
         let direction_to_close =
             math::position::direction_to_close_position(market_position.base_asset_amount);
         let (quote_asset_amount, base_asset_amount) =
@@ -951,7 +949,7 @@ pub mod clearing_house {
         // Trade fails if the trade is risk increasing and it pushes to mark price too far
         // away from the oracle price
         let is_oracle_mark_too_divergent_before = amm::is_oracle_mark_too_divergent(
-            oracle_mark_spread_pct_after,
+            oracle_mark_spread_pct_before,
             &ctx.accounts.state.oracle_guard_rails.price_divergence,
         )?;
         let is_oracle_mark_too_divergent_after = amm::is_oracle_mark_too_divergent(
@@ -1031,6 +1029,10 @@ pub mod clearing_house {
         let (total_collateral, unrealized_pnl, base_asset_value, margin_ratio) =
             calculate_margin_ratio(user, user_positions, &ctx.accounts.markets.load()?)?;
         if margin_ratio > ctx.accounts.state.margin_ratio_partial {
+            msg!("total_collateral {}", total_collateral);
+            msg!("unrealized_pnl {}", unrealized_pnl);
+            msg!("base_asset_value {}", base_asset_value);
+            msg!("margin ratio {}", margin_ratio);
             return Err(ErrorCode::SufficientCollateral.into());
         }
 
@@ -1355,7 +1357,7 @@ pub mod clearing_house {
 
         // The admin can move fees from the insurance fund back to the protocol so that money in
         // the insurance fund can be used to make market more optimal
-        // 100% goes to user fee pool (symmetric funding, repeg, and k adjustments) 
+        // 100% goes to user fee pool (symmetric funding, repeg, and k adjustments)
         market.amm.total_fee_minus_distributions = market
             .amm
             .total_fee_minus_distributions
@@ -1391,6 +1393,7 @@ pub mod clearing_house {
         let market =
             &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
         let price_oracle = &ctx.accounts.oracle;
+        let (oracle_price, _, _, _, _) = market.amm.get_oracle_price(price_oracle, 0)?;
 
         let peg_multiplier_before = market.amm.peg_multiplier;
         let base_asset_reserve_before = market.amm.base_asset_reserve;
@@ -1414,7 +1417,7 @@ pub mod clearing_house {
 
         let curve_history = &mut ctx.accounts.curve_history.load_mut()?;
         let record_id = curve_history.next_record_id();
-        curve_history.append(CurveRecord {
+        curve_history.append(ExtendedCurveRecord {
             ts: now,
             record_id,
             market_index,
@@ -1433,7 +1436,97 @@ pub mod clearing_house {
             total_fee: market.amm.total_fee,
             total_fee_minus_distributions: market.amm.total_fee_minus_distributions,
             adjustment_cost: adjustment_cost,
+            oracle_price,
+            trade_record: 0,
+            padding: [0; 5],
         });
+
+        Ok(())
+    }
+
+    #[allow(unused_must_use)]
+    #[access_control(
+        market_initialized(&ctx.accounts.markets, market_index) &&
+        valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
+     )]
+    pub fn update_amm_oracle_twap(ctx: Context<RepegCurve>, market_index: u64) -> ProgramResult {
+        // allow update to amm's oracle twap iff price gap is reduced and thus more tame funding
+        // otherwise if oracle error or funding flip: set oracle twap to mark twap (0 gap)
+
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+        let clock_slot = clock.slot;
+
+        let market =
+            &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
+        let price_oracle = &ctx.accounts.oracle;
+        let (_, oracle_twap, _oracle_conf, _oracle_twac, _oracle_delay) =
+            market.amm.get_oracle_price(price_oracle, clock_slot)?;
+
+        let is_oracle_valid = amm::is_oracle_valid(
+            &market.amm,
+            &ctx.accounts.oracle,
+            clock_slot,
+            &ctx.accounts.state.oracle_guard_rails.validity,
+        )?;
+
+        if is_oracle_valid {
+            let oracle_mark_gap_before = cast_to_i128(market.amm.last_mark_price_twap)?
+                .checked_sub(market.amm.last_oracle_price_twap)
+                .ok_or_else(math_error!())?;
+
+            let oracle_mark_gap_after = cast_to_i128(market.amm.last_mark_price_twap)?
+                .checked_sub(oracle_twap)
+                .ok_or_else(math_error!())?;
+
+            if (oracle_mark_gap_after > 0 && oracle_mark_gap_before < 0)
+                || (oracle_mark_gap_after < 0 && oracle_mark_gap_before > 0)
+            {
+                market.amm.last_oracle_price_twap = cast_to_i128(market.amm.last_mark_price_twap)?;
+                market.amm.last_oracle_price_twap_ts = now;
+            } else if oracle_mark_gap_after.unsigned_abs() <= oracle_mark_gap_before.unsigned_abs()
+            {
+                market.amm.last_oracle_price_twap = oracle_twap;
+                market.amm.last_oracle_price_twap_ts = now;
+            } else {
+                return Err(ErrorCode::OracleMarkSpreadLimit.into());
+            }
+        } else {
+            return Err(ErrorCode::InvalidOracle.into());
+        }
+
+        Ok(())
+    }
+
+    #[allow(unused_must_use)]
+    #[access_control(
+        market_initialized(&ctx.accounts.markets, market_index) &&
+        valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
+     )]
+    pub fn reset_amm_oracle_twap(ctx: Context<RepegCurve>, market_index: u64) -> ProgramResult {
+        // if oracle is invalid, failsafe to reset amm oracle_twap to the mark_twap
+
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+        let clock_slot = clock.slot;
+
+        let market =
+            &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
+        let price_oracle = &ctx.accounts.oracle;
+        let (_, _, _oracle_conf, _oracle_twac, _oracle_delay) =
+            market.amm.get_oracle_price(price_oracle, clock_slot)?;
+
+        let is_oracle_valid = amm::is_oracle_valid(
+            &market.amm,
+            &ctx.accounts.oracle,
+            clock_slot,
+            &ctx.accounts.state.oracle_guard_rails.validity,
+        )?;
+
+        if !is_oracle_valid {
+            market.amm.last_oracle_price_twap = cast_to_i128(market.amm.last_mark_price_twap)?;
+            market.amm.last_oracle_price_twap_ts = now;
+        }
 
         Ok(())
     }
@@ -1530,6 +1623,7 @@ pub mod clearing_house {
     #[allow(unused_must_use)]
     #[access_control(
         market_initialized(&ctx.accounts.markets, market_index) &&
+        valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index) &&
         exchange_not_paused(&ctx.accounts.state)
     )]
     pub fn update_k(ctx: Context<AdminUpdateK>, sqrt_k: u128, market_index: u64) -> ProgramResult {
@@ -1606,9 +1700,11 @@ pub mod clearing_house {
         let total_fee = amm.total_fee;
         let total_fee_minus_distributions = amm.total_fee_minus_distributions;
 
+        let (oracle_price, _, _, _, _) = amm.get_oracle_price(&ctx.accounts.oracle, 0)?;
+
         let curve_history = &mut ctx.accounts.curve_history.load_mut()?;
         let record_id = curve_history.next_record_id();
-        curve_history.append(CurveRecord {
+        curve_history.append(ExtendedCurveRecord {
             ts: now,
             record_id,
             market_index,
@@ -1627,8 +1723,49 @@ pub mod clearing_house {
             adjustment_cost,
             total_fee,
             total_fee_minus_distributions,
+            oracle_price,
+            trade_record: 0,
+            padding: [0; 5],
         });
 
+        Ok(())
+    }
+
+    pub fn update_curve_history(ctx: Context<UpdateCurveHistory>) -> ProgramResult {
+        let curve_history = &ctx.accounts.curve_history.load()?;
+        let extended_curve_history = &mut ctx.accounts.extended_curve_history.load_init()?;
+
+        for old_record in curve_history.curve_records.iter() {
+            if old_record.record_id != 0 {
+                let new_record = ExtendedCurveRecord {
+                    ts: old_record.ts,
+                    record_id: old_record.record_id,
+                    market_index: old_record.market_index,
+                    peg_multiplier_before: old_record.peg_multiplier_before,
+                    base_asset_reserve_before: old_record.base_asset_reserve_before,
+                    quote_asset_reserve_before: old_record.quote_asset_reserve_before,
+                    sqrt_k_before: old_record.sqrt_k_before,
+                    peg_multiplier_after: old_record.peg_multiplier_after,
+                    base_asset_reserve_after: old_record.base_asset_reserve_after,
+                    quote_asset_reserve_after: old_record.quote_asset_reserve_after,
+                    sqrt_k_after: old_record.sqrt_k_after,
+                    base_asset_amount_long: old_record.base_asset_amount_long,
+                    base_asset_amount_short: old_record.base_asset_amount_short,
+                    base_asset_amount: old_record.base_asset_amount,
+                    open_interest: old_record.open_interest,
+                    total_fee: old_record.total_fee,
+                    total_fee_minus_distributions: old_record.total_fee_minus_distributions,
+                    adjustment_cost: old_record.adjustment_cost,
+                    oracle_price: 0,
+                    trade_record: 0,
+                    padding: [0; 5],
+                };
+                extended_curve_history.append(new_record);
+            }
+        }
+
+        let state = &mut ctx.accounts.state;
+        state.extended_curve_history = ctx.accounts.extended_curve_history.key();
         Ok(())
     }
 

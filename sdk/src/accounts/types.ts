@@ -1,6 +1,6 @@
 import {
-	CurveHistoryAccount,
 	DepositHistoryAccount,
+	ExtendedCurveHistoryAccount,
 	FundingPaymentHistoryAccount,
 	FundingRateHistoryAccount,
 	LiquidationHistoryAccount,
@@ -17,7 +17,7 @@ export interface AccountSubscriber<T> {
 	data?: T;
 	subscribe(onChange: (data: T) => void): Promise<void>;
 	fetch(): Promise<void>;
-	unsubscribe(): void;
+	unsubscribe(): Promise<void>;
 }
 
 export class NotSubscribedError extends Error {
@@ -34,7 +34,7 @@ export interface ClearingHouseAccountEvents {
 	tradeHistoryAccountUpdate: (payload: TradeHistoryAccount) => void;
 	liquidationHistoryAccountUpdate: (payload: LiquidationHistoryAccount) => void;
 	depositHistoryAccountUpdate: (payload: DepositHistoryAccount) => void;
-	curveHistoryAccountUpdate: (payload: CurveHistoryAccount) => void;
+	curveHistoryAccountUpdate: (payload: ExtendedCurveHistoryAccount) => void;
 	update: void;
 }
 
@@ -64,7 +64,7 @@ export interface ClearingHouseAccountSubscriber {
 	getDepositHistoryAccount(): DepositHistoryAccount;
 	getFundingPaymentHistoryAccount(): FundingPaymentHistoryAccount;
 	getFundingRateHistoryAccount(): FundingRateHistoryAccount;
-	getCurveHistoryAccount(): CurveHistoryAccount;
+	getCurveHistoryAccount(): ExtendedCurveHistoryAccount;
 	getLiquidationHistoryAccount(): LiquidationHistoryAccount;
 }
 
