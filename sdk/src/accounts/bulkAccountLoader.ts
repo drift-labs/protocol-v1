@@ -7,9 +7,9 @@ type AccountToLoad = {
 	uses: number;
 };
 
-type RPCResponse = {
+type AccountData = {
 	slot: number;
-	buffer: Buffer | null;
+	buffer: Buffer | undefined;
 };
 
 const GET_MULTIPLE_ACCOUNTS_CHUNK_SIZE = 99;
@@ -25,7 +25,7 @@ export class BulkAccountLoader {
 	pollingFrequency: number;
 	eventEmitter: StrictEventEmitter<EventEmitter, BulkAccountLoaderEvents>;
 	accountsToLoad = new Map<string, AccountToLoad>();
-	rpcResponses = new Map<string, RPCResponse>();
+	accountData = new Map<string, AccountData>();
 	intervalId?: NodeJS.Timer;
 
 	public constructor(
@@ -90,7 +90,7 @@ export class BulkAccountLoader {
 
 		await Promise.all(
 			chunks.map((chunk) => {
-				this.loadChunk(chunk);
+				return this.loadChunk(chunk);
 			})
 		);
 	}
@@ -124,9 +124,9 @@ export class BulkAccountLoader {
 		for (const i in accountsToLoad) {
 			const accountToLoad = accountsToLoad[i];
 			const key = accountToLoad.publicKey.toString();
-			const oldRPCResponse = this.rpcResponses.get(key);
+			const oldRPCResponse = this.accountData.get(key);
 
-			let newBuffer: Buffer | null = null;
+			let newBuffer: Buffer | undefined = undefined;
 			if (rpcResponse.result.value[i]) {
 				const raw: string = rpcResponse.result.value[i].data[0];
 				const dataType = rpcResponse.result.value[i].data[1];
@@ -134,7 +134,7 @@ export class BulkAccountLoader {
 			}
 
 			if (!oldRPCResponse) {
-				this.rpcResponses.set(key, {
+				this.accountData.set(key, {
 					slot: newSlot,
 					buffer: newBuffer,
 				});
@@ -152,7 +152,7 @@ export class BulkAccountLoader {
 
 			const oldBuffer = oldRPCResponse.buffer;
 			if (newBuffer && (!oldBuffer || !newBuffer.equals(oldBuffer))) {
-				this.rpcResponses.set(key, {
+				this.accountData.set(key, {
 					slot: newSlot,
 					buffer: newBuffer,
 				});
@@ -163,6 +163,11 @@ export class BulkAccountLoader {
 				);
 			}
 		}
+	}
+
+	public getAccountData(publicKey: PublicKey): Buffer | undefined {
+		const accountData = this.accountData.get(publicKey.toString());
+		return accountData?.buffer;
 	}
 
 	public startPolling(): void {

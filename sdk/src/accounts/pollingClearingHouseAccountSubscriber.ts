@@ -1,5 +1,6 @@
 import { PublicKey } from '@solana/web3.js';
 import {
+	AccountToPoll,
 	ClearingHouseAccountEvents,
 	ClearingHouseAccountSubscriber,
 	ClearingHouseAccountTypes,
@@ -20,12 +21,7 @@ import {
 } from '../types';
 import { getClearingHouseStateAccountPublicKey } from '../addresses';
 import { BulkAccountLoader } from './bulkAccountLoader';
-
-type AccountToPoll = {
-	key: string;
-	publicKey: PublicKey;
-	eventType: string;
-};
+import { capitalize } from './utils';
 
 export class PollingClearingHouseAccountSubscriber
 	implements ClearingHouseAccountSubscriber
@@ -33,6 +29,7 @@ export class PollingClearingHouseAccountSubscriber
 	isSubscribed: boolean;
 	program: Program;
 	eventEmitter: StrictEventEmitter<EventEmitter, ClearingHouseAccountEvents>;
+
 	accountLoader: BulkAccountLoader;
 	accountsToPoll = new Map<string, AccountToPoll>();
 	onAccountUpdate?: (publicKey: PublicKey, buffer: Buffer) => void;
@@ -81,7 +78,7 @@ export class PollingClearingHouseAccountSubscriber
 
 		await this.updateAccountsToPoll();
 		await this.addToAccountLoader();
-		await this.accountLoader.load();
+		await this.fetch();
 		this.eventEmitter.emit('update');
 
 		this.isSubscribing = false;
@@ -171,14 +168,7 @@ export class PollingClearingHouseAccountSubscriber
 		}
 	}
 
-	capitalize(value: string): string {
-		return value[0].toUpperCase() + value.slice(1);
-	}
-
 	async addToAccountLoader(): Promise<void> {
-		for (const [_, accountToPoll] of this.accountsToPoll) {
-			this.accountLoader.addAccount(accountToPoll.publicKey);
-		}
 		this.onAccountUpdate = (publicKey: PublicKey, buffer: Buffer) => {
 			const accountToPoll = this.accountsToPoll.get(publicKey.toString());
 			if (!accountToPoll) {
@@ -187,11 +177,11 @@ export class PollingClearingHouseAccountSubscriber
 
 			const account = this.program.account[
 				accountToPoll.key
-			].coder.accounts.decode(this.capitalize(accountToPoll.key), buffer);
+			].coder.accounts.decode(capitalize(accountToPoll.key), buffer);
+			this[accountToPoll.key] = account;
 			// @ts-ignore
 			this.eventEmitter.emit(accountToPoll.eventType, account);
 			this.eventEmitter.emit('update');
-			this[accountToPoll.key] = account;
 		};
 		this.accountLoader.eventEmitter.on('accountUpdate', this.onAccountUpdate);
 
@@ -199,10 +189,22 @@ export class PollingClearingHouseAccountSubscriber
 			this.eventEmitter.emit('error', e);
 		};
 		this.accountLoader.eventEmitter.on('error', this.onError);
+
+		for (const [_, accountToPoll] of this.accountsToPoll) {
+			this.accountLoader.addAccount(accountToPoll.publicKey);
+		}
 	}
 
 	public async fetch(): Promise<void> {
 		await this.accountLoader.load();
+		for (const [_, accountToPoll] of this.accountsToPoll) {
+			const buffer = this.accountLoader.getAccountData(accountToPoll.publicKey);
+			if (buffer) {
+				this[accountToPoll.key] = this.program.account[
+					accountToPoll.key
+				].coder.accounts.decode(capitalize(accountToPoll.key), buffer);
+			}
+		}
 	}
 
 	public async unsubscribe(): Promise<void> {

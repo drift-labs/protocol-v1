@@ -6,6 +6,8 @@ import clearingHouseIDL from './idl/clearing_house.json';
 import { DefaultTxSender } from './tx/defaultTxSender';
 import { BulkAccountLoader } from './accounts/bulkAccountLoader';
 import { PollingClearingHouseAccountSubscriber } from './accounts/pollingClearingHouseAccountSubscriber';
+import { PollingUserAccountSubscriber } from './accounts/pollingUserAccountSubscriber';
+import { ClearingHouseUser } from './clearingHouseUser';
 
 export function getClearingHouseThatPolls(
 	connection: Connection,
@@ -38,4 +40,22 @@ export function getClearingHouseThatPolls(
 		txSender,
 		opts
 	);
+}
+
+export function getClearingHouseUserThatPolls(
+	clearingHouse: ClearingHouse,
+	authority: PublicKey,
+	pollingFrequency: number
+): ClearingHouseUser {
+	const accountLoader = new BulkAccountLoader(
+		clearingHouse.connection,
+		clearingHouse.opts.commitment,
+		pollingFrequency
+	);
+	const accountSubscriber = new PollingUserAccountSubscriber(
+		clearingHouse.program,
+		authority,
+		accountLoader
+	);
+	return new ClearingHouseUser(clearingHouse, authority, accountSubscriber);
 }

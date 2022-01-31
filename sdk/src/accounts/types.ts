@@ -12,6 +12,7 @@ import {
 } from '../types';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import { EventEmitter } from 'events';
+import { PublicKey } from '@solana/web3.js';
 
 export interface AccountSubscriber<T> {
 	data?: T;
@@ -73,6 +74,7 @@ export interface UserAccountEvents {
 	userAccountData: (payload: UserAccount) => void;
 	userPositionsData: (payload: UserPositionsAccount) => void;
 	update: void;
+	error: (e: Error) => void;
 }
 
 export interface UserAccountSubscriber {
@@ -86,3 +88,9 @@ export interface UserAccountSubscriber {
 	getUserAccount(): UserAccount;
 	getUserPositionsAccount(): UserPositionsAccount;
 }
+
+export type AccountToPoll = {
+	key: string;
+	publicKey: PublicKey;
+	eventType: string;
+};
