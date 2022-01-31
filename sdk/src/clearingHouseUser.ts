@@ -18,7 +18,6 @@ import {
 	PRICE_TO_QUOTE_PRECISION,
 } from './constants/numericConstants';
 import { UserAccountSubscriber, UserAccountEvents } from './accounts/types';
-import { WebSocketUserAccountSubscriber } from './accounts/webSocketUserAccountSubscriber';
 import {
 	calculateMarkPrice,
 	calculateBaseAssetValue,

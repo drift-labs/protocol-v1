@@ -44,7 +44,6 @@ import {
 	ClearingHouseAccountEvents,
 	ClearingHouseAccountTypes,
 } from './accounts/types';
-import { WebSocketClearingHouseAccountSubscriber } from './accounts/webSocketClearingHouseAccountSubscriber';
 import { TxSender } from './tx/types';
 import { DefaultTxSender } from './tx/defaultTxSender';
 import { wrapInTx } from './tx/utils';
