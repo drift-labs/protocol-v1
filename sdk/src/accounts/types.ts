@@ -36,6 +36,7 @@ export interface ClearingHouseAccountEvents {
 	depositHistoryAccountUpdate: (payload: DepositHistoryAccount) => void;
 	curveHistoryAccountUpdate: (payload: ExtendedCurveHistoryAccount) => void;
 	update: void;
+	error: (e: Error) => void;
 }
 
 export type ClearingHouseAccountTypes =

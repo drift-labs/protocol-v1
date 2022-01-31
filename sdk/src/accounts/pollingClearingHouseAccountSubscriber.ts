@@ -34,7 +34,9 @@ export class PollingClearingHouseAccountSubscriber
 	program: Program;
 	eventEmitter: StrictEventEmitter<EventEmitter, ClearingHouseAccountEvents>;
 	accountLoader: BulkAccountLoader;
-	accountsToPoll: AccountToPoll[];
+	accountsToPoll = new Map<string, AccountToPoll>();
+	onAccountUpdate?: (publicKey: PublicKey, buffer: Buffer) => void;
+	onError?: (e: Error) => void;
 
 	state?: StateAccount;
 	markets?: MarketsAccount;
@@ -79,7 +81,6 @@ export class PollingClearingHouseAccountSubscriber
 
 		await this.updateAccountsToPoll();
 		await this.addToAccountLoader();
-		this.accountLoader.startPolling();
 		await this.accountLoader.load();
 		this.eventEmitter.emit('update');
 
@@ -91,34 +92,32 @@ export class PollingClearingHouseAccountSubscriber
 	}
 
 	async updateAccountsToPoll(): Promise<void> {
-		if (this.accountsToPoll && this.accountsToPoll.length > 0) {
+		if (this.accountsToPoll.size > 0) {
 			return;
 		}
 
 		const statePublicKey = await getClearingHouseStateAccountPublicKey(
 			this.program.programId
 		);
-		// @ts-ignore
-		const state: StateAccount = await this.program.account.state.fetch(
-			statePublicKey
-		);
-		const marketsPublicKey = state.markets;
 
-		const accountsToPoll: AccountToPoll[] = [
-			{
-				key: 'state',
-				publicKey: statePublicKey,
-				eventType: 'stateAccountUpdate',
-			},
-			{
-				key: 'markets',
-				publicKey: marketsPublicKey,
-				eventType: 'marketsAccountUpdate',
-			},
-		];
+		const state = (await this.program.account.state.fetch(
+			statePublicKey
+		)) as StateAccount;
+
+		this.accountsToPoll.set(statePublicKey.toString(), {
+			key: 'state',
+			publicKey: statePublicKey,
+			eventType: 'stateAccountUpdate',
+		});
+
+		this.accountsToPoll.set(state.markets.toString(), {
+			key: 'markets',
+			publicKey: state.markets,
+			eventType: 'marketsAccountUpdate',
+		});
 
 		if (this.optionalExtraSubscriptions?.includes('tradeHistoryAccount')) {
-			accountsToPoll.push({
+			this.accountsToPoll.set(state.tradeHistory.toString(), {
 				key: 'tradeHistory',
 				publicKey: state.tradeHistory,
 				eventType: 'tradeHistoryAccountUpdate',
@@ -126,7 +125,7 @@ export class PollingClearingHouseAccountSubscriber
 		}
 
 		if (this.optionalExtraSubscriptions?.includes('depositHistoryAccount')) {
-			accountsToPoll.push({
+			this.accountsToPoll.set(state.depositHistory.toString(), {
 				key: 'depositHistory',
 				publicKey: state.depositHistory,
 				eventType: 'depositHistoryAccountUpdate',
@@ -136,7 +135,7 @@ export class PollingClearingHouseAccountSubscriber
 		if (
 			this.optionalExtraSubscriptions?.includes('fundingPaymentHistoryAccount')
 		) {
-			accountsToPoll.push({
+			this.accountsToPoll.set(state.fundingPaymentHistory.toString(), {
 				key: 'fundingPaymentHistory',
 				publicKey: state.fundingPaymentHistory,
 				eventType: 'fundingPaymentHistoryAccountUpdate',
@@ -146,7 +145,7 @@ export class PollingClearingHouseAccountSubscriber
 		if (
 			this.optionalExtraSubscriptions?.includes('fundingRateHistoryAccount')
 		) {
-			accountsToPoll.push({
+			this.accountsToPoll.set(state.fundingRateHistory.toString(), {
 				key: 'fundingRateHistory',
 				publicKey: state.fundingRateHistory,
 				eventType: 'fundingRateHistoryAccountUpdate',
@@ -154,7 +153,7 @@ export class PollingClearingHouseAccountSubscriber
 		}
 
 		if (this.optionalExtraSubscriptions?.includes('curveHistoryAccount')) {
-			accountsToPoll.push({
+			this.accountsToPoll.set(state.extendedCurveHistory.toString(), {
 				key: 'extendedCurveHistory',
 				publicKey: state.extendedCurveHistory,
 				eventType: 'curveHistoryAccountUpdate',
@@ -164,14 +163,12 @@ export class PollingClearingHouseAccountSubscriber
 		if (
 			this.optionalExtraSubscriptions?.includes('liquidationHistoryAccount')
 		) {
-			accountsToPoll.push({
+			this.accountsToPoll.set(state.liquidationHistory.toString(), {
 				key: 'liquidationHistory',
 				publicKey: state.liquidationHistory,
 				eventType: 'liquidationHistoryAccountUpdate',
 			});
 		}
-
-		this.accountsToPoll = accountsToPoll;
 	}
 
 	capitalize(value: string): string {
@@ -179,22 +176,29 @@ export class PollingClearingHouseAccountSubscriber
 	}
 
 	async addToAccountLoader(): Promise<void> {
-		this.accountsToPoll.forEach((accountToPoll) => {
-			const onChange = (buffer: Buffer) => {
-				const account = this.program.account[
-					accountToPoll.key
-				].coder.accounts.decode(this.capitalize(accountToPoll.key), buffer);
-				// @ts-ignore
-				this.eventEmitter.emit(accountToPoll.eventType, account);
-				this.eventEmitter.emit('update');
-				this[accountToPoll.key] = account;
-			};
-			onChange.bind(this);
-			this.accountLoader.addAccount({
-				publicKey: accountToPoll.publicKey,
-				onChange,
-			});
-		});
+		for (const [_, accountToPoll] of this.accountsToPoll) {
+			this.accountLoader.addAccount(accountToPoll.publicKey);
+		}
+		this.onAccountUpdate = (publicKey: PublicKey, buffer: Buffer) => {
+			const accountToPoll = this.accountsToPoll.get(publicKey.toString());
+			if (!accountToPoll) {
+				return;
+			}
+
+			const account = this.program.account[
+				accountToPoll.key
+			].coder.accounts.decode(this.capitalize(accountToPoll.key), buffer);
+			// @ts-ignore
+			this.eventEmitter.emit(accountToPoll.eventType, account);
+			this.eventEmitter.emit('update');
+			this[accountToPoll.key] = account;
+		};
+		this.accountLoader.eventEmitter.on('accountUpdate', this.onAccountUpdate);
+
+		this.onError = (e) => {
+			this.eventEmitter.emit('error', e);
+		};
+		this.accountLoader.eventEmitter.on('error', this.onError);
 	}
 
 	public async fetch(): Promise<void> {
@@ -206,11 +210,18 @@ export class PollingClearingHouseAccountSubscriber
 			return;
 		}
 
-		for (const accountToPoll of this.accountsToPoll) {
+		for (const [_, accountToPoll] of this.accountsToPoll) {
 			this.accountLoader.removeAccount(accountToPoll.publicKey);
 		}
+		this.accountLoader.eventEmitter.removeListener(
+			'accountUpdate',
+			this.onAccountUpdate
+		);
+		this.onAccountUpdate = undefined;
+		this.accountLoader.eventEmitter.removeListener('error', this.onError);
+		this.onError = undefined;
 
-		this.accountsToPoll = [];
+		this.accountsToPoll.clear();
 		this.isSubscribed = false;
 	}
 

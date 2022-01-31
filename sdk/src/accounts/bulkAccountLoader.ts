@@ -1,10 +1,10 @@
 import { Commitment, Connection, PublicKey } from '@solana/web3.js';
-
-type onAccountChange = (data: Buffer | null) => void;
+import StrictEventEmitter from 'strict-event-emitter-types';
+import { EventEmitter } from 'events';
 
 type AccountToLoad = {
 	publicKey: PublicKey;
-	onChange: onAccountChange;
+	uses: number;
 };
 
 type RPCResponse = {
@@ -14,14 +14,18 @@ type RPCResponse = {
 
 const GET_MULTIPLE_ACCOUNTS_CHUNK_SIZE = 99;
 
+export interface BulkAccountLoaderEvents {
+	accountUpdate: (publicKey: PublicKey, buffer: Buffer) => void;
+	error: (e: Error) => void;
+}
+
 export class BulkAccountLoader {
 	connection: Connection;
 	commitment: Commitment;
 	pollingFrequency: number;
-
+	eventEmitter: StrictEventEmitter<EventEmitter, BulkAccountLoaderEvents>;
 	accountsToLoad = new Map<string, AccountToLoad>();
 	rpcResponses = new Map<string, RPCResponse>();
-
 	intervalId?: NodeJS.Timer;
 
 	public constructor(
@@ -32,14 +36,43 @@ export class BulkAccountLoader {
 		this.connection = connection;
 		this.commitment = commitment;
 		this.pollingFrequency = pollingFrequency;
+		this.eventEmitter = new EventEmitter();
 	}
 
-	public addAccount(accountToLoad: AccountToLoad): void {
-		this.accountsToLoad.set(accountToLoad.publicKey.toString(), accountToLoad);
+	public addAccount(publicKey: PublicKey): void {
+		const existingSize = this.accountsToLoad.size;
+		const existingAccountToLoad = this.accountsToLoad.get(publicKey.toString());
+		const updatedAccountToLoad = {
+			publicKey,
+			uses: existingAccountToLoad ? existingAccountToLoad.uses + 1 : 1,
+		};
+		this.accountsToLoad.set(publicKey.toString(), updatedAccountToLoad);
+
+		if (existingSize === 0) {
+			this.startPolling();
+		}
 	}
 
 	public removeAccount(publicKey: PublicKey): void {
-		this.accountsToLoad.delete(publicKey.toString());
+		const existingAccountToLoad = this.accountsToLoad.get(publicKey.toString());
+		if (existingAccountToLoad) {
+			if (existingAccountToLoad.uses > 1) {
+				const updatedAccountToLoad = {
+					publicKey,
+					uses: existingAccountToLoad.uses - 1,
+				};
+				this.accountsToLoad.set(
+					existingAccountToLoad.publicKey.toString(),
+					updatedAccountToLoad
+				);
+			} else {
+				this.accountsToLoad.delete(existingAccountToLoad.publicKey.toString());
+			}
+		}
+
+		if (this.accountsToLoad.size === 0) {
+			this.stopPolling();
+		}
 	}
 
 	chunks<T>(array: readonly T[], size: number): T[][] {
@@ -74,11 +107,17 @@ export class BulkAccountLoader {
 			{ commitment: this.commitment },
 		];
 
-		// @ts-ignore
-		const rpcResponse = await this.connection._rpcRequest(
-			'getMultipleAccounts',
-			args
-		);
+		let rpcResponse;
+		try {
+			// @ts-ignore
+			rpcResponse = await this.connection._rpcRequest(
+				'getMultipleAccounts',
+				args
+			);
+		} catch (e) {
+			this.eventEmitter.emit('error', e);
+			return;
+		}
 
 		const newSlot = rpcResponse.result.context.slot;
 
@@ -99,7 +138,11 @@ export class BulkAccountLoader {
 					slot: newSlot,
 					buffer: newBuffer,
 				});
-				accountToLoad.onChange(newBuffer);
+				this.eventEmitter.emit(
+					'accountUpdate',
+					accountToLoad.publicKey,
+					newBuffer
+				);
 				continue;
 			}
 
@@ -113,7 +156,11 @@ export class BulkAccountLoader {
 					slot: newSlot,
 					buffer: newBuffer,
 				});
-				accountToLoad.onChange(newBuffer);
+				this.eventEmitter.emit(
+					'accountUpdate',
+					accountToLoad.publicKey,
+					newBuffer
+				);
 			}
 		}
 	}
