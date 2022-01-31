@@ -48,6 +48,10 @@ import { WebSocketClearingHouseAccountSubscriber } from './accounts/webSocketCle
 import { TxSender } from './tx/types';
 import { DefaultTxSender } from './tx/defaultTxSender';
 import { wrapInTx } from './tx/utils';
+import {
+	getClearingHouse,
+	getWebSocketClearingHouseConfig,
+} from './factory/clearingHouse';
 
 /**
  * # ClearingHouse
@@ -73,24 +77,13 @@ export class ClearingHouse {
 		clearingHouseProgramId: PublicKey,
 		opts: ConfirmOptions = Provider.defaultOptions()
 	): ClearingHouse {
-		const provider = new Provider(connection, wallet, opts);
-		const program = new Program(
-			clearingHouseIDL as Idl,
-			clearingHouseProgramId,
-			provider
-		);
-		const accountSubscriber = new WebSocketClearingHouseAccountSubscriber(
-			program
-		);
-		const txSender = new DefaultTxSender(provider);
-		return new ClearingHouse(
+		const config = getWebSocketClearingHouseConfig(
 			connection,
 			wallet,
-			program,
-			accountSubscriber,
-			txSender,
+			clearingHouseProgramId,
 			opts
 		);
+		return getClearingHouse(config);
 	}
 
 	public constructor(

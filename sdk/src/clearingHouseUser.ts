@@ -28,6 +28,10 @@ import {
 	calculateTradeSlippage,
 } from '.';
 import { getUserAccountPublicKey } from './addresses';
+import {
+	getClearingHouseUser,
+	getWebSocketClearingHouseUserConfig,
+} from './factory/clearingHouseUser';
 
 export class ClearingHouseUser {
 	clearingHouse: ClearingHouse;
@@ -41,11 +45,11 @@ export class ClearingHouseUser {
 		clearingHouse: ClearingHouse,
 		authority: PublicKey
 	): ClearingHouseUser {
-		const accountSubscriber = new WebSocketUserAccountSubscriber(
-			clearingHouse.program,
+		const config = getWebSocketClearingHouseUserConfig(
+			clearingHouse,
 			authority
 		);
-		return new ClearingHouseUser(clearingHouse, authority, accountSubscriber);
+		return getClearingHouseUser(config);
 	}
 
 	public constructor(
