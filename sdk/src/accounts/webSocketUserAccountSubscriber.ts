@@ -12,7 +12,7 @@ import { getUserAccountPublicKey } from '../addresses';
 import { WebSocketAccountSubscriber } from './webSocketAccountSubscriber';
 import { UserAccount, UserPositionsAccount } from '../types';
 
-export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
+export class WebSocketUserAccountSubscriber implements UserAccountSubscriber {
 	isSubscribed: boolean;
 	program: Program;
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
@@ -77,7 +77,7 @@ export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
 		if (!this.isSubscribed) {
 			return;
 		}
-		
+
 		await Promise.all([
 			this.userDataAccountSubscriber.unsubscribe(),
 			this.userPositionsAccountSubscriber.unsubscribe(),

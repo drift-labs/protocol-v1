@@ -18,7 +18,7 @@ import {
 	PRICE_TO_QUOTE_PRECISION,
 } from './constants/numericConstants';
 import { UserAccountSubscriber, UserAccountEvents } from './accounts/types';
-import { DefaultUserAccountSubscriber } from './accounts/defaultUserAccountSubscriber';
+import { WebSocketUserAccountSubscriber } from './accounts/webSocketUserAccountSubscriber';
 import {
 	calculateMarkPrice,
 	calculateBaseAssetValue,
@@ -41,7 +41,7 @@ export class ClearingHouseUser {
 		clearingHouse: ClearingHouse,
 		authority: PublicKey
 	): ClearingHouseUser {
-		const accountSubscriber = new DefaultUserAccountSubscriber(
+		const accountSubscriber = new WebSocketUserAccountSubscriber(
 			clearingHouse.program,
 			authority
 		);

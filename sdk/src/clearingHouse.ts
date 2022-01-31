@@ -44,7 +44,7 @@ import {
 	ClearingHouseAccountEvents,
 	ClearingHouseAccountTypes,
 } from './accounts/types';
-import { DefaultClearingHouseAccountSubscriber } from './accounts/defaultClearingHouseAccountSubscriber';
+import { WebSocketClearingHouseAccountSubscriber } from './accounts/webSocketClearingHouseAccountSubscriber';
 import { TxSender } from './tx/types';
 import { DefaultTxSender } from './tx/defaultTxSender';
 import { wrapInTx } from './tx/utils';
@@ -53,7 +53,7 @@ import { wrapInTx } from './tx/utils';
  * # ClearingHouse
  * This class is the main way to interact with Drift Protocol. It allows you to subscribe to the various accounts where the Market's state is stored, as well as: opening positions, liquidating, settling funding, depositing & withdrawing, and more.
  *
- * The default way to construct a ClearingHouse instance is using the {@link from} method. This will create an instance using the static {@link DefaultClearingHouseAccountSubscriber}, which will use a websocket for each state account subscription.
+ * The default way to construct a ClearingHouse instance is using the {@link from} method. This will create an instance using the static {@link WebSocketClearingHouseAccountSubscriber}, which will use a websocket for each state account subscription.
  * Alternatively, if you want to implement your own method of subscribing to the state accounts on the blockchain, you can implement a {@link ClearingHouseAccountSubscriber} and use it in the {@link ClearingHouse.constructor}
  */
 export class ClearingHouse {
@@ -79,7 +79,7 @@ export class ClearingHouse {
 			clearingHouseProgramId,
 			provider
 		);
-		const accountSubscriber = new DefaultClearingHouseAccountSubscriber(
+		const accountSubscriber = new WebSocketClearingHouseAccountSubscriber(
 			program
 		);
 		const txSender = new DefaultTxSender(provider);
