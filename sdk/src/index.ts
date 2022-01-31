@@ -6,6 +6,7 @@ export * from './types';
 export * from './constants/markets';
 export * from './accounts/defaultClearingHouseAccountSubscriber';
 export * from './accounts/PollingClearingHouseAccountSubscriber';
+export * from './accounts/PollingTokenAccountSubscriber';
 export * from './accounts/types';
 export * from './addresses';
 export * from './admin';

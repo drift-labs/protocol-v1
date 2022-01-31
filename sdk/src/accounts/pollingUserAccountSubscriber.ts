@@ -1,5 +1,4 @@
 import {
-	AccountSubscriber,
 	AccountToPoll,
 	NotSubscribedError,
 	UserAccountEvents,
@@ -27,9 +26,6 @@ export class PollingUserAccountSubscriber implements UserAccountSubscriber {
 
 	user?: UserAccount;
 	userPositions?: UserPositionsAccount;
-
-	userDataAccountSubscriber: AccountSubscriber<UserAccount>;
-	userPositionsAccountSubscriber: AccountSubscriber<UserPositionsAccount>;
 
 	public constructor(
 		program: Program,

@@ -13,6 +13,7 @@ import {
 import StrictEventEmitter from 'strict-event-emitter-types';
 import { EventEmitter } from 'events';
 import { PublicKey } from '@solana/web3.js';
+import { AccountInfo } from '@solana/spl-token';
 
 export interface AccountSubscriber<T> {
 	data?: T;
@@ -87,6 +88,23 @@ export interface UserAccountSubscriber {
 
 	getUserAccount(): UserAccount;
 	getUserPositionsAccount(): UserPositionsAccount;
+}
+
+export interface TokenAccountEvents {
+	tokenAccountUpdate: (payload: AccountInfo) => void;
+	update: void;
+	error: (e: Error) => void;
+}
+
+export interface TokenAccountSubscriber {
+	eventEmitter: StrictEventEmitter<EventEmitter, TokenAccountEvents>;
+	isSubscribed: boolean;
+
+	subscribe(): Promise<boolean>;
+	fetch(): Promise<void>;
+	unsubscribe(): Promise<void>;
+
+	getTokenAccount(): AccountInfo;
 }
 
 export type AccountToPoll = {
