@@ -1131,10 +1131,7 @@ pub mod clearing_house {
                 let base_asset_value_to_close = base_asset_value
                     .checked_mul(state.partial_liquidation_close_percentage_numerator)
                     .ok_or_else(math_error!())?
-                    .checked_div(
-                        state
-                            .partial_liquidation_close_percentage_denominator,
-                    )
+                    .checked_div(state.partial_liquidation_close_percentage_denominator)
                     .ok_or_else(math_error!())?;
                 base_asset_value_closed += base_asset_value_to_close;
 
@@ -1183,15 +1180,9 @@ pub mod clearing_house {
                 .ok_or_else(math_error!())?
         } else {
             total_collateral
-                .checked_mul(
-                    state
-                        .partial_liquidation_penalty_percentage_numerator,
-                )
+                .checked_mul(state.partial_liquidation_penalty_percentage_numerator)
                 .ok_or_else(math_error!())?
-                .checked_div(
-                    state
-                        .partial_liquidation_penalty_percentage_denominator,
-                )
+                .checked_div(state.partial_liquidation_penalty_percentage_denominator)
                 .ok_or_else(math_error!())?
         };
 

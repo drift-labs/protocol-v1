@@ -50,8 +50,8 @@ pub fn get_discount_token_and_referrer<'a, 'b, 'c, 'd, 'e>(
 
     let account_info_iter = &mut accounts.iter();
     if optional_accounts.discount_token {
-        let token_account_info = next_account_info(account_info_iter)
-            .or(Err(ErrorCode::DiscountTokenNotFound))?;
+        let token_account_info =
+            next_account_info(account_info_iter).or(Err(ErrorCode::DiscountTokenNotFound))?;
 
         spl_token::check_program_account(token_account_info.owner)
             .map_err(|_| ErrorCode::InvalidDiscountToken)?;

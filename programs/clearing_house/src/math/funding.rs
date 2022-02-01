@@ -210,8 +210,6 @@ fn calculate_funding_rate_from_pnl_limit(
         pnl_limit
     };
 
-    
-
     pnl_limit_biased
         .checked_mul(QUOTE_TO_BASE_AMT_FUNDING_PRECISION)
         .ok_or_else(math_error!())?

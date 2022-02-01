@@ -94,8 +94,9 @@ fn calculate_token_discount_for_tier(
     discount_token: TokenAccount,
 ) -> Option<u128> {
     if discount_token.amount >= tier.minimum_balance {
-        return fee.checked_mul(tier.discount_numerator)?
-                .checked_div(tier.discount_denominator);
+        return fee
+            .checked_mul(tier.discount_numerator)?
+            .checked_div(tier.discount_denominator);
     }
     None
 }

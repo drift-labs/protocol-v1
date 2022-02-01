@@ -200,7 +200,7 @@ pub fn calculate_twap(
         .ok_or_else(math_error!())?;
     let prev_twap_99 = old_data.checked_mul(old_weight).ok_or_else(math_error!())?;
     let latest_price_01 = new_data.checked_mul(new_weight).ok_or_else(math_error!())?;
-    
+
     prev_twap_99
         .checked_add(latest_price_01)
         .ok_or_else(math_error!())?
