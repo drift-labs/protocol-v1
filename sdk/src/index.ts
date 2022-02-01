@@ -10,6 +10,7 @@ export * from './addresses';
 export * from './admin';
 export * from './clearingHouseUser';
 export * from './clearingHouse';
+export * from './math/collateral';
 export * from './math/conversion';
 export * from './math/funding';
 export * from './math/insuranceFund';
