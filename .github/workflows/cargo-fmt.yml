@@ -6,10 +6,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Install Rust nightly
+      - name: Install Rust stable
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: 1.56.0-dev
+          toolchain: stable
           target: x86_64-apple-darwin
           override: true
           components: rustfmt, clippy
