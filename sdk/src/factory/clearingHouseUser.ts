@@ -6,7 +6,7 @@ import { UserAccountSubscriber } from '../accounts/types';
 import { WebSocketUserAccountSubscriber } from '../accounts/webSocketUserAccountSubscriber';
 import { PollingUserAccountSubscriber } from '../accounts/pollingUserAccountSubscriber';
 
-type ClearingHouseUserConfigType = 'websocket' | 'polling';
+export type ClearingHouseUserConfigType = 'websocket' | 'polling' | 'custom';
 
 type BaseClearingHouseUserConfig = {
 	type: ClearingHouseUserConfigType;
@@ -41,7 +41,7 @@ export function getPollingClearingHouseUserConfig(
 	accountLoader: BulkAccountLoader
 ): PollingClearingHouseUserConfig {
 	return {
-		type: 'websocket',
+		type: 'polling',
 		clearingHouse,
 		authority,
 		accountLoader,

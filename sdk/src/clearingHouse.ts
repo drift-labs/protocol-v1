@@ -70,6 +70,14 @@ export class ClearingHouse {
 	isSubscribed = false;
 	txSender: TxSender;
 
+	/**
+	 * @deprecated You should use the getClearingHouse factory method instead
+	 * @param connection 
+	 * @param wallet 
+	 * @param clearingHouseProgramId 
+	 * @param opts 
+	 * @returns 
+	 */
 	public static from(
 		connection: Connection,
 		wallet: IWallet,

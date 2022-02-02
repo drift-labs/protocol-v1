@@ -46,6 +46,8 @@ export class PollingClearingHouseAccountSubscriber
 
 	optionalExtraSubscriptions: ClearingHouseAccountTypes[] = [];
 
+	type: 'polling';
+
 	private isSubscribing = false;
 	private subscriptionPromise: Promise<boolean>;
 	private subscriptionPromiseResolver: (val: boolean) => void;

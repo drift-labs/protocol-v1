@@ -14,6 +14,7 @@ import StrictEventEmitter from 'strict-event-emitter-types';
 import { EventEmitter } from 'events';
 import { PublicKey } from '@solana/web3.js';
 import { AccountInfo } from '@solana/spl-token';
+import { ClearingHouseConfigType, ClearingHouseUserConfigType } from '..';
 
 export interface AccountSubscriber<T> {
 	data?: T;
@@ -69,6 +70,8 @@ export interface ClearingHouseAccountSubscriber {
 	getFundingRateHistoryAccount(): FundingRateHistoryAccount;
 	getCurveHistoryAccount(): ExtendedCurveHistoryAccount;
 	getLiquidationHistoryAccount(): LiquidationHistoryAccount;
+
+	type: ClearingHouseConfigType;
 }
 
 export interface UserAccountEvents {
@@ -88,6 +91,8 @@ export interface UserAccountSubscriber {
 
 	getUserAccount(): UserAccount;
 	getUserPositionsAccount(): UserPositionsAccount;
+
+	type: ClearingHouseUserConfigType;
 }
 
 export interface TokenAccountEvents {

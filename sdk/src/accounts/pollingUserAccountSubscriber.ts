@@ -27,6 +27,8 @@ export class PollingUserAccountSubscriber implements UserAccountSubscriber {
 	user?: UserAccount;
 	userPositions?: UserPositionsAccount;
 
+	type: 'polling';
+
 	public constructor(
 		program: Program,
 		authority: PublicKey,

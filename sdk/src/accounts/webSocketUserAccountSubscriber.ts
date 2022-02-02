@@ -21,6 +21,8 @@ export class WebSocketUserAccountSubscriber implements UserAccountSubscriber {
 	userDataAccountSubscriber: AccountSubscriber<UserAccount>;
 	userPositionsAccountSubscriber: AccountSubscriber<UserPositionsAccount>;
 
+	type: 'websocket';
+
 	public constructor(program: Program, authority: PublicKey) {
 		this.isSubscribed = false;
 		this.program = program;

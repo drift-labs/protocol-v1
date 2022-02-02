@@ -10,7 +10,7 @@ import { DefaultTxSender } from '../tx/defaultTxSender';
 import { ClearingHouseAccountSubscriber } from '../accounts/types';
 import { PollingClearingHouseAccountSubscriber } from '../accounts/pollingClearingHouseAccountSubscriber';
 
-type ClearingHouseConfigType = 'websocket' | 'polling';
+export type ClearingHouseConfigType = 'websocket' | 'polling' | 'custom';
 
 type BaseClearingHouseConfig = {
 	type: ClearingHouseConfigType;

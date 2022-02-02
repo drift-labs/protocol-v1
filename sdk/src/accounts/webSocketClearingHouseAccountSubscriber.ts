@@ -37,6 +37,8 @@ export class WebSocketClearingHouseAccountSubscriber
 
 	optionalExtraSubscriptions: ClearingHouseAccountTypes[] = [];
 
+	type: 'websocket';
+
 	private isSubscribing = false;
 	private subscriptionPromise: Promise<boolean>;
 	private subscriptionPromiseResolver: (val: boolean) => void;
