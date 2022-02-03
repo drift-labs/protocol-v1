@@ -14,4 +14,4 @@ jobs:
           override: true
           components: rustfmt, clippy
       - name: Cargo fmt
-        run: cargo fmt --
+        run: cargo fmt -- --check
