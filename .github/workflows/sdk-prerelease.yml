@@ -3,12 +3,11 @@ on:
   push:
     branches:
       - crispheaney/pre-commit-action
-#    paths:
-#      - 'sdk/src/**'
-  workflow_run:
-    workflows: [ cargo fmt, yarn prettify, yarn lint ]
-    types:
-      - completed
+
+#  workflow_run:
+#    workflows: [ cargo fmt, yarn prettify, yarn lint ]
+#    types:
+#      - completed
 
 jobs:
   release:
