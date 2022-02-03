@@ -37,6 +37,7 @@ export function getLimitOrderParams(
 		},
 		triggerCondition: OrderTriggerCondition.ABOVE,
 		triggerPrice: ZERO,
+		oraclePriceOffset: ZERO,
 	};
 }
 
@@ -71,6 +72,7 @@ export function getStopOrderParams(
 		},
 		triggerCondition,
 		triggerPrice,
+		oraclePriceOffset: ZERO,
 	};
 }
 
@@ -106,6 +108,7 @@ export function getStopLimitOrderParams(
 		},
 		triggerCondition,
 		triggerPrice,
+		oraclePriceOffset: ZERO,
 	};
 }
 
@@ -143,5 +146,6 @@ export function getMarketOrderParams(
 		},
 		triggerCondition: OrderTriggerCondition.ABOVE,
 		triggerPrice: ZERO,
+		oraclePriceOffset: ZERO,
 	};
 }

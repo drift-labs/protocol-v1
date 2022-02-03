@@ -373,6 +373,7 @@ export type OrderParams = {
 	triggerPrice: BN;
 	triggerCondition: OrderTriggerCondition;
 	positionLimit: BN;
+	oraclePriceOffset: BN;
 	padding0: boolean;
 	padding1: BN;
 	optionalAccounts: {

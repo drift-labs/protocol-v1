@@ -537,6 +537,7 @@ pub struct OrderParams {
     pub trigger_condition: OrderTriggerCondition,
     pub optional_accounts: OrderParamsOptionalAccounts,
     pub position_limit: u128,
+    pub oracle_price_offset: u128,
     pub padding0: bool,
     pub padding1: bool,
 }

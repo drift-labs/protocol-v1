@@ -114,6 +114,7 @@ pub fn place_order(
         // always false until we add support
         post_only: false,
         immediate_or_cancel: false,
+        oracle_price_offset: 0,
         padding: [0; 3],
     };
 

@@ -45,6 +45,7 @@ pub struct Order {
     pub trigger_price: u128,
     pub trigger_condition: OrderTriggerCondition,
     pub referrer: Pubkey,
+    pub oracle_price_offset: i128,
     pub padding: [u16; 3],
 }
 
@@ -71,6 +72,7 @@ impl Default for Order {
             trigger_price: 0,
             trigger_condition: OrderTriggerCondition::Above,
             referrer: Pubkey::default(),
+            oracle_price_offset: 0,
             padding: [0; 3],
         };
     }
