@@ -35,7 +35,8 @@ pub mod clearing_house {
     use super::*;
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
 
-    pub fn initialize(ctx: Context<Initialize>,
+    pub fn initialize(
+        ctx: Context<Initialize>,
         _clearing_house_nonce: u8,
         _collateral_vault_nonce: u8,
         _insurance_vault_nonce: u8,
