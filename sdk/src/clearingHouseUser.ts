@@ -37,8 +37,16 @@ export class ClearingHouseUser {
 	authority: PublicKey;
 	accountSubscriber: UserAccountSubscriber;
 	userAccountPublicKey?: PublicKey;
-	isSubscribed = false;
+	_isSubscribed = false;
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
+
+	public get isSubscribed() {
+		return this._isSubscribed && this.accountSubscriber.isSubscribed;
+	}
+	
+	public set isSubscribed(val: boolean) {
+		this._isSubscribed = val;
+	}
 
 	/**
 	 * @deprecated You should use getClearingHouseUser factory method instead

@@ -67,8 +67,16 @@ export class ClearingHouse {
 	opts?: ConfirmOptions;
 	accountSubscriber: ClearingHouseAccountSubscriber;
 	eventEmitter: StrictEventEmitter<EventEmitter, ClearingHouseAccountEvents>;
-	isSubscribed = false;
+	_isSubscribed = false;
 	txSender: TxSender;
+
+	public get isSubscribed() {
+		return this._isSubscribed && this.accountSubscriber.isSubscribed;
+	}
+	
+	public set isSubscribed(val: boolean) {
+		this._isSubscribed = val;
+	}
 
 	/**
 	 * @deprecated You should use the getClearingHouse factory method instead
