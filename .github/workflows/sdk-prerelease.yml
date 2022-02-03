@@ -2,14 +2,9 @@ name: SDK prerelease
 on:
   push:
     branches:
-      - crispheaney/pre-commit-action
+      - master
     paths:
       - 'sdk/src/**'
-  workflow_run:
-    workflows: [ cargo fmt, yarn prettify, yarn lint ]
-    types:
-      - completed
-
 jobs:
   release:
     runs-on: ubuntu-latest
