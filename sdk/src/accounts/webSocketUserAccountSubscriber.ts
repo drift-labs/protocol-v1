@@ -14,8 +14,9 @@ import {
 } from '../addresses';
 import { WebSocketAccountSubscriber } from './webSocketAccountSubscriber';
 import { UserAccount, UserOrdersAccount, UserPositionsAccount } from '../types';
+import { ClearingHouseConfigType } from '../factory/clearingHouse';
 
-export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
+export class WebSocketUserAccountSubscriber implements UserAccountSubscriber {
 	isSubscribed: boolean;
 	program: Program;
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
@@ -24,6 +25,8 @@ export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
 	userDataAccountSubscriber: AccountSubscriber<UserAccount>;
 	userPositionsAccountSubscriber: AccountSubscriber<UserPositionsAccount>;
 	userOrdersAccountSubscriber: AccountSubscriber<UserOrdersAccount>;
+
+	type: ClearingHouseConfigType = 'websocket';
 
 	public constructor(program: Program, authority: PublicKey) {
 		this.isSubscribed = false;

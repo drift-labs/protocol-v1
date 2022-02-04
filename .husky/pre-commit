@@ -1,6 +1,7 @@
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
 
-cargo fmt --check --
+cargo fmt -- --check
+cargo +nightly clippy
 yarn prettify
 yarn lint

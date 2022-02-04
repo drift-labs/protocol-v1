@@ -38,13 +38,13 @@ pub fn calculate_fee_for_market_order(
         .checked_sub(referrer_reward)
         .ok_or_else(math_error!())?;
 
-    return Ok((
+    Ok((
         user_fee,
         fee_to_market,
         token_discount,
         referrer_reward,
         referee_discount,
-    ));
+    ))
 }
 
 fn calculate_token_discount(
@@ -90,7 +90,7 @@ fn calculate_token_discount(
         return discount;
     }
 
-    return 0;
+    0
 }
 
 fn try_to_calculate_token_discount_for_tier(
@@ -101,7 +101,7 @@ fn try_to_calculate_token_discount_for_tier(
     if belongs_to_tier(tier, discount_token) {
         return calculate_token_discount_for_tier(fee, tier);
     }
-    return None;
+    None
 }
 
 fn calculate_token_discount_for_tier(fee: u128, tier: &DiscountTokenTier) -> Option<u128> {
@@ -136,7 +136,7 @@ fn calculate_referral_reward_and_referee_discount(
         .checked_div(fee_structure.referral_discount.referee_discount_denominator)
         .ok_or_else(math_error!())?;
 
-    return Ok((referrer_reward, referee_discount));
+    Ok((referrer_reward, referee_discount))
 }
 
 pub fn calculate_order_fee_tier(
