@@ -70,7 +70,7 @@ export class WebSocketUserAccountSubscriber implements UserAccountSubscriber {
 
 		const userOrdersPublicKey = await getUserOrdersAccountPublicKey(
 			this.program.programId,
-			this.authority
+			userPublicKey
 		);
 
 		this.userOrdersAccountSubscriber = new WebSocketAccountSubscriber(

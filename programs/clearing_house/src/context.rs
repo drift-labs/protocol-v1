@@ -157,7 +157,7 @@ pub struct InitializeUserOrders<'info> {
     pub user: Box<Account<'info, User>>,
     #[account(
         init,
-        seeds = [b"user_orders", authority.key.as_ref()],
+        seeds = [b"user_orders", user.key().as_ref()],
         bump = user_orders_nonce,
         payer = authority
     )]

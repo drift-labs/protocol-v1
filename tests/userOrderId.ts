@@ -88,7 +88,7 @@ describe('user order id', () => {
 
 		await getUserOrdersAccountPublicKey(
 			clearingHouse.program.programId,
-			provider.wallet.publicKey
+			await clearingHouse.getUserAccountPublicKey()
 		);
 
 		clearingHouseUser = ClearingHouseUser.from(

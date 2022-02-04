@@ -106,7 +106,7 @@ describe('order referrer', () => {
 
 		userOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(
 			clearingHouse.program.programId,
-			provider.wallet.publicKey
+			userAccountPublicKey
 		);
 
 		clearingHouseUser = ClearingHouseUser.from(

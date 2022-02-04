@@ -11,7 +11,6 @@ import {
 	MARK_PRICE_PRECISION,
 	ClearingHouse,
 	PositionDirection,
-	getUserOrdersAccountPublicKey,
 	ClearingHouseUser,
 	Wallet,
 	OrderRecord,
@@ -102,11 +101,6 @@ describe('market order', () => {
 		await clearingHouse.initializeUserAccountAndDepositCollateral(
 			usdcAmount,
 			userUSDCAccount.publicKey
-		);
-
-		await getUserOrdersAccountPublicKey(
-			clearingHouse.program.programId,
-			provider.wallet.publicKey
 		);
 
 		clearingHouseUser = ClearingHouseUser.from(

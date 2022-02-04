@@ -88,7 +88,7 @@ export class PollingUserAccountSubscriber implements UserAccountSubscriber {
 
 		const userOrdersPublicKey = await getUserOrdersAccountPublicKey(
 			this.program.programId,
-			this.authority
+			userPublicKey
 		);
 
 		this.accountsToPoll.set(userOrdersPublicKey.toString(), {

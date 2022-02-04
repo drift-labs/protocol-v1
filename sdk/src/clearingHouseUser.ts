@@ -174,7 +174,7 @@ export class ClearingHouseUser {
 
 		this.userOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(
 			this.clearingHouse.program.programId,
-			this.authority
+			await this.getUserAccountPublicKey()
 		);
 		return this.userOrdersAccountPublicKey;
 	}

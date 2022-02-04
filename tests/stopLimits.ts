@@ -114,7 +114,7 @@ describe('stop limit', () => {
 
 		userOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(
 			clearingHouse.program.programId,
-			provider.wallet.publicKey
+			userAccountPublicKey
 		);
 
 		clearingHouseUser = ClearingHouseUser.from(

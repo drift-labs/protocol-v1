@@ -144,7 +144,7 @@ describe('orders', () => {
 
 		userOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(
 			clearingHouse.program.programId,
-			provider.wallet.publicKey
+			userAccountPublicKey
 		);
 
 		clearingHouseUser = ClearingHouseUser.from(
@@ -228,7 +228,7 @@ describe('orders', () => {
 		);
 		whaleOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(
 			clearingHouse.program.programId,
-			whaleKeyPair.publicKey
+			whaleAccountPublicKey
 		);
 		await whaleUser.subscribe();
 	});

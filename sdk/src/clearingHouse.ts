@@ -343,15 +343,15 @@ export class ClearingHouse {
 	async getInitializeUserOrdersInstruction(
 		userAccountPublicKey?: PublicKey
 	): Promise<TransactionInstruction> {
-		const [userOrdersAccountPublicKey, userOrdersAccountNonce] =
-			await getUserOrdersAccountPublicKeyAndNonce(
-				this.program.programId,
-				this.wallet.publicKey
-			);
-
 		if (!userAccountPublicKey) {
 			userAccountPublicKey = await this.getUserAccountPublicKey();
 		}
+
+		const [userOrdersAccountPublicKey, userOrdersAccountNonce] =
+			await getUserOrdersAccountPublicKeyAndNonce(
+				this.program.programId,
+				userAccountPublicKey
+			);
 
 		return await this.program.instruction.initializeUserOrders(
 			userOrdersAccountNonce,
@@ -409,7 +409,7 @@ export class ClearingHouse {
 
 		this.userOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(
 			this.program.programId,
-			this.wallet.publicKey
+			await this.getUserAccountPublicKey()
 		);
 		return this.userOrdersAccountPublicKey;
 	}
