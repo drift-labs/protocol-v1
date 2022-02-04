@@ -11,7 +11,7 @@ import { Connection } from '@solana/web3.js';
  * @param marketsAccount
  * @returns Precision : QUOTE_ASSET_PRECISION
  */
-export async function calculateClientCollateralSize(
+export async function calculateUserCollateralSize(
 	connection: Connection,
 	state: StateAccount,
 	marketsAccount: MarketsAccount
