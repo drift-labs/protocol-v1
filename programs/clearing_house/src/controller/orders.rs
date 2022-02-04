@@ -47,13 +47,13 @@ pub fn place_order(
 
     let user_positions = &mut user_positions
         .load_mut()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
     let funding_payment_history = &mut funding_payment_history
         .load_mut()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
     let markets = &markets
         .load()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
     controller::funding::settle_funding_payment(
         user,
         user_positions,
@@ -64,7 +64,7 @@ pub fn place_order(
 
     let user_orders = &mut user_orders
         .load_mut()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
     let new_order_idx = user_orders
         .orders
         .iter()
@@ -73,7 +73,7 @@ pub fn place_order(
     let discount_tier = calculate_order_fee_tier(&state.fee_structure, discount_token)?;
     let order_history_account = &mut order_history
         .load_mut()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
 
     if params.user_order_id > 0 {
         let user_order_id_already_used = user_orders
@@ -83,7 +83,7 @@ pub fn place_order(
 
         if user_order_id_already_used.is_some() {
             msg!("user_order_id is already in use {}", params.user_order_id);
-            return Err(ErrorCode::UserOrderIdAlreadyInUse.into());
+            return Err(ErrorCode::UserOrderIdAlreadyInUse);
         }
     }
 
@@ -163,7 +163,7 @@ pub fn cancel_order_by_order_id(
 ) -> ClearingHouseResult {
     let user_orders = &mut user_orders
         .load_mut()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
 
     let order_index = user_orders
         .orders
@@ -195,7 +195,7 @@ pub fn cancel_order_by_user_order_id(
 ) -> ClearingHouseResult {
     let user_orders = &mut user_orders
         .load_mut()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
 
     let order_index = user_orders
         .orders
@@ -228,13 +228,13 @@ pub fn cancel_order(
 
     let user_positions = &mut user_positions
         .load_mut()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
     let funding_payment_history = &mut funding_payment_history
         .load_mut()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
     let markets = &markets
         .load()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
     controller::funding::settle_funding_payment(
         user,
         user_positions,
@@ -244,13 +244,13 @@ pub fn cancel_order(
     )?;
 
     if order.status != OrderStatus::Open {
-        return Err(ErrorCode::OrderNotOpen.into());
+        return Err(ErrorCode::OrderNotOpen);
     }
 
     // Add to the order history account
     let order_history_account = &mut order_history
         .load_mut()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
     let record_id = order_history_account.next_record_id();
     order_history_account.append(OrderRecord {
         ts: now,
@@ -299,14 +299,14 @@ pub fn fill_order(
 
     let user_positions = &mut user_positions
         .load_mut()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
     let funding_payment_history = &mut funding_payment_history
         .load_mut()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
     {
         let markets = &markets
             .load()
-            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         controller::funding::settle_funding_payment(
             user,
             user_positions,
@@ -318,7 +318,7 @@ pub fn fill_order(
 
     let user_orders = &mut user_orders
         .load_mut()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
     let order_index = user_orders
         .orders
         .iter()
@@ -327,22 +327,22 @@ pub fn fill_order(
     let order = &mut user_orders.orders[order_index];
 
     if order.status != OrderStatus::Open {
-        return Err(ErrorCode::OrderNotOpen.into());
+        return Err(ErrorCode::OrderNotOpen);
     }
 
     let market_index = order.market_index;
     {
         let markets = &markets
             .load()
-            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         let market = markets.get_market(market_index);
 
         if !market.initialized {
-            return Err(ErrorCode::MarketIndexNotInitialized.into());
+            return Err(ErrorCode::MarketIndexNotInitialized);
         }
 
-        if !market.amm.oracle.eq(&oracle.key) {
-            return Err(ErrorCode::InvalidOracle.into());
+        if !market.amm.oracle.eq(oracle.key) {
+            return Err(ErrorCode::InvalidOracle);
         }
     }
 
@@ -352,7 +352,7 @@ pub fn fill_order(
     {
         let markets = &mut markets
             .load_mut()
-            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         let market = markets.get_market_mut(market_index);
         mark_price_before = market.amm.mark_price()?;
         let (oracle_price, _, _oracle_mark_spread_pct_before) =
@@ -376,7 +376,7 @@ pub fn fill_order(
         order,
         &mut markets
             .load_mut()
-            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?,
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?,
         market_index,
         mark_price_before,
         now,
@@ -392,7 +392,7 @@ pub fn fill_order(
     {
         let markets = &mut markets
             .load_mut()
-            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         let market = markets.get_market_mut(market_index);
         mark_price_after = market.amm.mark_price()?;
         let (_oracle_price_after, _oracle_mark_spread_after, _oracle_mark_spread_pct_after) =
@@ -419,7 +419,7 @@ pub fn fill_order(
         && is_oracle_valid
         && potentially_risk_increasing
     {
-        return Err(ErrorCode::OracleMarkSpreadLimit.into());
+        return Err(ErrorCode::OracleMarkSpreadLimit);
     }
 
     // Order fails if it's risk increasing and it brings the user below the initial margin ratio level
@@ -433,10 +433,10 @@ pub fn fill_order(
         user_positions,
         &markets
             .load()
-            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?,
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?,
     )?;
     if margin_ratio_after < state.margin_ratio_initial && potentially_risk_increasing {
-        return Err(ErrorCode::InsufficientCollateral.into());
+        return Err(ErrorCode::InsufficientCollateral);
     }
 
     let discount_tier = order.discount_tier;
@@ -456,7 +456,7 @@ pub fn fill_order(
     {
         let markets = &mut markets
             .load_mut()
-            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         let market = markets.get_market_mut(market_index);
         market.amm.total_fee = market
             .amm
@@ -493,21 +493,20 @@ pub fn fill_order(
         .ok_or_else(math_error!())?;
 
     // Update the referrer's collateral with their reward
-    if referrer.is_some() {
-        let mut referrer = referrer.unwrap();
+    if let Some(mut referrer) = referrer {
         referrer.total_referral_reward = referrer
             .total_referral_reward
             .checked_add(referrer_reward)
             .ok_or_else(math_error!())?;
         referrer
             .exit(&crate::ID)
-            .or(Err(ErrorCode::UnableToWriteToRemainingAccount.into()))?;
+            .or(Err(ErrorCode::UnableToWriteToRemainingAccount))?;
     }
 
     {
         let markets = &mut markets
             .load()
-            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         let market = markets.get_market(market_index);
         update_order_after_trade(
             order,
@@ -520,7 +519,7 @@ pub fn fill_order(
 
     let trade_history_account = &mut trade_history
         .load_mut()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
     let trade_record_id = trade_history_account.next_record_id();
     trade_history_account.append(TradeRecord {
         ts: now,
@@ -543,7 +542,7 @@ pub fn fill_order(
 
     let order_history_account = &mut order_history
         .load_mut()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
     let record_id = order_history_account.next_record_id();
     order_history_account.append(OrderRecord {
         ts: now,
@@ -575,11 +574,11 @@ pub fn fill_order(
     {
         let markets = &mut markets
             .load_mut()
-            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         let market = markets.get_market_mut(market_index);
         let funding_rate_history = &mut funding_rate_history
             .load_mut()
-            .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         controller::funding::update_funding_rate(
             market_index,
             market,
@@ -664,18 +663,18 @@ pub fn execute_market_order(
         };
 
     if potentially_risk_increasing && order.reduce_only {
-        return Err(ErrorCode::ReduceOnlyOrderIncreasedRisk.into());
+        return Err(ErrorCode::ReduceOnlyOrderIncreasedRisk);
     }
 
-    if order.price > 0 {
-        if !limit_price_satisfied(
+    if order.price > 0
+        && !limit_price_satisfied(
             order.price,
             quote_asset_amount,
             base_asset_amount,
             order.direction,
-        )? {
-            return Err(ErrorCode::SlippageOutsideLimit.into());
-        }
+        )?
+    {
+        return Err(ErrorCode::SlippageOutsideLimit);
     }
 
     Ok((
@@ -762,7 +761,7 @@ pub fn execute_non_market_order(
         )?;
 
     if potentially_risk_increasing && order.reduce_only {
-        return Err(ErrorCode::ReduceOnlyOrderIncreasedRisk.into());
+        return Err(ErrorCode::ReduceOnlyOrderIncreasedRisk);
     }
 
     Ok((
@@ -799,7 +798,7 @@ pub fn update_order_after_trade(
         if base_asset_amount_to_fill > 0
             && base_asset_amount_to_fill < minimum_base_asset_trade_size
         {
-            return Err(ErrorCode::OrderAmountTooSmall.into());
+            return Err(ErrorCode::OrderAmountTooSmall);
         }
     }
 

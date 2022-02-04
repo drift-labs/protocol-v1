@@ -37,7 +37,7 @@ pub fn calculate_base_asset_amount_market_can_execute(
             market,
             precomputed_mark_price,
         ),
-        OrderType::Market => Err(ErrorCode::InvalidOrder.into()),
+        OrderType::Market => Err(ErrorCode::InvalidOrder),
     }
 }
 
@@ -177,20 +177,19 @@ pub fn calculate_available_quote_asset_user_can_execute(
     let (total_collateral, base_asset_value, free_collateral) =
         calculate_free_collateral(user, user_positions, markets, max_leverage)?;
 
-    let available_quote_asset_for_order: u128;
-    if risk_increasing {
-        available_quote_asset_for_order = free_collateral
+    let available_quote_asset_for_order = if risk_increasing {
+        free_collateral
             .checked_mul(max_leverage)
-            .ok_or_else(math_error!())?;
+            .ok_or_else(math_error!())?
     } else {
         let max_flipped_size = total_collateral
             .checked_mul(max_leverage)
             .ok_or_else(math_error!())?;
 
-        available_quote_asset_for_order = max_flipped_size
+        max_flipped_size
             .checked_add(base_asset_value)
-            .ok_or_else(math_error!())?;
-    }
+            .ok_or_else(math_error!())?
+    };
 
     Ok(available_quote_asset_for_order)
 }
@@ -219,5 +218,5 @@ pub fn limit_price_satisfied(
         }
     }
 
-    return Ok(true);
+    Ok(true)
 }

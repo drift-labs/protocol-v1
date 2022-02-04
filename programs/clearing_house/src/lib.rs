@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
 
@@ -704,15 +705,15 @@ pub mod clearing_house {
         });
 
         // If the user adds a limit price to their trade, check that their entry price is better than the limit price
-        if limit_price != 0 {
-            if !limit_price_satisfied(
+        if limit_price != 0
+            && !limit_price_satisfied(
                 limit_price,
                 quote_asset_amount,
                 base_asset_amount,
                 direction,
-            )? {
-                return Err(ErrorCode::SlippageOutsideLimit.into());
-            }
+            )?
+        {
+            return Err(ErrorCode::SlippageOutsideLimit.into());
         }
 
         // Try to update the funding rate at the end of every trade
@@ -928,7 +929,7 @@ pub mod clearing_house {
             params.optional_accounts.discount_token,
             account_info_iter,
             &ctx.accounts.state.discount_mint,
-            &ctx.accounts.authority.key,
+            ctx.accounts.authority.key,
         )?;
         let referrer = get_referrer(
             params.optional_accounts.referrer,
@@ -959,7 +960,7 @@ pub mod clearing_house {
         Ok(())
     }
 
-    pub fn cancel_order<'info>(ctx: Context<CancelOrder>, order_id: u128) -> ProgramResult {
+    pub fn cancel_order(ctx: Context<CancelOrder>, order_id: u128) -> ProgramResult {
         controller::orders::cancel_order_by_order_id(
             order_id,
             &mut ctx.accounts.user,
@@ -974,10 +975,7 @@ pub mod clearing_house {
         Ok(())
     }
 
-    pub fn cancel_order_by_user_id<'info>(
-        ctx: Context<CancelOrder>,
-        user_order_id: u8,
-    ) -> ProgramResult {
+    pub fn cancel_order_by_user_id(ctx: Context<CancelOrder>, user_order_id: u8) -> ProgramResult {
         controller::orders::cancel_order_by_user_order_id(
             user_order_id,
             &mut ctx.accounts.user,
@@ -1043,7 +1041,7 @@ pub mod clearing_house {
             params.optional_accounts.discount_token,
             account_info_iter,
             &ctx.accounts.state.discount_mint,
-            &ctx.accounts.authority.key,
+            ctx.accounts.authority.key,
         )?;
         let referrer = get_referrer(
             params.optional_accounts.referrer,

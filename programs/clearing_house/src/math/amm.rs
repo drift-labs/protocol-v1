@@ -221,7 +221,7 @@ pub fn calculate_swap_output(
         .ok_or_else(math_error!())?;
 
     if direction == SwapDirection::Remove && swap_amount > input_asset_amount {
-        return Err(ErrorCode::TradeSizeTooLarge.into());
+        return Err(ErrorCode::TradeSizeTooLarge);
     }
 
     let new_input_amount = if let SwapDirection::Add = direction {
@@ -524,7 +524,7 @@ pub fn calculate_max_base_asset_amount_to_trade(
         .integer_sqrt()
         .try_to_u128()?;
 
-    return if new_base_asset_reserve > amm.base_asset_reserve {
+    if new_base_asset_reserve > amm.base_asset_reserve {
         let max_trade_amount = new_base_asset_reserve
             .checked_sub(amm.base_asset_reserve)
             .ok_or_else(math_error!())?;
@@ -535,7 +535,7 @@ pub fn calculate_max_base_asset_amount_to_trade(
             .checked_sub(new_base_asset_reserve)
             .ok_or_else(math_error!())?;
         Ok((max_trade_amount, PositionDirection::Long))
-    };
+    }
 }
 
 pub fn should_round_trade(

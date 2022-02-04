@@ -27,7 +27,7 @@ pub fn validate_order(
 fn validate_market_order(order: &Order, market: &Market) -> ClearingHouseResult {
     if order.quote_asset_amount > 0 && order.base_asset_amount > 0 {
         msg!("Market order should not have quote_asset_amount and base_asset_amount set");
-        return Err(ErrorCode::InvalidOrder.into());
+        return Err(ErrorCode::InvalidOrder);
     }
 
     if order.base_asset_amount > 0 {
@@ -38,7 +38,7 @@ fn validate_market_order(order: &Order, market: &Market) -> ClearingHouseResult 
 
     if order.trigger_price > 0 {
         msg!("Market should not have trigger price");
-        return Err(ErrorCode::InvalidOrder.into());
+        return Err(ErrorCode::InvalidOrder);
     }
 
     Ok(())
@@ -53,12 +53,12 @@ fn validate_limit_order(
 
     if order.price == 0 {
         msg!("Limit order price == 0");
-        return Err(ErrorCode::InvalidOrder.into());
+        return Err(ErrorCode::InvalidOrder);
     }
 
     if order.trigger_price > 0 {
         msg!("Limit order should not have trigger price");
-        return Err(ErrorCode::InvalidOrder.into());
+        return Err(ErrorCode::InvalidOrder);
     }
 
     let approx_market_value = order
@@ -72,7 +72,7 @@ fn validate_limit_order(
 
     if approx_market_value < order_state.min_order_quote_asset_amount {
         msg!("Order value < $0.50 ({:?})", approx_market_value);
-        return Err(ErrorCode::InvalidOrder.into());
+        return Err(ErrorCode::InvalidOrder);
     }
 
     Ok(())
@@ -87,33 +87,27 @@ fn validate_stop_limit_order(
 
     if order.price == 0 {
         msg!("Limit order price == 0");
-        return Err(ErrorCode::InvalidOrder.into());
+        return Err(ErrorCode::InvalidOrder);
     }
 
     if order.trigger_price == 0 {
         msg!("Trigger price == 0");
-        return Err(ErrorCode::InvalidOrder.into());
+        return Err(ErrorCode::InvalidOrder);
     }
 
     match order.trigger_condition {
-        OrderTriggerCondition::Above => match order.direction {
-            PositionDirection::Long => {
-                if order.price < order.trigger_price {
-                    msg!("If trigger condition is above and direction is long, limit price must be above trigger price");
-                    return Err(ErrorCode::InvalidOrder.into());
-                }
+        OrderTriggerCondition::Above => {
+            if order.direction == PositionDirection::Long && order.price < order.trigger_price {
+                msg!("If trigger condition is above and direction is long, limit price must be above trigger price");
+                return Err(ErrorCode::InvalidOrder);
             }
-            _ => {}
-        },
-        OrderTriggerCondition::Below => match order.direction {
-            PositionDirection::Short => {
-                if order.price > order.trigger_price {
-                    msg!("If trigger condition is below and direction is short, limit price must be below trigger price");
-                    return Err(ErrorCode::InvalidOrder.into());
-                }
+        }
+        OrderTriggerCondition::Below => {
+            if order.direction == PositionDirection::Short && order.price > order.trigger_price {
+                msg!("If trigger condition is below and direction is short, limit price must be below trigger price");
+                return Err(ErrorCode::InvalidOrder);
             }
-            _ => {}
-        },
+        }
     }
 
     let approx_market_value = order
@@ -127,7 +121,7 @@ fn validate_stop_limit_order(
 
     if approx_market_value < order_state.min_order_quote_asset_amount {
         msg!("Order value < $0.50 ({:?})", approx_market_value);
-        return Err(ErrorCode::InvalidOrder.into());
+        return Err(ErrorCode::InvalidOrder);
     }
 
     Ok(())
@@ -142,11 +136,11 @@ fn validate_stop_order(
 
     if order.price > 0 {
         msg!("Stop order should not have price");
-        return Err(ErrorCode::InvalidOrder.into());
+        return Err(ErrorCode::InvalidOrder);
     }
     if order.trigger_price == 0 {
         msg!("Stop order trigger_price == 0");
-        return Err(ErrorCode::InvalidOrder.into());
+        return Err(ErrorCode::InvalidOrder);
     }
     let approx_market_value = order
         .trigger_price
@@ -160,7 +154,7 @@ fn validate_stop_order(
     // decide min trade size ($10?)
     if approx_market_value < order_state.min_order_quote_asset_amount {
         msg!("Order value < $0.50 ({:?})", approx_market_value);
-        return Err(ErrorCode::InvalidOrder.into());
+        return Err(ErrorCode::InvalidOrder);
     }
 
     Ok(())
@@ -169,12 +163,12 @@ fn validate_stop_order(
 fn validate_base_asset_amount(order: &Order, market: &Market) -> ClearingHouseResult {
     if order.base_asset_amount == 0 {
         msg!("Order base_asset_amount cant be 0");
-        return Err(ErrorCode::InvalidOrder.into());
+        return Err(ErrorCode::InvalidOrder);
     }
 
     if order.base_asset_amount < market.amm.minimum_base_asset_trade_size {
         msg!("Order base_asset_amount smaller than market minimum_base_asset_trade_size");
-        return Err(ErrorCode::InvalidOrder.into());
+        return Err(ErrorCode::InvalidOrder);
     }
 
     Ok(())
@@ -183,7 +177,7 @@ fn validate_base_asset_amount(order: &Order, market: &Market) -> ClearingHouseRe
 fn validate_quote_asset_amount(order: &Order, market: &Market) -> ClearingHouseResult {
     if order.quote_asset_amount == 0 {
         msg!("Order quote_asset_amount cant be 0");
-        return Err(ErrorCode::InvalidOrder.into());
+        return Err(ErrorCode::InvalidOrder);
     }
 
     let quote_asset_reserve_amount =
@@ -191,7 +185,7 @@ fn validate_quote_asset_amount(order: &Order, market: &Market) -> ClearingHouseR
 
     if quote_asset_reserve_amount < market.amm.minimum_quote_asset_trade_size {
         msg!("Order quote_asset_reserve_amount smaller than market minimum_quote_asset_trade_size");
-        return Err(ErrorCode::InvalidOrder.into());
+        return Err(ErrorCode::InvalidOrder);
     }
 
     Ok(())

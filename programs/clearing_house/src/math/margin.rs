@@ -84,24 +84,23 @@ pub fn calculate_free_collateral(
             .ok_or_else(math_error!())?;
     }
 
-    let total_collateral: u128;
-    if base_asset_value == 0 {
-        total_collateral = user.collateral;
+    let total_collateral = if base_asset_value == 0 {
+        user.collateral
     } else {
-        total_collateral = calculate_updated_collateral(user.collateral, unrealized_pnl)?;
-    }
+        calculate_updated_collateral(user.collateral, unrealized_pnl)?
+    };
+
     let initial_margin_req_collateral = base_asset_value
         .checked_div(max_leverage)
         .ok_or_else(math_error!())?;
 
-    let free_collateral: u128;
-    if initial_margin_req_collateral < total_collateral {
-        free_collateral = total_collateral
+    let free_collateral = if initial_margin_req_collateral < total_collateral {
+        total_collateral
             .checked_sub(initial_margin_req_collateral)
-            .ok_or_else(math_error!())?;
+            .ok_or_else(math_error!())?
     } else {
-        free_collateral = 0;
-    }
+        0
+    };
 
     Ok((total_collateral, base_asset_value, free_collateral))
 }

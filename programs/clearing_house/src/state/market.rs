@@ -26,11 +26,11 @@ impl Markets {
     }
 
     pub fn get_market(&self, index: u64) -> &Market {
-        return &self.markets[Markets::index_from_u64(index)];
+        &self.markets[Markets::index_from_u64(index)]
     }
 
     pub fn get_market_mut(&mut self, index: u64) -> &mut Market {
-        return &mut self.markets[Markets::index_from_u64(index)];
+        &mut self.markets[Markets::index_from_u64(index)]
     }
 }
 

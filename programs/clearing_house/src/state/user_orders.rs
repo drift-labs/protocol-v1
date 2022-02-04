@@ -3,23 +3,15 @@ use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
 
 #[account(zero_copy)]
+#[derive(Default)]
 pub struct UserOrders {
     pub user: Pubkey,
     pub orders: [Order; 20],
 }
 
-impl Default for UserOrders {
-    fn default() -> Self {
-        return Self {
-            user: Pubkey::default(),
-            orders: [Order::default(); 20],
-        };
-    }
-}
-
 impl UserOrders {
     pub fn index_from_u64(index: u64) -> usize {
-        return std::convert::TryInto::try_into(index).unwrap();
+        std::convert::TryInto::try_into(index).unwrap()
     }
 }
 
@@ -51,7 +43,7 @@ pub struct Order {
 
 impl Default for Order {
     fn default() -> Self {
-        return Self {
+        Self {
             status: OrderStatus::Init,
             order_type: OrderType::Limit,
             ts: 0,
@@ -74,7 +66,7 @@ impl Default for Order {
             referrer: Pubkey::default(),
             oracle_price_offset: 0,
             padding: [0; 3],
-        };
+        }
     }
 }
 

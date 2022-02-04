@@ -63,19 +63,19 @@ pub fn get_discount_token_and_referrer<'a, 'b, 'c, 'd, 'e>(
         None,
     )?;
 
-    return Ok((optional_discount_token, optional_referrer));
+    Ok((optional_discount_token, optional_referrer))
 }
 
-pub fn get_discount_token<'a, 'b, 'c, 'd>(
+pub fn get_discount_token(
     expect_discount_token: bool,
-    account_info_iter: &'a mut Iter<AccountInfo<'b>>,
-    discount_mint: &'c Pubkey,
-    authority_public_key: &'d Pubkey,
+    account_info_iter: &mut Iter<AccountInfo>,
+    discount_mint: &Pubkey,
+    authority_public_key: &Pubkey,
 ) -> ClearingHouseResult<Option<TokenAccount>> {
     let mut optional_discount_token = None;
     if expect_discount_token {
-        let token_account_info = next_account_info(account_info_iter)
-            .or(Err(ErrorCode::DiscountTokenNotFound.into()))?;
+        let token_account_info =
+            next_account_info(account_info_iter).or(Err(ErrorCode::DiscountTokenNotFound))?;
 
         if token_account_info.owner != &spl_token::id() {
             return Err(ErrorCode::InvalidDiscountToken);
@@ -99,7 +99,7 @@ pub fn get_discount_token<'a, 'b, 'c, 'd>(
         optional_discount_token = Some(token_account);
     }
 
-    return Ok(optional_discount_token);
+    Ok(optional_discount_token)
 }
 
 pub fn get_referrer<'a, 'b, 'c, 'd>(
@@ -114,14 +114,14 @@ pub fn get_referrer<'a, 'b, 'c, 'd>(
             next_account_info(account_info_iter).or(Err(ErrorCode::ReferrerNotFound))?;
 
         if referrer_account_info.key.eq(user_public_key) {
-            return Err(ErrorCode::UserCantReferThemselves.into());
+            return Err(ErrorCode::UserCantReferThemselves);
         }
 
         // in get_referrer_for_fill_order, we know who the referrer should be, so add check that the expected
         // referrer is present
         if let Some(expected_referrer) = expected_referrer {
             if !referrer_account_info.key.eq(expected_referrer) {
-                return Err(ErrorCode::DidNotReceiveExpectedReferrer.into());
+                return Err(ErrorCode::DidNotReceiveExpectedReferrer);
             }
         }
 
@@ -142,7 +142,7 @@ pub fn get_referrer_for_fill_order<'a, 'b, 'c>(
 ) -> ClearingHouseResult<Option<Account<'b, User>>> {
     let user_orders = &user_orders
         .load()
-        .or(Err(ErrorCode::UnableToLoadAccountLoader.into()))?;
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
     let order_index = user_orders
         .orders
         .iter()

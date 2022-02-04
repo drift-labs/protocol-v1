@@ -53,7 +53,7 @@ impl MarketPosition {
     }
 
     pub fn is_available(&self) -> bool {
-        return !self.is_open_position() && !self.has_open_order();
+        !self.is_open_position() && !self.has_open_order()
     }
 
     pub fn is_open_position(&self) -> bool {
@@ -61,6 +61,6 @@ impl MarketPosition {
     }
 
     pub fn has_open_order(&self) -> bool {
-        return self.open_orders != 0;
+        self.open_orders != 0
     }
 }

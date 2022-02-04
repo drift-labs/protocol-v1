@@ -56,7 +56,7 @@ pub fn add_new_position(
 
     user_positions.positions[new_position_index] = new_market_position;
 
-    return Ok(new_position_index);
+    Ok(new_position_index)
 }
 
 pub fn get_position_index(
@@ -70,7 +70,7 @@ pub fn get_position_index(
 
     match position_index {
         Some(position_index) => Ok(position_index),
-        None => Err(ErrorCode::UserHasNoPositionInMarket.into()),
+        None => Err(ErrorCode::UserHasNoPositionInMarket),
     }
 }
 
@@ -288,7 +288,7 @@ pub fn reduce(
     Ok(base_asset_swapped)
 }
 
-pub fn reduce_with_base_asset_amount<'info>(
+pub fn reduce_with_base_asset_amount(
     direction: PositionDirection,
     base_asset_amount: u128,
     user: &mut User,
@@ -461,43 +461,41 @@ pub fn update_position_with_base_asset_amount(
             market_position,
             now,
         )?;
+    } else if market_position.base_asset_amount.unsigned_abs() > base_asset_amount {
+        quote_asset_amount = reduce_with_base_asset_amount(
+            direction,
+            base_asset_amount,
+            user,
+            market,
+            market_position,
+            now,
+        )?;
+
+        potentially_risk_increasing = false;
     } else {
-        if market_position.base_asset_amount.unsigned_abs() > base_asset_amount {
-            quote_asset_amount = reduce_with_base_asset_amount(
-                direction,
-                base_asset_amount,
-                user,
-                market,
-                market_position,
-                now,
-            )?;
+        // after closing existing position, how large should trade be in opposite direction
+        let base_asset_amount_after_close = base_asset_amount
+            .checked_sub(market_position.base_asset_amount.unsigned_abs())
+            .ok_or_else(math_error!())?;
 
+        // If the value of the new position is less than value of the old position, consider it risk decreasing
+        if base_asset_amount_after_close < market_position.base_asset_amount.unsigned_abs() {
             potentially_risk_increasing = false;
-        } else {
-            // after closing existing position, how large should trade be in opposite direction
-            let base_asset_amount_after_close = base_asset_amount
-                .checked_sub(market_position.base_asset_amount.unsigned_abs())
-                .ok_or_else(math_error!())?;
-
-            // If the value of the new position is less than value of the old position, consider it risk decreasing
-            if base_asset_amount_after_close < market_position.base_asset_amount.unsigned_abs() {
-                potentially_risk_increasing = false;
-            }
-
-            let (quote_asset_amount_closed, _) = close(user, market, market_position, now)?;
-
-            let quote_asset_amount_opened = increase_with_base_asset_amount(
-                direction,
-                base_asset_amount_after_close,
-                market,
-                market_position,
-                now,
-            )?;
-
-            quote_asset_amount = quote_asset_amount_closed
-                .checked_add(quote_asset_amount_opened)
-                .ok_or_else(math_error!())?;
         }
+
+        let (quote_asset_amount_closed, _) = close(user, market, market_position, now)?;
+
+        let quote_asset_amount_opened = increase_with_base_asset_amount(
+            direction,
+            base_asset_amount_after_close,
+            market,
+            market_position,
+            now,
+        )?;
+
+        quote_asset_amount = quote_asset_amount_closed
+            .checked_add(quote_asset_amount_opened)
+            .ok_or_else(math_error!())?;
     }
 
     Ok((

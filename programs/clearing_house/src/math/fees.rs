@@ -105,14 +105,12 @@ fn try_to_calculate_token_discount_for_tier(
 }
 
 fn calculate_token_discount_for_tier(fee: u128, tier: &DiscountTokenTier) -> Option<u128> {
-    return Some(
-        fee.checked_mul(tier.discount_numerator)?
-            .checked_div(tier.discount_denominator)?,
-    );
+    fee.checked_mul(tier.discount_numerator)?
+        .checked_div(tier.discount_denominator)
 }
 
 fn belongs_to_tier(tier: &DiscountTokenTier, discount_token: TokenAccount) -> bool {
-    return discount_token.amount >= tier.minimum_balance;
+    discount_token.amount >= tier.minimum_balance
 }
 
 fn calculate_referral_reward_and_referee_discount(
@@ -177,7 +175,7 @@ pub fn calculate_order_fee_tier(
         return Ok(OrderDiscountTier::Fourth);
     }
 
-    return Ok(OrderDiscountTier::None);
+    Ok(OrderDiscountTier::None)
 }
 
 pub fn calculate_fee_for_limit_order(
@@ -220,14 +218,14 @@ pub fn calculate_fee_for_limit_order(
         .checked_sub(referrer_reward)
         .ok_or_else(math_error!())?;
 
-    return Ok((
+    Ok((
         user_fee,
         fee_to_market,
         token_discount,
         filler_reward,
         referrer_reward,
         referee_discount,
-    ));
+    ))
 }
 
 fn calculate_token_discount_for_limit_order(
@@ -235,7 +233,7 @@ fn calculate_token_discount_for_limit_order(
     fee_structure: &FeeStructure,
     order_discount_tier: &OrderDiscountTier,
 ) -> ClearingHouseResult<u128> {
-    return match order_discount_tier {
+    match order_discount_tier {
         OrderDiscountTier::None => Ok(0),
         OrderDiscountTier::First => {
             calculate_token_discount_for_tier(fee, &fee_structure.discount_token_tiers.first_tier)
@@ -253,7 +251,7 @@ fn calculate_token_discount_for_limit_order(
             calculate_token_discount_for_tier(fee, &fee_structure.discount_token_tiers.fourth_tier)
                 .ok_or_else(math_error!())
         }
-    };
+    }
 }
 
 fn calculate_filler_reward(
@@ -288,5 +286,5 @@ fn calculate_filler_reward(
     // lesser of size-based and time-based reward
     let fee = min(size_filler_reward, time_filler_reward);
 
-    return Ok(fee);
+    Ok(fee)
 }
