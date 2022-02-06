@@ -1,6 +1,6 @@
 {
 	"name": "@drift-labs/sdk",
-	"version": "0.1.18-orders.2",
+	"version": "0.1.18-orders.3",
 	"main": "lib/index.js",
 	"types": "lib/index.d.ts",
 	"author": "crispheaney",
