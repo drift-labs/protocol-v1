@@ -125,4 +125,5 @@ export type AccountToPoll = {
 	key: string;
 	publicKey: PublicKey;
 	eventType: string;
+	callbackId?: string;
 };
