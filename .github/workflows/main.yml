@@ -33,7 +33,7 @@ jobs:
       - name: Cargo fmt
         run: cargo fmt -- --check
       - name: Cargo clippy
-        run: cargo +nightly clippy
+        run: cargo clippy --all-targets
   unit:
     name: Unit tests
     runs-on: ubuntu-latest
