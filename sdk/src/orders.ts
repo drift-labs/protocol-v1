@@ -6,7 +6,7 @@ import {
 	UserAccount,
 	UserPosition,
 } from './types';
-import BN from 'bn.js';
+import { BN } from '.';
 import {
 	calculateMarkPrice,
 	calculateNewMarketAfterTrade,

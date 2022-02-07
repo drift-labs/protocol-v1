@@ -1,5 +1,4 @@
 import { PublicKey } from '@solana/web3.js';
-import BN from 'bn.js';
 import { EventEmitter } from 'events';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import { ClearingHouse } from './clearingHouse';
@@ -33,6 +32,7 @@ import {
 	getUserOrdersAccountPublicKey,
 	calculateNewStateAfterOrder,
 	calculateTradeSlippage,
+	BN,
 } from '.';
 import { getUserAccountPublicKey } from './addresses';
 import {
