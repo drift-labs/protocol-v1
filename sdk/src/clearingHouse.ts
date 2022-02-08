@@ -414,6 +414,20 @@ export class ClearingHouse {
 		return this.userOrdersAccountPublicKey;
 	}
 
+	userOrdersExist?: boolean;
+	async userOrdersAccountExists(): Promise<boolean> {
+		if (this.userOrdersExist) {
+			return this.userOrdersExist;
+		}
+		const userOrdersAccountRPCResponse =
+			await this.connection.getParsedAccountInfo(
+				await this.getUserOrdersAccountPublicKey()
+			);
+
+		this.userOrdersExist = userOrdersAccountRPCResponse.value !== null;
+		return this.userOrdersExist;
+	}
+
 	public async depositCollateral(
 		amount: BN,
 		collateralAccountPublicKey: PublicKey,
@@ -668,6 +682,27 @@ export class ClearingHouse {
 		);
 	}
 
+	public async initializeUserOrdersThenPlaceOrder(
+		orderParams: OrderParams,
+		discountToken?: PublicKey,
+		referrer?: PublicKey
+	): Promise<TransactionSignature> {
+		const instructions: anchor.web3.TransactionInstruction[] = [];
+		const userOrdersAccountExists = await this.userOrdersAccountExists();
+		if (!userOrdersAccountExists) {
+			instructions.push(await this.getInitializeUserOrdersInstruction());
+		}
+		instructions.push(
+			await this.getPlaceOrderIx(orderParams, discountToken, referrer)
+		);
+		const tx = new Transaction();
+		for (const instruction of instructions) {
+			tx.add(instruction);
+		}
+
+		return await this.txSender.send(tx, [], this.opts);
+	}
+
 	public async placeOrder(
 		orderParams: OrderParams,
 		discountToken?: PublicKey,
@@ -870,6 +905,27 @@ export class ClearingHouse {
 			},
 			remainingAccounts,
 		});
+	}
+
+	public async initializeUserOrdersThenPlaceAndFillOrder(
+		orderParams: OrderParams,
+		discountToken?: PublicKey,
+		referrer?: PublicKey
+	): Promise<TransactionSignature> {
+		const instructions: anchor.web3.TransactionInstruction[] = [];
+		const userOrdersAccountExists = await this.userOrdersAccountExists();
+		if (!userOrdersAccountExists) {
+			instructions.push(await this.getInitializeUserOrdersInstruction());
+		}
+		instructions.push(
+			await this.getPlaceAndFillOrderIx(orderParams, discountToken, referrer)
+		);
+		const tx = new Transaction();
+		for (const instruction of instructions) {
+			tx.add(instruction);
+		}
+
+		return await this.txSender.send(tx, [], this.opts);
 	}
 
 	public async placeAndFillOrder(
