@@ -120,7 +120,7 @@ export class ClearingHouseUser {
 		return this.accountSubscriber.getUserPositionsAccount();
 	}
 
-	public getUserOrdersAccount(): UserOrdersAccount {
+	public getUserOrdersAccount(): UserOrdersAccount | undefined {
 		return this.accountSubscriber.getUserOrdersAccount();
 	}
 
