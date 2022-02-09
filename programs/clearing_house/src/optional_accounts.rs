@@ -17,25 +17,26 @@ pub fn get_whitelist_token(
     }
 
     if accounts.len() != 1 {
-        return Err(ErrorCode::WhitelistTokenNotFound.into());
+        return Err(ErrorCode::WhitelistTokenNotFound);
     }
     let token_account_info = &accounts[0];
 
-    spl_token::check_program_account(&token_account_info.owner)
-        .map_err(|_| ErrorCode::InvalidWhitelistToken)?;
+    if token_account_info.owner != &spl_token::id() {
+        return Err(ErrorCode::InvalidWhitelistToken);
+    }
 
     let token_account = TokenAccount::unpack_unchecked(&token_account_info.data.borrow())
-        .or(Err(ErrorCode::InvalidWhitelistToken.into()))?;
+        .or(Err(ErrorCode::InvalidWhitelistToken))?;
 
     if !token_account.is_initialized() {
-        return Err(ErrorCode::InvalidWhitelistToken.into());
+        return Err(ErrorCode::InvalidWhitelistToken);
     }
 
     if !token_account.mint.eq(whitelist_mint) {
-        return Err(ErrorCode::InvalidWhitelistToken.into());
+        return Err(ErrorCode::InvalidWhitelistToken);
     }
 
-    return Ok(Some(token_account));
+    Ok(Some(token_account))
 }
 
 pub fn get_discount_token_and_referrer<'a, 'b, 'c, 'd, 'e>(
@@ -50,25 +51,28 @@ pub fn get_discount_token_and_referrer<'a, 'b, 'c, 'd, 'e>(
 
     let account_info_iter = &mut accounts.iter();
     if optional_accounts.discount_token {
-        let token_account_info = next_account_info(account_info_iter)
-            .or(Err(ErrorCode::DiscountTokenNotFound.into()))?;
+        // owner, mint and is_initialized check below, so this is a `trusted account_info`
+        let token_account_info =
+            //#[soteria(ignore)]
+            next_account_info(account_info_iter).or(Err(ErrorCode::DiscountTokenNotFound))?;
 
-        spl_token::check_program_account(&token_account_info.owner)
-            .map_err(|_| ErrorCode::InvalidDiscountToken)?;
+        if token_account_info.owner != &spl_token::id() {
+            return Err(ErrorCode::InvalidDiscountToken);
+        }
 
         let token_account = TokenAccount::unpack_unchecked(&token_account_info.data.borrow())
-            .or(Err(ErrorCode::InvalidDiscountToken.into()))?;
+            .or(Err(ErrorCode::InvalidDiscountToken))?;
 
         if !token_account.is_initialized() {
-            return Err(ErrorCode::InvalidDiscountToken.into());
+            return Err(ErrorCode::InvalidDiscountToken);
         }
 
         if !token_account.mint.eq(discount_mint) {
-            return Err(ErrorCode::InvalidDiscountToken.into());
+            return Err(ErrorCode::InvalidDiscountToken);
         }
 
         if !token_account.owner.eq(authority_public_key) {
-            return Err(ErrorCode::InvalidDiscountToken.into());
+            return Err(ErrorCode::InvalidDiscountToken);
         }
 
         optional_discount_token = Some(token_account);
@@ -76,7 +80,7 @@ pub fn get_discount_token_and_referrer<'a, 'b, 'c, 'd, 'e>(
 
     if optional_accounts.referrer {
         let referrer_account_info =
-            next_account_info(account_info_iter).or(Err(ErrorCode::ReferrerNotFound.into()))?;
+            next_account_info(account_info_iter).or(Err(ErrorCode::ReferrerNotFound))?;
 
         if !referrer_account_info.key.eq(user_public_key) {
             let user_account: Account<User> =
@@ -86,5 +90,5 @@ pub fn get_discount_token_and_referrer<'a, 'b, 'c, 'd, 'e>(
         }
     }
 
-    return Ok((optional_discount_token, optional_referrer));
+    Ok((optional_discount_token, optional_referrer))
 }

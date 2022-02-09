@@ -1,4 +1,4 @@
-import BN from 'bn.js';
+import { BN } from '../';
 
 type Market = {
 	symbol: string;
@@ -97,6 +97,14 @@ export const Markets: Market[] = [
 		devnetPythOracle: 'c1A946dY5NHuVda77C8XXtXytyR3wK1SCP3eA9VRfC3',
 		mainnetPythOracle: 'HqFyq1wh1xKvL7KDqqT7NJeSPdAqsDqnmBisUC2XdXAX',
 		launchTs: 1643686767000,
+	},
+	{
+		symbol: 'FTT-PERP',
+		baseAssetSymbol: 'FTT',
+		marketIndex: new BN(11),
+		devnetPythOracle: '6vivTRs5ZPeeXbjo7dfburfaYDWoXjBtdtuYgQRuGfu',
+		mainnetPythOracle: '8JPJJkmDScpcNmBRKGZuPuG2GYAveQgP3t5gFuMymwvF',
+		launchTs: 1644382122000,
 	},
 	// {
 	// 	symbol: 'mSOL-PERP',

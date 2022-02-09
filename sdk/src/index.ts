@@ -1,15 +1,21 @@
 import { BN } from '@project-serum/anchor';
+import { PublicKey } from '@solana/web3.js';
 
 export * from './mockUSDCFaucet';
 export * from './pythClient';
 export * from './types';
 export * from './constants/markets';
-export * from './accounts/defaultClearingHouseAccountSubscriber';
+export * from './accounts/webSocketClearingHouseAccountSubscriber';
+export * from './accounts/bulkAccountLoader';
+export * from './accounts/pollingClearingHouseAccountSubscriber';
+export * from './accounts/pollingTokenAccountSubscriber';
 export * from './accounts/types';
 export * from './addresses';
 export * from './admin';
 export * from './clearingHouseUser';
 export * from './clearingHouse';
+export * from './factory/clearingHouse';
+export * from './factory/clearingHouseUser';
 export * from './math/conversion';
 export * from './math/funding';
 export * from './math/insuranceFund';
@@ -25,4 +31,4 @@ export * from './constants/numericConstants';
 export * from './util/computeUnits';
 export * from './util/tps';
 
-export { BN };
+export { BN, PublicKey };
