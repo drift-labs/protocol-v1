@@ -160,13 +160,13 @@ function calculateAmountSwapped(
 function calculateAmountToTrade(market: Market, order: Order): BN {
 	if (isVariant(order.orderType, 'limit')) {
 		return calculateAmountToTradeForLimit(market, order);
-	} else if (isVariant(order.orderType, 'stopLimit')) {
-		return calculateAmountToTradeForStopLimit(market, order);
+	} else if (isVariant(order.orderType, 'triggerLimit')) {
+		return calculateAmountToTradeForTriggerLimit(market, order);
 	} else if (isVariant(order.orderType, 'market')) {
 		// should never be a market order queued
 		return ZERO;
 	} else {
-		return calculateAmountToTradeForStop(market, order);
+		return calculateAmountToTradeForTriggerMarket(market, order);
 	}
 }
 
@@ -190,12 +190,15 @@ export function calculateAmountToTradeForLimit(
 		: maxAmountToTrade;
 }
 
-export function calculateAmountToTradeForStopLimit(
+export function calculateAmountToTradeForTriggerLimit(
 	market: Market,
 	order: Order
 ): BN {
 	if (order.baseAssetAmountFilled.eq(ZERO)) {
-		const baseAssetAmount = calculateAmountToTradeForStop(market, order);
+		const baseAssetAmount = calculateAmountToTradeForTriggerMarket(
+			market,
+			order
+		);
 		if (baseAssetAmount.eq(ZERO)) {
 			return ZERO;
 		}
@@ -214,7 +217,10 @@ function isSameDirection(
 	);
 }
 
-function calculateAmountToTradeForStop(market: Market, order: Order): BN {
+function calculateAmountToTradeForTriggerMarket(
+	market: Market,
+	order: Order
+): BN {
 	return isTriggerConditionSatisfied(market, order)
 		? order.baseAssetAmount
 		: ZERO;
