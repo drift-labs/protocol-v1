@@ -19,8 +19,8 @@ export class OracleSource {
 
 export class OrderType {
 	static readonly LIMIT = { limit: {} };
-	static readonly STOP = { stop: {} };
-	static readonly STOP_LIMIT = { stopLimit: {} };
+	static readonly TRIGGER_MARKET = { triggerMarket: {} };
+	static readonly TRIGGER_LIMIT = { triggerLimit: {} };
 	static readonly MARKET = { market: {} };
 }
 
@@ -345,6 +345,7 @@ export type Order = {
 	userOrderId: number;
 	marketIndex: BN;
 	price: BN;
+	userBaseAssetAmount: BN;
 	baseAssetAmount: BN;
 	baseAssetAmountFilled: BN;
 	quoteAssetAmount: BN;

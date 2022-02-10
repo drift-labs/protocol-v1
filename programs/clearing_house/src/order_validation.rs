@@ -17,8 +17,8 @@ pub fn validate_order(
     match order.order_type {
         OrderType::Market => validate_market_order(order, market)?,
         OrderType::Limit => validate_limit_order(order, market, order_state)?,
-        OrderType::Stop => validate_stop_order(order, market, order_state)?,
-        OrderType::StopLimit => validate_stop_limit_order(order, market, order_state)?,
+        OrderType::TriggerMarket => validate_trigger_market_order(order, market, order_state)?,
+        OrderType::TriggerLimit => validate_trigger_limit_order(order, market, order_state)?,
     }
 
     Ok(())
@@ -78,7 +78,7 @@ fn validate_limit_order(
     Ok(())
 }
 
-fn validate_stop_limit_order(
+fn validate_trigger_limit_order(
     order: &Order,
     market: &Market,
     order_state: &OrderState,
@@ -86,7 +86,7 @@ fn validate_stop_limit_order(
     validate_base_asset_amount(order, market)?;
 
     if order.price == 0 {
-        msg!("Limit order price == 0");
+        msg!("Trigger limit order price == 0");
         return Err(ErrorCode::InvalidOrder);
     }
 
@@ -127,7 +127,7 @@ fn validate_stop_limit_order(
     Ok(())
 }
 
-fn validate_stop_order(
+fn validate_trigger_market_order(
     order: &Order,
     market: &Market,
     order_state: &OrderState,
@@ -135,11 +135,11 @@ fn validate_stop_order(
     validate_base_asset_amount(order, market)?;
 
     if order.price > 0 {
-        msg!("Stop order should not have price");
+        msg!("Trigger market order should not have price");
         return Err(ErrorCode::InvalidOrder);
     }
     if order.trigger_price == 0 {
-        msg!("Stop order trigger_price == 0");
+        msg!("Trigger market order trigger_price == 0");
         return Err(ErrorCode::InvalidOrder);
     }
     let approx_market_value = order

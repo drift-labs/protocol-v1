@@ -87,6 +87,15 @@ pub fn place_order(
         }
     }
 
+    let market_index = params.market_index;
+    let market = markets.get_market(market_index);
+
+    // Increment open orders for existing position
+    let position_index = get_position_index(user_positions, market_index)
+        .or_else(|_| add_new_position(user_positions, market_index))?;
+    let market_position = &mut user_positions.positions[position_index];
+    market_position.open_orders += 1;
+
     let order_id = order_history_account.next_order_id();
     let new_order = Order {
         status: OrderStatus::Open,
@@ -96,6 +105,7 @@ pub fn place_order(
         user_order_id: params.user_order_id,
         market_index: params.market_index,
         price: params.price,
+        user_base_asset_amount: market_position.base_asset_amount,
         base_asset_amount: params.base_asset_amount,
         quote_asset_amount: params.quote_asset_amount,
         base_asset_amount_filled: 0,
@@ -118,17 +128,9 @@ pub fn place_order(
         padding: [0; 3],
     };
 
-    let market_index = params.market_index;
-    let market = markets.get_market(market_index);
     validate_order(&new_order, market, order_state)?;
 
     user_orders.orders[new_order_idx] = new_order;
-
-    // Increment open orders for existing position
-    let position_index = get_position_index(user_positions, market_index)
-        .or_else(|_| add_new_position(user_positions, market_index))?;
-    let market_position = &mut user_positions.positions[position_index];
-    market_position.open_orders += 1;
 
     // Add to the order history account
     let record_id = order_history_account.next_record_id();

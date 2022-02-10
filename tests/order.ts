@@ -1,6 +1,5 @@
 import * as anchor from '@project-serum/anchor';
 import { assert } from 'chai';
-import BN from 'bn.js';
 
 import { Program } from '@project-serum/anchor';
 
@@ -8,6 +7,7 @@ import { Keypair, PublicKey } from '@solana/web3.js';
 
 import {
 	Admin,
+	BN,
 	MARK_PRICE_PRECISION,
 	ClearingHouse,
 	PositionDirection,
@@ -24,7 +24,7 @@ import {
 	Wallet,
 	calculateTradeSlippage,
 	getLimitOrderParams,
-	getStopOrderParams,
+	getTriggerMarketOrderParams,
 } from '../sdk/src';
 
 import { calculateAmountToTradeForLimit } from '../sdk/src/orders';
@@ -236,6 +236,7 @@ describe('orders', () => {
 	after(async () => {
 		await clearingHouse.unsubscribe();
 		await clearingHouseUser.unsubscribe();
+		await fillerClearingHouse.unsubscribe();
 		await fillerUser.unsubscribe();
 
 		await whaleClearingHouse.unsubscribe();
@@ -455,7 +456,7 @@ describe('orders', () => {
 		const triggerPrice = MARK_PRICE_PRECISION;
 		const triggerCondition = OrderTriggerCondition.ABOVE;
 
-		const orderParams = getStopOrderParams(
+		const orderParams = getTriggerMarketOrderParams(
 			marketIndex,
 			direction,
 			baseAssetAmount,
@@ -1581,7 +1582,7 @@ describe('orders', () => {
 		const triggerPrice = MARK_PRICE_PRECISION;
 		const triggerCondition = OrderTriggerCondition.ABOVE;
 
-		const orderParams = getStopOrderParams(
+		const orderParams = getTriggerMarketOrderParams(
 			marketIndex,
 			direction,
 			baseAssetAmount,
@@ -1620,7 +1621,7 @@ describe('orders', () => {
 		const triggerPrice = calculateMarkPrice(market0).sub(new BN(1));
 		const triggerCondition = OrderTriggerCondition.ABOVE;
 
-		const orderParams = getStopOrderParams(
+		const orderParams = getTriggerMarketOrderParams(
 			marketIndex,
 			direction,
 			baseAssetAmount,

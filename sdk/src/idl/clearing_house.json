@@ -3548,6 +3548,10 @@
             "type": "u128"
           },
           {
+            "name": "userBaseAssetAmount",
+            "type": "i128"
+          },
+          {
             "name": "quoteAssetAmount",
             "type": "u128"
           },
@@ -3734,10 +3738,10 @@
             "name": "Limit"
           },
           {
-            "name": "Stop"
+            "name": "TriggerMarket"
           },
           {
-            "name": "StopLimit"
+            "name": "TriggerLimit"
           }
         ]
       }

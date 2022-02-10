@@ -20,7 +20,7 @@ import {
 	OrderTriggerCondition,
 	OrderStatus,
 	OrderType,
-	getStopLimitOrderParams,
+	getTriggerLimitOrderParams,
 } from '../sdk/src';
 
 import { mockOracle, mockUSDCMint, mockUserUSDCAccount } from './testHelpers';
@@ -196,7 +196,7 @@ describe('stop limit', () => {
 			)
 		);
 
-		const orderParams = getStopLimitOrderParams(
+		const orderParams = getTriggerLimitOrderParams(
 			marketIndex,
 			direction,
 			baseAssetAmount,
@@ -259,7 +259,7 @@ describe('stop limit', () => {
 		assert(orderRecord.ts.gt(ZERO));
 		assert(orderRecord.order.orderId.eq(expectedOrderId));
 		assert(enumsAreEqual(orderRecord.action, OrderAction.FILL));
-		assert(enumsAreEqual(orderRecord.order.orderType, OrderType.STOP_LIMIT));
+		assert(enumsAreEqual(orderRecord.order.orderType, OrderType.TRIGGER_LIMIT));
 		assert(
 			orderRecord.user.equals(await clearingHouseUser.getUserAccountPublicKey())
 		);
@@ -291,7 +291,7 @@ describe('stop limit', () => {
 			)
 		);
 
-		const orderParams = getStopLimitOrderParams(
+		const orderParams = getTriggerLimitOrderParams(
 			marketIndex,
 			direction,
 			baseAssetAmount,
@@ -352,7 +352,7 @@ describe('stop limit', () => {
 		assert(orderRecord.ts.gt(ZERO));
 		assert(orderRecord.order.orderId.eq(expectedOrderId));
 		assert(enumsAreEqual(orderRecord.action, OrderAction.FILL));
-		assert(enumsAreEqual(orderRecord.order.orderType, OrderType.STOP_LIMIT));
+		assert(enumsAreEqual(orderRecord.order.orderType, OrderType.TRIGGER_LIMIT));
 		assert(
 			orderRecord.user.equals(await clearingHouseUser.getUserAccountPublicKey())
 		);

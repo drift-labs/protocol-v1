@@ -41,7 +41,7 @@ export function getLimitOrderParams(
 	};
 }
 
-export function getStopOrderParams(
+export function getTriggerMarketOrderParams(
 	marketIndex: BN,
 	direction: PositionDirection,
 	baseAssetAmount: BN,
@@ -53,7 +53,7 @@ export function getStopOrderParams(
 	userOrderId = 0
 ): OrderParams {
 	return {
-		orderType: OrderType.STOP,
+		orderType: OrderType.TRIGGER_MARKET,
 		userOrderId,
 		marketIndex,
 		direction,
@@ -76,7 +76,7 @@ export function getStopOrderParams(
 	};
 }
 
-export function getStopLimitOrderParams(
+export function getTriggerLimitOrderParams(
 	marketIndex: BN,
 	direction: PositionDirection,
 	baseAssetAmount: BN,
@@ -89,7 +89,7 @@ export function getStopLimitOrderParams(
 	userOrderId = 0
 ): OrderParams {
 	return {
-		orderType: OrderType.STOP_LIMIT,
+		orderType: OrderType.TRIGGER_LIMIT,
 		userOrderId,
 		marketIndex,
 		direction,
