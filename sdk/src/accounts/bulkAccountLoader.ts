@@ -1,14 +1,10 @@
 import { Commitment, Connection, PublicKey } from '@solana/web3.js';
 import { v4 as uuidv4 } from 'uuid';
+import { AccountData } from './types';
 
 type AccountToLoad = {
 	publicKey: PublicKey;
 	callbacks: Map<string, (buffer: Buffer) => void>;
-};
-
-type AccountData = {
-	slot: number;
-	buffer: Buffer | undefined;
 };
 
 const GET_MULTIPLE_ACCOUNTS_CHUNK_SIZE = 99;
@@ -104,16 +100,24 @@ export class BulkAccountLoader {
 			this.loadPromiseResolver = resolver;
 		});
 
-		const chunks = this.chunks(
-			Array.from(this.accountsToLoad.values()),
-			GET_MULTIPLE_ACCOUNTS_CHUNK_SIZE
-		);
+		try {
+			const chunks = this.chunks(
+				Array.from(this.accountsToLoad.values()),
+				GET_MULTIPLE_ACCOUNTS_CHUNK_SIZE
+			);
 
-		await Promise.all(
-			chunks.map((chunk) => {
-				return this.loadChunk(chunk);
-			})
-		);
+			await Promise.all(
+				chunks.map((chunk) => {
+					return this.loadChunk(chunk);
+				})
+			);
+		} catch (e) {
+			console.error(`Error in bulkAccountLoader.load()`);
+			console.error(e);
+			for (const [_, callback] of this.errorCallbacks) {
+				callback(e);
+			}
+		}
 
 		this.loadPromiseResolver();
 		this.loadPromise = undefined;
