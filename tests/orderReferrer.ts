@@ -1,6 +1,5 @@
 import * as anchor from '@project-serum/anchor';
 import { assert } from 'chai';
-import BN from 'bn.js';
 
 import { Program } from '@project-serum/anchor';
 
@@ -8,6 +7,7 @@ import { Keypair, PublicKey } from '@solana/web3.js';
 
 import {
 	Admin,
+	BN,
 	MARK_PRICE_PRECISION,
 	ClearingHouse,
 	PositionDirection,

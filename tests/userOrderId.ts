@@ -1,11 +1,11 @@
 import * as anchor from '@project-serum/anchor';
 import { assert } from 'chai';
-import BN from 'bn.js';
 
 import { Program } from '@project-serum/anchor';
 
 import {
 	Admin,
+	BN,
 	MARK_PRICE_PRECISION,
 	PositionDirection,
 	getUserOrdersAccountPublicKey,
