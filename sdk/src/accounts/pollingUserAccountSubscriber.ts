@@ -89,11 +89,19 @@ export class PollingUserAccountSubscriber implements UserAccountSubscriber {
 			userPublicKey
 		);
 
-		this.accountsToPoll.set(userOrdersPublicKey.toString(), {
-			key: 'userOrders',
-			publicKey: userOrdersPublicKey,
-			eventType: 'userOrdersData',
-		});
+		const userOrdersExist =
+			(
+				await this.program.provider.connection.getParsedAccountInfo(
+					userOrdersPublicKey
+				)
+			).value !== null;
+		if (userOrdersExist) {
+			this.accountsToPoll.set(userOrdersPublicKey.toString(), {
+				key: 'userOrders',
+				publicKey: userOrdersPublicKey,
+				eventType: 'userOrdersData',
+			});
+		}
 
 		for (const [_, accountToPoll] of this.accountsToPoll) {
 			accountToPoll.callbackId = this.accountLoader.addAccount(
