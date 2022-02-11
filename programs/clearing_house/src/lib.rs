@@ -1029,6 +1029,7 @@ pub mod clearing_house {
 
     #[allow(unused_must_use)]
     #[access_control(
+        exchange_not_paused(&ctx.accounts.state) &&
         market_initialized(&ctx.accounts.markets, params.market_index) &&
         valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, params.market_index)
     )]
