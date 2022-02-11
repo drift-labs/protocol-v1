@@ -61,6 +61,11 @@ fn validate_limit_order(
         return Err(ErrorCode::InvalidOrder);
     }
 
+    if order.quote_asset_amount != 0 {
+        msg!("Limit order should not have a quote asset amount");
+        return Err(ErrorCode::InvalidOrder);
+    }
+
     let approximate_market_value = order
         .price
         .checked_mul(order.base_asset_amount)
@@ -91,6 +96,11 @@ fn validate_trigger_limit_order(
 
     if order.trigger_price == 0 {
         msg!("Trigger price == 0");
+        return Err(ErrorCode::InvalidOrder);
+    }
+
+    if order.quote_asset_amount != 0 {
+        msg!("Trigger limit order should not have a quote asset amount");
         return Err(ErrorCode::InvalidOrder);
     }
 
@@ -136,10 +146,17 @@ fn validate_trigger_market_order(
         msg!("Trigger market order should not have price");
         return Err(ErrorCode::InvalidOrder);
     }
+
     if order.trigger_price == 0 {
         msg!("Trigger market order trigger_price == 0");
         return Err(ErrorCode::InvalidOrder);
     }
+
+    if order.quote_asset_amount != 0 {
+        msg!("Trigger market order should not have a quote asset amount");
+        return Err(ErrorCode::InvalidOrder);
+    }
+
     let approximate_market_value = order
         .trigger_price
         .checked_mul(order.base_asset_amount)
