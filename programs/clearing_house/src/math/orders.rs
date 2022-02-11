@@ -175,14 +175,14 @@ pub fn calculate_available_quote_asset_user_can_execute(
         .checked_div(margin_ratio_initial)
         .ok_or_else(math_error!())?;
 
-    let risk_increasing = market_position.base_asset_amount == 0
+    let risk_increasing_in_same_direction = market_position.base_asset_amount == 0
         || market_position.base_asset_amount > 0 && order.direction == PositionDirection::Long
         || market_position.base_asset_amount < 0 && order.direction == PositionDirection::Short;
 
     let (total_collateral, base_asset_value, free_collateral) =
         calculate_free_collateral(user, user_positions, markets, max_leverage)?;
 
-    let available_quote_asset_for_order = if risk_increasing {
+    let available_quote_asset_for_order = if risk_increasing_in_same_direction {
         free_collateral
             .checked_mul(max_leverage)
             .ok_or_else(math_error!())?
