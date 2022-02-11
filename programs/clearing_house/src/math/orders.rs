@@ -179,20 +179,27 @@ pub fn calculate_available_quote_asset_user_can_execute(
         || market_position.base_asset_amount > 0 && order.direction == PositionDirection::Long
         || market_position.base_asset_amount < 0 && order.direction == PositionDirection::Short;
 
-    let (total_collateral, base_asset_value, free_collateral) =
-        calculate_free_collateral(user, user_positions, markets, max_leverage)?;
-
     let available_quote_asset_for_order = if risk_increasing_in_same_direction {
+        let (free_collateral, _) =
+            calculate_free_collateral(user, user_positions, markets, max_leverage, None)?;
+
         free_collateral
             .checked_mul(max_leverage)
             .ok_or_else(math_error!())?
     } else {
-        let max_flipped_size = total_collateral
-            .checked_mul(max_leverage)
-            .ok_or_else(math_error!())?;
+        let market_index = market_position.market_index;
+        let (free_collateral, closed_position_base_asset_value) = calculate_free_collateral(
+            user,
+            user_positions,
+            markets,
+            max_leverage,
+            Some(market_index),
+        )?;
 
-        max_flipped_size
-            .checked_add(base_asset_value)
+        free_collateral
+            .checked_mul(max_leverage)
+            .ok_or_else(math_error!())?
+            .checked_add(closed_position_base_asset_value)
             .ok_or_else(math_error!())?
     };
 
