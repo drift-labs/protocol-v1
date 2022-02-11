@@ -626,7 +626,6 @@ pub struct CancelOrder<'info> {
     pub user: Box<Account<'info, User>>,
     pub authority: Signer<'info>,
     #[account(
-        mut,
         constraint = &state.markets.eq(&markets.key())
     )]
     pub markets: AccountLoader<'info, Markets>,
