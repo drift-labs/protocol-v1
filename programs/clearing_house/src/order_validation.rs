@@ -2,12 +2,12 @@ use crate::controller::position::PositionDirection;
 use crate::error::*;
 use crate::math::constants::*;
 use crate::math::quote_asset::asset_to_reserve_amount;
-use crate::math_error;
 use crate::state::market::Market;
 use crate::state::order_state::OrderState;
 use crate::state::user_orders::{Order, OrderTriggerCondition, OrderType};
 
 use solana_program::msg;
+use std::ops::Div;
 
 pub fn validate_order(
     order: &Order,
@@ -61,17 +61,16 @@ fn validate_limit_order(
         return Err(ErrorCode::InvalidOrder);
     }
 
-    let approx_market_value = order
+    let approximate_market_value = order
         .price
         .checked_mul(order.base_asset_amount)
-        .ok_or_else(math_error!())?
-        .checked_div(AMM_RESERVE_PRECISION)
-        .ok_or_else(math_error!())?
-        .checked_div(MARK_PRICE_PRECISION / QUOTE_PRECISION)
-        .ok_or_else(math_error!())?;
+        .or(Some(u128::MAX))
+        .unwrap()
+        .div(AMM_RESERVE_PRECISION)
+        .div(MARK_PRICE_PRECISION / QUOTE_PRECISION);
 
-    if approx_market_value < order_state.min_order_quote_asset_amount {
-        msg!("Order value < $0.50 ({:?})", approx_market_value);
+    if approximate_market_value < order_state.min_order_quote_asset_amount {
+        msg!("Order value < $0.50 ({:?})", approximate_market_value);
         return Err(ErrorCode::InvalidOrder);
     }
 
@@ -110,17 +109,16 @@ fn validate_trigger_limit_order(
         }
     }
 
-    let approx_market_value = order
+    let approximate_market_value = order
         .price
         .checked_mul(order.base_asset_amount)
-        .ok_or_else(math_error!())?
-        .checked_div(AMM_RESERVE_PRECISION)
-        .ok_or_else(math_error!())?
-        .checked_div(MARK_PRICE_PRECISION / QUOTE_PRECISION)
-        .ok_or_else(math_error!())?;
+        .or(Some(u128::MAX))
+        .unwrap()
+        .div(AMM_RESERVE_PRECISION)
+        .div(MARK_PRICE_PRECISION / QUOTE_PRECISION);
 
-    if approx_market_value < order_state.min_order_quote_asset_amount {
-        msg!("Order value < $0.50 ({:?})", approx_market_value);
+    if approximate_market_value < order_state.min_order_quote_asset_amount {
+        msg!("Order value < $0.50 ({:?})", approximate_market_value);
         return Err(ErrorCode::InvalidOrder);
     }
 
@@ -142,18 +140,17 @@ fn validate_trigger_market_order(
         msg!("Trigger market order trigger_price == 0");
         return Err(ErrorCode::InvalidOrder);
     }
-    let approx_market_value = order
+    let approximate_market_value = order
         .trigger_price
         .checked_mul(order.base_asset_amount)
-        .ok_or_else(math_error!())?
-        .checked_div(AMM_RESERVE_PRECISION)
-        .ok_or_else(math_error!())?
-        .checked_div(MARK_PRICE_PRECISION / QUOTE_PRECISION)
-        .ok_or_else(math_error!())?;
+        .or(Some(u128::MAX))
+        .unwrap()
+        .div(AMM_RESERVE_PRECISION)
+        .div(MARK_PRICE_PRECISION / QUOTE_PRECISION);
 
     // decide min trade size ($10?)
-    if approx_market_value < order_state.min_order_quote_asset_amount {
-        msg!("Order value < $0.50 ({:?})", approx_market_value);
+    if approximate_market_value < order_state.min_order_quote_asset_amount {
+        msg!("Order value < $0.50 ({:?})", approximate_market_value);
         return Err(ErrorCode::InvalidOrder);
     }
 
