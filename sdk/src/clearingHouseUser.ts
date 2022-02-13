@@ -155,6 +155,16 @@ export class ClearingHouseUser {
 		);
 	}
 
+	/**
+	 * @param userOrderId
+	 * @returns Order
+	 */
+	public getOrderByUserOrderId(userOrderId: number): Order | undefined {
+		return this.getUserOrdersAccount().orders.find(
+			(order) => order.userOrderId === userOrderId
+		);
+	}
+
 	public async getUserAccountPublicKey(): Promise<PublicKey> {
 		if (this.userAccountPublicKey) {
 			return this.userAccountPublicKey;
