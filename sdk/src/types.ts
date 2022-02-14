@@ -359,6 +359,7 @@ export type Order = {
 	referrer: PublicKey;
 	postOnly: boolean;
 	immediateOrCancel: boolean;
+	oraclePriceOffset: BN;
 };
 
 export type OrderParams = {
