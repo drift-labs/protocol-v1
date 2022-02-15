@@ -449,6 +449,42 @@ pub fn is_oracle_valid(
         || is_oracle_price_too_volatile))
 }
 
+pub fn calculate_quote_asset_amount_can_trade_to_oracle_mark_threshold(
+    amm: &AMM,
+    price_oracle: &AccountInfo,
+    clock_slot: u64,
+    direction: &PositionDirection,
+) -> ClearingHouseResult<(u128, i128)> {
+    let (oracle_price, _, _, _, _) = amm.get_oracle_price(price_oracle, clock_slot)?;
+
+    let mark_price_threshold = if direction == &PositionDirection::Long {
+        cast_to_u128(
+            oracle_price
+                .checked_mul(110)
+                .ok_or_else(math_error!())?
+                .checked_div(100)
+                .ok_or_else(math_error!())?,
+        )?
+    } else {
+        cast_to_u128(
+            oracle_price
+                .checked_mul(90)
+                .ok_or_else(math_error!())?
+                .checked_div(100)
+                .ok_or_else(math_error!())?,
+        )?
+    };
+
+    let (quote_asset_amount, direction_to_trade) =
+        calculate_max_quote_asset_amount_to_trade(amm, mark_price_threshold)?;
+
+    if direction != &direction_to_trade {
+        Ok((0, oracle_price))
+    } else {
+        Ok((quote_asset_amount, oracle_price))
+    }
+}
+
 /// To find the cost of adjusting k, compare the the net market value before and after adjusting k
 /// Increasing k costs the protocol money because it reduces slippage and improves the exit price for net market position
 /// Decreasing k costs the protocol money because it increases slippage and hurts the exit price for net market position
@@ -535,6 +571,50 @@ pub fn calculate_max_base_asset_amount_to_trade(
             .checked_sub(new_base_asset_reserve)
             .ok_or_else(math_error!())?;
         Ok((max_trade_amount, PositionDirection::Long))
+    }
+}
+
+pub fn calculate_max_quote_asset_amount_to_trade(
+    amm: &AMM,
+    limit_price: u128,
+) -> ClearingHouseResult<(u128, PositionDirection)> {
+    msg!("limit_price {}", limit_price);
+    let invariant_sqrt_u192 = U192::from(amm.sqrt_k);
+    let invariant = invariant_sqrt_u192
+        .checked_mul(invariant_sqrt_u192)
+        .ok_or_else(math_error!())?;
+
+    let new_quote_asset_reserve_squared = invariant
+        .checked_mul(U192::from(limit_price))
+        .ok_or_else(math_error!())?
+        .checked_div(U192::from(MARK_PRICE_PRECISION))
+        .ok_or_else(math_error!())?
+        .checked_mul(U192::from(PEG_PRECISION))
+        .ok_or_else(math_error!())?
+        .checked_div(U192::from(amm.peg_multiplier))
+        .ok_or_else(math_error!())?;
+
+    let new_quote_asset_reserve = new_quote_asset_reserve_squared
+        .integer_sqrt()
+        .try_to_u128()?;
+
+    if new_quote_asset_reserve > amm.quote_asset_reserve {
+        let quote_asset_reserve_change = new_quote_asset_reserve
+            .checked_add(amm.quote_asset_reserve)
+            .ok_or_else(math_error!())?;
+        let quote_asset_amount =
+            reserve_to_asset_amount(quote_asset_reserve_change, amm.peg_multiplier)?;
+
+        Ok((quote_asset_amount, PositionDirection::Long))
+    } else {
+        let quote_asset_reserve_change = amm
+            .quote_asset_reserve
+            .checked_add(new_quote_asset_reserve)
+            .ok_or_else(math_error!())?;
+        let quote_asset_amount =
+            reserve_to_asset_amount(quote_asset_reserve_change, amm.peg_multiplier)?;
+
+        Ok((quote_asset_amount, PositionDirection::Short))
     }
 }
 

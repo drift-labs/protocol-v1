@@ -39,6 +39,7 @@ pub mod clearing_house {
     use crate::state::history::liquidation::LiquidationRecord;
 
     use super::*;
+    use crate::math::amm::calculate_quote_asset_amount_can_trade_to_oracle_mark_threshold;
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
     use crate::state::order_state::{OrderFillerRewardStructure, OrderState};
 
@@ -1208,31 +1209,48 @@ pub mod clearing_house {
                     .iter()
                     .find(|account_info| account_info.key.eq(&market.amm.oracle))
                     .ok_or(ErrorCode::OracleNotFound)?;
-                let (liquidations_blocked, oracle_price) = math::oracle::block_operation(
-                    &market.amm,
-                    oracle_account_info,
-                    clock_slot,
-                    &state.oracle_guard_rails,
-                    Some(mark_price_before),
-                )?;
-                if liquidations_blocked {
-                    return Err(ErrorCode::LiquidationsBlockedByOracle.into());
-                }
+                // let (liquidations_blocked, oracle_price) = math::oracle::block_operation(
+                //     &market.amm,
+                //     oracle_account_info,
+                //     clock_slot,
+                //     &state.oracle_guard_rails,
+                //     Some(mark_price_before),
+                // )?;
+                // if liquidations_blocked {
+                //     return Err(ErrorCode::LiquidationsBlockedByOracle.into());
+                // }
 
                 let (base_asset_value, _pnl) =
                     calculate_base_asset_value_and_pnl(market_position, &market.amm)?;
 
-                let base_asset_value_to_close = base_asset_value
+                let mut base_asset_value_to_close = base_asset_value
                     .checked_mul(state.partial_liquidation_close_percentage_numerator)
                     .ok_or_else(math_error!())?
                     .checked_div(state.partial_liquidation_close_percentage_denominator)
                     .ok_or_else(math_error!())?;
-                base_asset_value_closed = base_asset_value_closed
-                    .checked_add(base_asset_value_to_close)
-                    .ok_or_else(math_error!())?;
 
                 let direction_to_reduce =
                     math::position::direction_to_close_position(market_position.base_asset_amount);
+
+                let (max_quote_asset_amount_can_close, oracle_price) =
+                    calculate_quote_asset_amount_can_trade_to_oracle_mark_threshold(
+                        &market.amm,
+                        &oracle_account_info,
+                        clock_slot,
+                        &direction_to_reduce,
+                    )?;
+
+                if max_quote_asset_amount_can_close < base_asset_value_to_close {
+                    msg!(
+                        "max_quote_asset_amount_can_close {}",
+                        max_quote_asset_amount_can_close
+                    );
+                    base_asset_value_to_close = max_quote_asset_amount_can_close;
+                }
+
+                base_asset_value_closed = base_asset_value_closed
+                    .checked_add(base_asset_value_to_close)
+                    .ok_or_else(math_error!())?;
 
                 let base_asset_amount_change = controller::position::reduce(
                     direction_to_reduce,
