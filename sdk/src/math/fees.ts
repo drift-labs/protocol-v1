@@ -3,13 +3,21 @@ import { AccountInfo } from "@solana/spl-token";
 import { OrderDiscountTier, OrderFillerRewardStructure } from "../types";
 
 
-export function calculateFeeForMarketOrder(quoteAssetAmount: BN, feeStructure: FeeStructure, discountToken?: AccountInfo, referrer?: ClearingHouseUser ) : Array<BN> {
+export interface MarketOrderFee {
+    userFee: BN,
+    feeToMarket: BN,
+    tokenDiscount: BN,
+    referrerReward: BN,
+    refereeDiscount: BN
+}
+
+export function calculateFeeForMarketOrder(quoteAssetAmount: BN, feeStructure: FeeStructure, discountToken?: AccountInfo, referrer?: ClearingHouseUser ) : MarketOrderFee {
     const fee = quoteAssetAmount.mul(feeStructure.feeNumerator).div(feeStructure.feeDenominator);
     const tokenDiscount = calculateTokenDiscount(fee, feeStructure, discountToken);
-    const [referrerReward, refereeDiscount] = calculateReferralRewardAndRefereeDiscount(fee, feeStructure, referrer);
+    const { referrerReward, refereeDiscount } = calculateReferralRewardAndRefereeDiscount(fee, feeStructure, referrer);
     const userFee = fee.sub(tokenDiscount).sub(refereeDiscount);
     const feeToMarket = userFee.sub(referrerReward);
-    return [userFee,feeToMarket,tokenDiscount,referrerReward,refereeDiscount];
+    return  { userFee,feeToMarket,tokenDiscount,referrerReward,refereeDiscount } as MarketOrderFee;
 }
 
 export function calculateTokenDiscount(fee: BN, feeStructure: FeeStructure, discountToken?: AccountInfo) : BN {
@@ -45,13 +53,18 @@ export function belongsToTier(tier: { minimumBalance: BN, discountNumerator: BN,
     return discountToken.amount >= tier.minimumBalance;
 }
 
-export function calculateReferralRewardAndRefereeDiscount(fee: BN, feeStructure: FeeStructure, referrer?: ClearingHouseUser) : Array<BN> {
-    let [referralReward, refereeDiscount] = [ZERO, ZERO];
+export interface ReferralRewardDiscount {
+    referrerReward: BN,
+    refereeDiscount: BN
+}
+
+export function calculateReferralRewardAndRefereeDiscount(fee: BN, feeStructure: FeeStructure, referrer?: ClearingHouseUser) : ReferralRewardDiscount {
+    let [referrerReward, refereeDiscount] = [ZERO, ZERO];
     if (referrer) {
-        referralReward = fee.mul(feeStructure.referralDiscount.referrerRewardNumerator).div(feeStructure.referralDiscount.referrerRewardDenominator);
+        referrerReward = fee.mul(feeStructure.referralDiscount.referrerRewardNumerator).div(feeStructure.referralDiscount.referrerRewardDenominator);
         refereeDiscount = fee.mul(feeStructure.referralDiscount.refereeDiscountNumerator).div(feeStructure.referralDiscount.refereeDiscountDenominator);
     }
-    return [referralReward, refereeDiscount];
+    return  { referrerReward, refereeDiscount } as ReferralRewardDiscount;
 }
 
 export function calculateOrderFeeTier(feeStructure: FeeStructure, discountToken?: AccountInfo) : OrderDiscountTier {
@@ -70,14 +83,22 @@ export function calculateOrderFeeTier(feeStructure: FeeStructure, discountToken?
 
 }
 
-export function calculateFeeForLimitOrder(quoteAssetAmount : BN, feeStructure: FeeStructure, fillerRewardStructure: OrderFillerRewardStructure, orderFeeTier: OrderDiscountTier, orderTs: BN, now: BN, referrer?: ClearingHouseUser, fillerIsTaker = false) : Array<BN> {
+export interface LimitOrderFee {
+    userFee: BN,
+    feeToMarket: BN,
+    tokenDiscount: BN,
+    fillerReward: BN,
+    refereeDiscount: BN
+}
+
+export function calculateFeeForLimitOrder(quoteAssetAmount : BN, feeStructure: FeeStructure, fillerRewardStructure: OrderFillerRewardStructure, orderFeeTier: OrderDiscountTier, orderTs: BN, now: BN, referrer?: ClearingHouseUser, fillerIsTaker = false) : LimitOrderFee {
     const fee = quoteAssetAmount.mul(feeStructure.feeNumerator).div(feeStructure.feeDenominator);
     const tokenDiscount = calculateTokenDiscountForLimitOrder(fee, feeStructure, orderFeeTier);
-    const [referrerReward, refereeDiscount] = calculateReferralRewardAndRefereeDiscount(fee, feeStructure, referrer);
+    const { referrerReward, refereeDiscount } = calculateReferralRewardAndRefereeDiscount(fee, feeStructure, referrer);
     const userFee = fee.sub(refereeDiscount).sub(tokenDiscount);
     const fillerReward = fillerIsTaker ? ZERO : calculateFillerReward(userFee, orderTs, now, fillerRewardStructure);
     const feeToMarket = userFee.sub(fillerReward).sub(referrerReward);
-    return [userFee, feeToMarket, tokenDiscount, fillerReward, referrerReward, refereeDiscount];
+    return { userFee, feeToMarket, tokenDiscount, fillerReward, referrerReward, refereeDiscount } as LimitOrderFee;
 }
 
 export function calculateTokenDiscountForLimitOrder(fee: BN, feeStructure: FeeStructure, orderFeeTier: OrderDiscountTier) : BN {
