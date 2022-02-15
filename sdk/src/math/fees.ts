@@ -1,7 +1,6 @@
 import { BN, ClearingHouseUser, FeeStructure, ZERO } from "@drift-labs/sdk";
 import { AccountInfo } from "@solana/spl-token";
-import { Order, OrderFillerRewardStructure } from "..";
-import { OrderDiscountTier } from "../types";
+import { OrderDiscountTier, OrderFillerRewardStructure } from "../types";
 
 
 export function calculateFeeForMarketOrder(quoteAssetAmount: BN, feeStructure: FeeStructure, discountToken?: AccountInfo, referrer?: ClearingHouseUser ) : Array<BN> {
