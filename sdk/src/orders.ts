@@ -1,4 +1,3 @@
-import { ClearingHouseUser } from './clearingHouseUser';
 import {
 	isVariant,
 	Market,
@@ -7,7 +6,7 @@ import {
 	UserAccount,
 	UserPosition,
 } from './types';
-import BN from 'bn.js';
+import { BN } from '.';
 import {
 	calculateMarkPrice,
 	calculateNewMarketAfterTrade,
@@ -22,26 +21,6 @@ import {
 	findDirectionToClose,
 	positionCurrentDirection,
 } from './math/position';
-
-/**
- * Determines if the amm can support trade being filled.
- * Does not consider user margin ratio yet
- *
- * @param user
- * @param order
- */
-export function canFillUserOrder(
-	user: ClearingHouseUser,
-	order: Order
-): boolean {
-	if (isVariant(order.status, 'init')) {
-		return false;
-	}
-
-	const market = user.clearingHouse.getMarket(order.marketIndex);
-	const baseAssetAmountToTrade = calculateAmountToTrade(market, order);
-	return baseAssetAmountToTrade.gt(ZERO);
-}
 
 export function calculateNewStateAfterOrder(
 	userAccount: UserAccount,
@@ -181,8 +160,13 @@ function calculateAmountSwapped(
 function calculateAmountToTrade(market: Market, order: Order): BN {
 	if (isVariant(order.orderType, 'limit')) {
 		return calculateAmountToTradeForLimit(market, order);
+	} else if (isVariant(order.orderType, 'triggerLimit')) {
+		return calculateAmountToTradeForTriggerLimit(market, order);
+	} else if (isVariant(order.orderType, 'market')) {
+		// should never be a market order queued
+		return ZERO;
 	} else {
-		return calculateAmountToTradeForStop(market, order);
+		return calculateAmountToTradeForTriggerMarket(market, order);
 	}
 }
 
@@ -206,6 +190,23 @@ export function calculateAmountToTradeForLimit(
 		: maxAmountToTrade;
 }
 
+export function calculateAmountToTradeForTriggerLimit(
+	market: Market,
+	order: Order
+): BN {
+	if (order.baseAssetAmountFilled.eq(ZERO)) {
+		const baseAssetAmount = calculateAmountToTradeForTriggerMarket(
+			market,
+			order
+		);
+		if (baseAssetAmount.eq(ZERO)) {
+			return ZERO;
+		}
+	}
+
+	return calculateAmountToTradeForLimit(market, order);
+}
+
 function isSameDirection(
 	firstDirection: PositionDirection,
 	secondDirection: PositionDirection
@@ -216,7 +217,10 @@ function isSameDirection(
 	);
 }
 
-function calculateAmountToTradeForStop(market: Market, order: Order): BN {
+function calculateAmountToTradeForTriggerMarket(
+	market: Market,
+	order: Order
+): BN {
 	return isTriggerConditionSatisfied(market, order)
 		? order.baseAssetAmount
 		: ZERO;

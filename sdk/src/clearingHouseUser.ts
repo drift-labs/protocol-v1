@@ -1,5 +1,4 @@
 import { PublicKey } from '@solana/web3.js';
-import BN from 'bn.js';
 import { EventEmitter } from 'events';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import { ClearingHouse } from './clearingHouse';
@@ -24,7 +23,6 @@ import {
 	PRICE_TO_QUOTE_PRECISION,
 } from './constants/numericConstants';
 import { UserAccountSubscriber, UserAccountEvents } from './accounts/types';
-import { DefaultUserAccountSubscriber } from './accounts/defaultUserAccountSubscriber';
 import {
 	calculateMarkPrice,
 	calculateBaseAssetValue,
@@ -33,8 +31,14 @@ import {
 	PositionDirection,
 	getUserOrdersAccountPublicKey,
 	calculateNewStateAfterOrder,
+	calculateTradeSlippage,
+	BN,
 } from '.';
 import { getUserAccountPublicKey } from './addresses';
+import {
+	getClearingHouseUser,
+	getWebSocketClearingHouseUserConfig,
+} from './factory/clearingHouseUser';
 
 export class ClearingHouseUser {
 	clearingHouse: ClearingHouse;
@@ -42,18 +46,35 @@ export class ClearingHouseUser {
 	accountSubscriber: UserAccountSubscriber;
 	userAccountPublicKey?: PublicKey;
 	userOrdersAccountPublicKey?: PublicKey;
-	isSubscribed = false;
+	_isSubscribed = false;
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
 
+	public get isSubscribed() {
+		return this._isSubscribed && this.accountSubscriber.isSubscribed;
+	}
+
+	public set isSubscribed(val: boolean) {
+		this._isSubscribed = val;
+	}
+
+	/**
+	 * @deprecated You should use getClearingHouseUser factory method instead
+	 * @param clearingHouse
+	 * @param authority
+	 * @returns
+	 */
 	public static from(
 		clearingHouse: ClearingHouse,
 		authority: PublicKey
 	): ClearingHouseUser {
-		const accountSubscriber = new DefaultUserAccountSubscriber(
-			clearingHouse.program,
+		if (clearingHouse.accountSubscriber.type !== 'websocket')
+			throw 'This method only works for clearing houses with a websocket account listener. Try using the getClearingHouseUser factory method to initialize a ClearingHouseUser instead';
+
+		const config = getWebSocketClearingHouseUserConfig(
+			clearingHouse,
 			authority
 		);
-		return new ClearingHouseUser(clearingHouse, authority, accountSubscriber);
+		return getClearingHouseUser(config);
 	}
 
 	public constructor(
@@ -99,7 +120,7 @@ export class ClearingHouseUser {
 		return this.accountSubscriber.getUserPositionsAccount();
 	}
 
-	public getUserOrdersAccount(): UserOrdersAccount {
+	public getUserOrdersAccount(): UserOrdersAccount | undefined {
 		return this.accountSubscriber.getUserOrdersAccount();
 	}
 
@@ -134,6 +155,16 @@ export class ClearingHouseUser {
 		);
 	}
 
+	/**
+	 * @param userOrderId
+	 * @returns Order
+	 */
+	public getOrderByUserOrderId(userOrderId: number): Order | undefined {
+		return this.getUserOrdersAccount().orders.find(
+			(order) => order.userOrderId === userOrderId
+		);
+	}
+
 	public async getUserAccountPublicKey(): Promise<PublicKey> {
 		if (this.userAccountPublicKey) {
 			return this.userAccountPublicKey;
@@ -153,7 +184,7 @@ export class ClearingHouseUser {
 
 		this.userOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(
 			this.clearingHouse.program.programId,
-			this.authority
+			await this.getUserAccountPublicKey()
 		);
 		return this.userOrdersAccountPublicKey;
 	}
@@ -615,7 +646,7 @@ export class ClearingHouseUser {
 		}
 
 		let priceDelt;
-		if (currentMarketPositionBaseSize.lt(ZERO)) {
+		if (proposedBaseAssetAmount.lt(ZERO)) {
 			priceDelt = tc
 				.mul(thisLev)
 				.sub(tpv)
@@ -629,9 +660,22 @@ export class ClearingHouseUser {
 				.div(thisLev.sub(new BN(1)));
 		}
 
-		const currentPrice = calculateMarkPrice(
-			this.clearingHouse.getMarket(targetMarket.marketIndex)
-		);
+		let currentPrice;
+		if (positionBaseSizeChange.eq(ZERO)) {
+			currentPrice = calculateMarkPrice(
+				this.clearingHouse.getMarket(targetMarket.marketIndex)
+			);
+		} else {
+			const direction = positionBaseSizeChange.gt(ZERO)
+				? PositionDirection.LONG
+				: PositionDirection.SHORT;
+			currentPrice = calculateTradeSlippage(
+				direction,
+				positionBaseSizeChange.abs(),
+				this.clearingHouse.getMarket(targetMarket.marketIndex),
+				'base'
+			)[3]; // newPrice after swap
+		}
 
 		// if the position value after the trade is less than total collateral, there is no liq price
 		if (
@@ -646,6 +690,10 @@ export class ClearingHouseUser {
 		const eatMargin2 = priceDelt
 			.mul(AMM_RESERVE_PRECISION)
 			.div(proposedBaseAssetAmount);
+
+		if (eatMargin2.gt(currentPrice)) {
+			return new BN(-1);
+		}
 
 		const liqPrice = currentPrice.sub(eatMargin2);
 		return liqPrice;
@@ -894,8 +942,6 @@ export class ClearingHouseUser {
 		const marginRatioAfter = totalCollateral
 			.mul(TEN_THOUSAND)
 			.div(totalPositionValue);
-
-		console.log(marginRatioAfter.toString());
 
 		const marginRatioInitial =
 			this.clearingHouse.getStateAccount().marginRatioInitial;

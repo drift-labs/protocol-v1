@@ -121,7 +121,7 @@ export function calculateFillerReward(userFee: BN, orderTs: BN, now: BN, fillerR
     // for sufficiently small-sized order, reward based on fraction of fee paid
     const sizeFillerReward = userFee.mul(fillerRewardStructure.rewardNumerator).div(fillerRewardStructure.rewardDenominator);
     const timeSinceOrder = BN.max(new BN(1), now.sub(orderTs));
-	const timeFillerReward = (sqrt(sqrt(timeSinceOrder.mul(new BN(10 ** 8)))).mul(fillerRewardStructure.timeBasedRewardLowerbound)).div(new BN(100));
+	const timeFillerReward = (sqrt(sqrt(timeSinceOrder.mul(new BN(10 ** 8)))).mul(fillerRewardStructure.timeBasedRewardLowerBound)).div(new BN(100));
 
 	return BN.min(sizeFillerReward, timeFillerReward);
 }

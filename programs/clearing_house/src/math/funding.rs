@@ -37,7 +37,7 @@ pub fn calculate_funding_rate_long_short(
     }
 
     let (capped_funding_rate, capped_funding_pnl) =
-        calculate_capped_funding_rate(&market, uncapped_funding_pnl, funding_rate)?;
+        calculate_capped_funding_rate(market, uncapped_funding_pnl, funding_rate)?;
 
     let new_total_fee_minus_distributions = market
         .amm
@@ -45,17 +45,20 @@ pub fn calculate_funding_rate_long_short(
         .checked_sub(capped_funding_pnl.unsigned_abs())
         .ok_or_else(math_error!())?;
 
-    let total_fee_minus_distributions_lower_bound = market
-        .amm
-        .total_fee
-        .checked_mul(SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR)
-        .ok_or_else(math_error!())?
-        .checked_div(SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR)
-        .ok_or_else(math_error!())?;
+    // clearing house is paying part of funding imbalance
+    if capped_funding_pnl != 0 {
+        let total_fee_minus_distributions_lower_bound = market
+            .amm
+            .total_fee
+            .checked_mul(SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR)
+            .ok_or_else(math_error!())?
+            .checked_div(SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR)
+            .ok_or_else(math_error!())?;
 
-    // makes sure the clearing house doesn't pay more than the share of fees allocated to `distributions`
-    if new_total_fee_minus_distributions < total_fee_minus_distributions_lower_bound {
-        return Err(ErrorCode::InvalidFundingProfitability.into());
+        // makes sure the clearing house doesn't pay more than the share of fees allocated to `distributions`
+        if new_total_fee_minus_distributions < total_fee_minus_distributions_lower_bound {
+            return Err(ErrorCode::InvalidFundingProfitability);
+        }
     }
 
     market.amm.total_fee_minus_distributions = new_total_fee_minus_distributions;
@@ -72,12 +75,12 @@ pub fn calculate_funding_rate_long_short(
         funding_rate
     };
 
-    return Ok((funding_rate_long, funding_rate_short));
+    Ok((funding_rate_long, funding_rate_short))
 }
 
 fn calculate_capped_funding_rate(
     market: &Market,
-    uncapped_funding_pnl: i128,
+    uncapped_funding_pnl: i128, // if negative, users would net recieve from clearinghouse
     funding_rate: i128,
 ) -> ClearingHouseResult<(i128, i128)> {
     // The funding_rate_pnl_limit is the amount of fees the clearing house can use before it hits it's lower bound
@@ -88,14 +91,20 @@ fn calculate_capped_funding_rate(
         .ok_or_else(math_error!())?
         .checked_div(SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR)
         .ok_or_else(math_error!())?;
+
+    // limit to 2/3 of current fee pool per funding period
     let funding_rate_pnl_limit =
         if market.amm.total_fee_minus_distributions > total_fee_minus_distributions_lower_bound {
             -cast_to_i128(
-                market
+                (market
                     .amm
                     .total_fee_minus_distributions
                     .checked_sub(total_fee_minus_distributions_lower_bound)
-                    .ok_or_else(math_error!())?,
+                    .ok_or_else(math_error!())?)
+                .checked_mul(2)
+                .ok_or_else(math_error!())?
+                .checked_div(3)
+                .ok_or_else(math_error!())?,
             )?
         } else {
             0
@@ -141,7 +150,7 @@ fn calculate_capped_funding_rate(
         funding_rate
     };
 
-    return Ok((capped_funding_rate, capped_funding_pnl));
+    Ok((capped_funding_rate, capped_funding_pnl))
 }
 
 pub fn calculate_funding_payment(
@@ -155,7 +164,7 @@ pub fn calculate_funding_payment(
     let funding_rate_payment =
         _calculate_funding_payment(funding_rate_delta, market_position.base_asset_amount)?;
 
-    return Ok(funding_rate_payment);
+    Ok(funding_rate_payment)
 }
 
 fn _calculate_funding_payment(
@@ -184,7 +193,7 @@ fn _calculate_funding_payment(
         .checked_mul(funding_rate_delta_sign)
         .ok_or_else(math_error!())?;
 
-    return Ok(funding_rate_payment);
+    Ok(funding_rate_payment)
 }
 
 fn calculate_funding_rate_from_pnl_limit(
@@ -201,13 +210,11 @@ fn calculate_funding_rate_from_pnl_limit(
         pnl_limit
     };
 
-    let funding_rate = pnl_limit_biased
+    pnl_limit_biased
         .checked_mul(QUOTE_TO_BASE_AMT_FUNDING_PRECISION)
         .ok_or_else(math_error!())?
         .checked_div(base_asset_amount)
-        .ok_or_else(math_error!());
-
-    return funding_rate;
+        .ok_or_else(math_error!())
 }
 
 fn calculate_funding_payment_in_quote_precision(
@@ -219,5 +226,5 @@ fn calculate_funding_payment_in_quote_precision(
         .checked_div(cast_to_i128(AMM_TO_QUOTE_PRECISION_RATIO)?)
         .ok_or_else(math_error!())?;
 
-    return Ok(funding_payment_collateral);
+    Ok(funding_payment_collateral)
 }

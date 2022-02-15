@@ -13,7 +13,7 @@ import {
 	Wallet,
 } from '@drift-labs/sdk';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
-import BN from 'bn.js';
+import { BN } from '@drift-labs/sdk';
 import {
 	ASSOCIATED_TOKEN_PROGRAM_ID,
 	Token,
@@ -295,7 +295,7 @@ commandWithDefaultOption('decrease-k')
 				const percentChange = Math.abs(
 					(numerator.toNumber() / denominator.toNumber()) * 100 - 100
 				);
-				if (percentChange > 10) {
+				if (percentChange > 2) {
 					logError(
 						`Specified input would lead to ${percentChange.toFixed(2)}% change`
 					);
@@ -422,6 +422,38 @@ commandWithDefaultOption('unpause-funding').action(
 		);
 	}
 );
+
+commandWithDefaultOption('update-oracle-twap')
+	.argument('<market>', 'The market to update oracle twap for')
+	.action(async (market, options: OptionValues) => {
+		await wrapActionInAdminSubscribeUnsubscribe(
+			options,
+			async (admin: Admin) => {
+				log.info(`market: ${market}`);
+				market = marketIndexFromSymbol(market);
+
+				log.info(`Updating amm oracle twap`);
+				await admin.updateAmmOracleTwap(market);
+				log.info(`Updated oracle twap`);
+			}
+		);
+	});
+
+commandWithDefaultOption('reset-oracle-twap')
+	.argument('<market>', 'The market to reset oracle twap for')
+	.action(async (market, options: OptionValues) => {
+		await wrapActionInAdminSubscribeUnsubscribe(
+			options,
+			async (admin: Admin) => {
+				log.info(`market: ${market}`);
+				market = marketIndexFromSymbol(market);
+
+				log.info(`Resetting amm oracle twap`);
+				await admin.resetAmmOracleTwap(market);
+				log.info(`Reset oracle twap`);
+			}
+		);
+	});
 
 commandWithDefaultOption('deposit')
 	.argument('<amount>', 'The amount to deposit')

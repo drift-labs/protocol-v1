@@ -1,5 +1,4 @@
 use crate::error::*;
-use crate::math::bn::U192;
 use crate::math::casting::cast_to_u128;
 use crate::math_error;
 use crate::state::order_state::OrderFillerRewardStructure;
@@ -7,6 +6,7 @@ use crate::state::state::{DiscountTokenTier, FeeStructure};
 use crate::state::user::User;
 use crate::state::user_orders::OrderDiscountTier;
 use anchor_lang::Account;
+use num_integer::Roots;
 use solana_program::msg;
 use spl_token::state::Account as TokenAccount;
 use std::cmp::{max, min};
@@ -38,13 +38,13 @@ pub fn calculate_fee_for_market_order(
         .checked_sub(referrer_reward)
         .ok_or_else(math_error!())?;
 
-    return Ok((
+    Ok((
         user_fee,
         fee_to_market,
         token_discount,
         referrer_reward,
         referee_discount,
-    ));
+    ))
 }
 
 fn calculate_token_discount(
@@ -90,7 +90,7 @@ fn calculate_token_discount(
         return discount;
     }
 
-    return 0;
+    0
 }
 
 fn try_to_calculate_token_discount_for_tier(
@@ -101,18 +101,16 @@ fn try_to_calculate_token_discount_for_tier(
     if belongs_to_tier(tier, discount_token) {
         return calculate_token_discount_for_tier(fee, tier);
     }
-    return None;
+    None
 }
 
 fn calculate_token_discount_for_tier(fee: u128, tier: &DiscountTokenTier) -> Option<u128> {
-    return Some(
-        fee.checked_mul(tier.discount_numerator)?
-            .checked_div(tier.discount_denominator)?,
-    );
+    fee.checked_mul(tier.discount_numerator)?
+        .checked_div(tier.discount_denominator)
 }
 
 fn belongs_to_tier(tier: &DiscountTokenTier, discount_token: TokenAccount) -> bool {
-    return discount_token.amount >= tier.minimum_balance;
+    discount_token.amount >= tier.minimum_balance
 }
 
 fn calculate_referral_reward_and_referee_discount(
@@ -136,7 +134,7 @@ fn calculate_referral_reward_and_referee_discount(
         .checked_div(fee_structure.referral_discount.referee_discount_denominator)
         .ok_or_else(math_error!())?;
 
-    return Ok((referrer_reward, referee_discount));
+    Ok((referrer_reward, referee_discount))
 }
 
 pub fn calculate_order_fee_tier(
@@ -177,7 +175,7 @@ pub fn calculate_order_fee_tier(
         return Ok(OrderDiscountTier::Fourth);
     }
 
-    return Ok(OrderDiscountTier::None);
+    Ok(OrderDiscountTier::None)
 }
 
 pub fn calculate_fee_for_limit_order(
@@ -187,7 +185,9 @@ pub fn calculate_fee_for_limit_order(
     order_fee_tier: &OrderDiscountTier,
     order_ts: i64,
     now: i64,
-) -> ClearingHouseResult<(u128, u128, u128, u128)> {
+    referrer: &Option<Account<User>>,
+    filler_is_taker: bool,
+) -> ClearingHouseResult<(u128, u128, u128, u128, u128, u128)> {
     let fee = quote_asset_amount
         .checked_mul(fee_structure.fee_numerator)
         .ok_or_else(math_error!())?
@@ -197,14 +197,35 @@ pub fn calculate_fee_for_limit_order(
     let token_discount =
         calculate_token_discount_for_limit_order(fee, fee_structure, order_fee_tier)?;
 
-    let user_fee = fee.checked_sub(token_discount).ok_or_else(math_error!())?;
+    let (referrer_reward, referee_discount) =
+        calculate_referral_reward_and_referee_discount(fee, fee_structure, referrer)?;
 
-    let filler_reward = calculate_filler_reward(user_fee, order_ts, now, filler_reward_structure)?;
-    let fee_to_market = user_fee
-        .checked_sub(filler_reward)
+    let user_fee = fee
+        .checked_sub(referee_discount)
+        .ok_or_else(math_error!())?
+        .checked_sub(token_discount)
         .ok_or_else(math_error!())?;
 
-    return Ok((user_fee, fee_to_market, token_discount, filler_reward));
+    let filler_reward: u128 = if filler_is_taker {
+        0
+    } else {
+        calculate_filler_reward(user_fee, order_ts, now, filler_reward_structure)?
+    };
+
+    let fee_to_market = user_fee
+        .checked_sub(filler_reward)
+        .ok_or_else(math_error!())?
+        .checked_sub(referrer_reward)
+        .ok_or_else(math_error!())?;
+
+    Ok((
+        user_fee,
+        fee_to_market,
+        token_discount,
+        filler_reward,
+        referrer_reward,
+        referee_discount,
+    ))
 }
 
 fn calculate_token_discount_for_limit_order(
@@ -212,7 +233,7 @@ fn calculate_token_discount_for_limit_order(
     fee_structure: &FeeStructure,
     order_discount_tier: &OrderDiscountTier,
 ) -> ClearingHouseResult<u128> {
-    return match order_discount_tier {
+    match order_discount_tier {
         OrderDiscountTier::None => Ok(0),
         OrderDiscountTier::First => {
             calculate_token_discount_for_tier(fee, &fee_structure.discount_token_tiers.first_tier)
@@ -230,7 +251,7 @@ fn calculate_token_discount_for_limit_order(
             calculate_token_discount_for_tier(fee, &fee_structure.discount_token_tiers.fourth_tier)
                 .ok_or_else(math_error!())
         }
-    };
+    }
 }
 
 fn calculate_filler_reward(
@@ -248,17 +269,15 @@ fn calculate_filler_reward(
         .checked_div(filler_reward_structure.reward_denominator)
         .ok_or_else(math_error!())?;
 
-    let min_time_filler_reward = filler_reward_structure.time_based_reward_lowerbound;
+    let min_time_filler_reward = filler_reward_structure.time_based_reward_lower_bound;
     let time_since_order = max(
         1,
         cast_to_u128(now.checked_sub(order_ts).ok_or_else(math_error!())?)?,
     );
-    let time_filler_reward = U192::from(time_since_order)
-        .checked_mul(U192::from(100_000_000)) // 1e8
+    let time_filler_reward = time_since_order
+        .checked_mul(100_000_000) // 1e8
         .ok_or_else(math_error!())?
-        .integer_sqrt()
-        .integer_sqrt()
-        .try_to_u128()?
+        .nth_root(4)
         .checked_mul(min_time_filler_reward)
         .ok_or_else(math_error!())?
         .checked_div(100) // 1e2 = sqrt(sqrt(1e8))
@@ -267,5 +286,5 @@ fn calculate_filler_reward(
     // lesser of size-based and time-based reward
     let fee = min(size_filler_reward, time_filler_reward);
 
-    return Ok(fee);
+    Ok(fee)
 }

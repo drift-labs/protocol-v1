@@ -94,14 +94,28 @@ pub enum ErrorCode {
     OrderDoesNotExist,
     #[msg("Order not open")]
     OrderNotOpen,
-    #[msg("Market cant fill order")]
-    MarketCantFillOrder,
+    #[msg("CouldNotFillOrder")]
+    CouldNotFillOrder,
     #[msg("Reduce only order increased risk")]
     ReduceOnlyOrderIncreasedRisk,
     #[msg("Order state already initialized")]
     OrderStateAlreadyInitialized,
-    #[msg("Order trigger condition not satisfied")]
-    OrderTriggerConditionNotSatisfied,
+    #[msg("Unable to load AccountLoader")]
+    UnableToLoadAccountLoader,
+    #[msg("Trade Size Too Large")]
+    TradeSizeTooLarge,
+    #[msg("Unable to write to remaining account")]
+    UnableToWriteToRemainingAccount,
+    #[msg("User cant refer themselves")]
+    UserCantReferThemselves,
+    #[msg("Did not receive expected referrer")]
+    DidNotReceiveExpectedReferrer,
+    #[msg("Could not deserialize referrer")]
+    CouldNotDeserializeReferrer,
+    #[msg("Market order must be in place and fill")]
+    MarketOrderMustBeInPlaceAndFill,
+    #[msg("User Order Id Already In Use")]
+    UserOrderIdAlreadyInUse,
 }
 
 #[macro_export]

@@ -1,6 +1,6 @@
 import * as anchor from '@project-serum/anchor';
 import { Program } from '@project-serum/anchor';
-import BN from 'bn.js';
+import { BN } from '../sdk';
 import { assert } from 'chai';
 
 import {
@@ -171,7 +171,7 @@ describe('admin', () => {
 		const newStructure: OrderFillerRewardStructure = {
 			rewardNumerator: new BN(1),
 			rewardDenominator: new BN(1),
-			timeBasedRewardLowerbound: new BN(1),
+			timeBasedRewardLowerBound: new BN(1),
 		};
 
 		await clearingHouse.updateOrderFillerRewardStructure(newStructure);

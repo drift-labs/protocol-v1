@@ -7,7 +7,6 @@ import {
 import {
 	MarketsAccount,
 	StateAccount,
-	CurveHistoryAccount,
 	DepositHistoryAccount,
 	FundingPaymentHistoryAccount,
 	FundingRateHistoryAccount,
@@ -17,10 +16,11 @@ import {
 	TradeHistoryAccount,
 	UserAccount,
 	Market,
-	OrderType,
 	OrderHistoryAccount,
 	OrderStateAccount,
-	OrderTriggerCondition,
+	OrderParams,
+	Order,
+	ExtendedCurveHistoryAccount,
 } from './types';
 import * as anchor from '@project-serum/anchor';
 import clearingHouseIDL from './idl/clearing_house.json';
@@ -51,16 +51,19 @@ import {
 	ClearingHouseAccountEvents,
 	ClearingHouseAccountTypes,
 } from './accounts/types';
-import { DefaultClearingHouseAccountSubscriber } from './accounts/defaultClearingHouseAccountSubscriber';
 import { TxSender } from './tx/types';
 import { DefaultTxSender } from './tx/defaultTxSender';
 import { wrapInTx } from './tx/utils';
+import {
+	getClearingHouse,
+	getWebSocketClearingHouseConfig,
+} from './factory/clearingHouse';
 
 /**
  * # ClearingHouse
  * This class is the main way to interact with Drift Protocol. It allows you to subscribe to the various accounts where the Market's state is stored, as well as: opening positions, liquidating, settling funding, depositing & withdrawing, and more.
  *
- * The default way to construct a ClearingHouse instance is using the {@link from} method. This will create an instance using the static {@link DefaultClearingHouseAccountSubscriber}, which will use a websocket for each state account subscription.
+ * The default way to construct a ClearingHouse instance is using the {@link from} method. This will create an instance using the static {@link WebSocketClearingHouseAccountSubscriber}, which will use a websocket for each state account subscription.
  * Alternatively, if you want to implement your own method of subscribing to the state accounts on the blockchain, you can implement a {@link ClearingHouseAccountSubscriber} and use it in the {@link ClearingHouse.constructor}
  */
 export class ClearingHouse {
@@ -71,33 +74,38 @@ export class ClearingHouse {
 	opts?: ConfirmOptions;
 	accountSubscriber: ClearingHouseAccountSubscriber;
 	eventEmitter: StrictEventEmitter<EventEmitter, ClearingHouseAccountEvents>;
-	isSubscribed = false;
+	_isSubscribed = false;
 	txSender: TxSender;
 
+	public get isSubscribed() {
+		return this._isSubscribed && this.accountSubscriber.isSubscribed;
+	}
+
+	public set isSubscribed(val: boolean) {
+		this._isSubscribed = val;
+	}
+
+	/**
+	 * @deprecated You should use the getClearingHouse factory method instead
+	 * @param connection
+	 * @param wallet
+	 * @param clearingHouseProgramId
+	 * @param opts
+	 * @returns
+	 */
 	public static from(
 		connection: Connection,
 		wallet: IWallet,
 		clearingHouseProgramId: PublicKey,
 		opts: ConfirmOptions = Provider.defaultOptions()
 	): ClearingHouse {
-		const provider = new Provider(connection, wallet, opts);
-		const program = new Program(
-			clearingHouseIDL as Idl,
-			clearingHouseProgramId,
-			provider
-		);
-		const accountSubscriber = new DefaultClearingHouseAccountSubscriber(
-			program
-		);
-		const txSender = new DefaultTxSender(provider);
-		return new ClearingHouse(
+		const config = getWebSocketClearingHouseConfig(
 			connection,
 			wallet,
-			program,
-			accountSubscriber,
-			txSender,
+			clearingHouseProgramId,
 			opts
 		);
+		return getClearingHouse(config);
 	}
 
 	public constructor(
@@ -208,7 +216,7 @@ export class ClearingHouse {
 		return this.accountSubscriber.getDepositHistoryAccount();
 	}
 
-	public getCurveHistoryAccount(): CurveHistoryAccount {
+	public getCurveHistoryAccount(): ExtendedCurveHistoryAccount {
 		return this.accountSubscriber.getCurveHistoryAccount();
 	}
 
@@ -335,15 +343,15 @@ export class ClearingHouse {
 	async getInitializeUserOrdersInstruction(
 		userAccountPublicKey?: PublicKey
 	): Promise<TransactionInstruction> {
-		const [userOrdersAccountPublicKey, userOrdersAccountNonce] =
-			await getUserOrdersAccountPublicKeyAndNonce(
-				this.program.programId,
-				this.wallet.publicKey
-			);
-
 		if (!userAccountPublicKey) {
 			userAccountPublicKey = await this.getUserAccountPublicKey();
 		}
+
+		const [userOrdersAccountPublicKey, userOrdersAccountNonce] =
+			await getUserOrdersAccountPublicKeyAndNonce(
+				this.program.programId,
+				userAccountPublicKey
+			);
 
 		return await this.program.instruction.initializeUserOrders(
 			userOrdersAccountNonce,
@@ -401,9 +409,23 @@ export class ClearingHouse {
 
 		this.userOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(
 			this.program.programId,
-			this.wallet.publicKey
+			await this.getUserAccountPublicKey()
 		);
 		return this.userOrdersAccountPublicKey;
+	}
+
+	userOrdersExist?: boolean;
+	async userOrdersAccountExists(): Promise<boolean> {
+		if (this.userOrdersExist) {
+			return this.userOrdersExist;
+		}
+		const userOrdersAccountRPCResponse =
+			await this.connection.getParsedAccountInfo(
+				await this.getUserOrdersAccountPublicKey()
+			);
+
+		this.userOrdersExist = userOrdersAccountRPCResponse.value !== null;
+		return this.userOrdersExist;
 	}
 
 	public async depositCollateral(
@@ -660,30 +682,35 @@ export class ClearingHouse {
 		);
 	}
 
+	public async initializeUserOrdersThenPlaceOrder(
+		orderParams: OrderParams,
+		discountToken?: PublicKey,
+		referrer?: PublicKey
+	): Promise<TransactionSignature> {
+		const instructions: anchor.web3.TransactionInstruction[] = [];
+		const userOrdersAccountExists = await this.userOrdersAccountExists();
+		if (!userOrdersAccountExists) {
+			instructions.push(await this.getInitializeUserOrdersInstruction());
+		}
+		instructions.push(
+			await this.getPlaceOrderIx(orderParams, discountToken, referrer)
+		);
+		const tx = new Transaction();
+		for (const instruction of instructions) {
+			tx.add(instruction);
+		}
+
+		return await this.txSender.send(tx, [], this.opts);
+	}
+
 	public async placeOrder(
-		orderType: OrderType,
-		direction: PositionDirection,
-		baseAssetAmount: BN,
-		price: BN,
-		marketIndex: BN,
-		reduceOnly: boolean,
-		triggerPrice?: BN,
-		triggerCondition?: OrderTriggerCondition,
-		discountToken?: PublicKey
+		orderParams: OrderParams,
+		discountToken?: PublicKey,
+		referrer?: PublicKey
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
 			wrapInTx(
-				await this.getPlaceOrderIx(
-					orderType,
-					direction,
-					baseAssetAmount,
-					price,
-					marketIndex,
-					reduceOnly,
-					triggerPrice,
-					triggerCondition,
-					discountToken
-				)
+				await this.getPlaceOrderIx(orderParams, discountToken, referrer)
 			),
 			[],
 			this.opts
@@ -691,28 +718,25 @@ export class ClearingHouse {
 	}
 
 	public async getPlaceOrderIx(
-		orderType: OrderType,
-		direction: PositionDirection,
-		baseAssetAmount: BN,
-		price: BN,
-		marketIndex: BN,
-		reduceOnly: boolean,
-		triggerPrice?: BN,
-		triggerCondition?: OrderTriggerCondition,
-		discountToken?: PublicKey
+		orderParams: OrderParams,
+		discountToken?: PublicKey,
+		referrer?: PublicKey
 	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
 		const userAccount = await this.getUserAccount();
 
 		const priceOracle =
-			this.getMarketsAccount().markets[marketIndex.toNumber()].amm.oracle;
+			this.getMarketsAccount().markets[orderParams.marketIndex.toNumber()].amm
+				.oracle;
 
-		const optionalAccounts = {
-			discountToken: false,
-		};
 		const remainingAccounts = [];
-		if (discountToken) {
-			optionalAccounts.discountToken = true;
+		if (orderParams.optionalAccounts.discountToken) {
+			if (!discountToken) {
+				throw Error(
+					'Optional accounts specified discount token but no discount token present'
+				);
+			}
+
 			remainingAccounts.push({
 				pubkey: discountToken,
 				isWritable: false,
@@ -720,43 +744,38 @@ export class ClearingHouse {
 			});
 		}
 
-		if (!triggerPrice) {
-			triggerPrice = new BN(0);
-		}
+		if (orderParams.optionalAccounts.referrer) {
+			if (!referrer) {
+				throw Error(
+					'Optional accounts specified referrer but no referrer present'
+				);
+			}
 
-		if (!triggerCondition) {
-			triggerCondition = OrderTriggerCondition.ABOVE;
+			remainingAccounts.push({
+				pubkey: referrer,
+				isWritable: false,
+				isSigner: false,
+			});
 		}
 
 		const state = this.getStateAccount();
 		const orderState = this.getOrderStateAccount();
-		return await this.program.instruction.placeOrder(
-			orderType,
-			direction,
-			baseAssetAmount,
-			price,
-			marketIndex,
-			reduceOnly,
-			triggerPrice,
-			triggerCondition,
-			optionalAccounts,
-			{
-				accounts: {
-					state: await this.getStatePublicKey(),
-					user: userAccountPublicKey,
-					authority: this.wallet.publicKey,
-					markets: state.markets,
-					userOrders: await this.getUserOrdersAccountPublicKey(),
-					userPositions: userAccount.positions,
-					fundingPaymentHistory: state.fundingPaymentHistory,
-					fundingRateHistory: state.fundingRateHistory,
-					orderState: await this.getOrderStatePublicKey(),
-					orderHistory: orderState.orderHistory,
-					oracle: priceOracle,
-				},
-				remainingAccounts,
-			}
-		);
+		return await this.program.instruction.placeOrder(orderParams, {
+			accounts: {
+				state: await this.getStatePublicKey(),
+				user: userAccountPublicKey,
+				authority: this.wallet.publicKey,
+				markets: state.markets,
+				userOrders: await this.getUserOrdersAccountPublicKey(),
+				userPositions: userAccount.positions,
+				fundingPaymentHistory: state.fundingPaymentHistory,
+				fundingRateHistory: state.fundingRateHistory,
+				orderState: await this.getOrderStatePublicKey(),
+				orderHistory: orderState.orderHistory,
+				oracle: priceOracle,
+			},
+			remainingAccounts,
+		});
 	}
 
 	public async cancelOrder(orderId: BN): Promise<TransactionSignature> {
@@ -789,17 +808,51 @@ export class ClearingHouse {
 		});
 	}
 
+	public async cancelOrderByUserId(
+		userOrderId: number
+	): Promise<TransactionSignature> {
+		return await this.txSender.send(
+			wrapInTx(await this.getCancelOrderByUserIdIx(userOrderId)),
+			[],
+			this.opts
+		);
+	}
+
+	public async getCancelOrderByUserIdIx(
+		userOrderId: number
+	): Promise<TransactionInstruction> {
+		const userAccountPublicKey = await this.getUserAccountPublicKey();
+		const userAccount = await this.getUserAccount();
+
+		const state = this.getStateAccount();
+		const orderState = this.getOrderStateAccount();
+		return await this.program.instruction.cancelOrderByUserId(userOrderId, {
+			accounts: {
+				state: await this.getStatePublicKey(),
+				user: userAccountPublicKey,
+				authority: this.wallet.publicKey,
+				markets: state.markets,
+				userOrders: await this.getUserOrdersAccountPublicKey(),
+				userPositions: userAccount.positions,
+				fundingPaymentHistory: state.fundingPaymentHistory,
+				fundingRateHistory: state.fundingRateHistory,
+				orderState: await this.getOrderStatePublicKey(),
+				orderHistory: orderState.orderHistory,
+			},
+		});
+	}
+
 	public async fillOrder(
 		userAccountPublicKey: PublicKey,
 		userOrdersAccountPublicKey: PublicKey,
-		orderId: BN
+		order: Order
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
 			wrapInTx(
 				await this.getFillOrderIx(
 					userAccountPublicKey,
 					userOrdersAccountPublicKey,
-					orderId
+					order
 				)
 			),
 			[],
@@ -810,27 +863,29 @@ export class ClearingHouse {
 	public async getFillOrderIx(
 		userAccountPublicKey: PublicKey,
 		userOrdersAccountPublicKey: PublicKey,
-		orderId: BN
+		order: Order
 	): Promise<TransactionInstruction> {
 		const fillerPublicKey = await this.getUserAccountPublicKey();
 		const userAccount: any = await this.program.account.user.fetch(
 			userAccountPublicKey
 		);
 
-		const userOrdersAccount: any = await this.program.account.userOrders.fetch(
-			userOrdersAccountPublicKey
-		);
-		const order = userOrdersAccount.orders.find((order) =>
-			order.orderId.eq(orderId)
-		);
-		if (!order) {
-			throw new Error(`${orderId.toString()} does not exist`);
-		}
 		const marketIndex = order.marketIndex;
 		const oracle = this.getMarket(marketIndex).amm.oracle;
 
 		const state = this.getStateAccount();
 		const orderState = this.getOrderStateAccount();
+
+		const remainingAccounts = [];
+		if (!order.referrer.equals(PublicKey.default)) {
+			remainingAccounts.push({
+				pubkey: order.referrer,
+				isWritable: true,
+				isSigner: false,
+			});
+		}
+
+		const orderId = order.orderId;
 		return await this.program.instruction.fillOrder(orderId, {
 			accounts: {
 				state: await this.getStatePublicKey(),
@@ -845,8 +900,108 @@ export class ClearingHouse {
 				fundingRateHistory: state.fundingRateHistory,
 				orderState: await this.getOrderStatePublicKey(),
 				orderHistory: orderState.orderHistory,
+				extendedCurveHistory: state.extendedCurveHistory,
 				oracle: oracle,
 			},
+			remainingAccounts,
+		});
+	}
+
+	public async initializeUserOrdersThenPlaceAndFillOrder(
+		orderParams: OrderParams,
+		discountToken?: PublicKey,
+		referrer?: PublicKey
+	): Promise<TransactionSignature> {
+		const instructions: anchor.web3.TransactionInstruction[] = [];
+		const userOrdersAccountExists = await this.userOrdersAccountExists();
+		if (!userOrdersAccountExists) {
+			instructions.push(await this.getInitializeUserOrdersInstruction());
+		}
+		instructions.push(
+			await this.getPlaceAndFillOrderIx(orderParams, discountToken, referrer)
+		);
+		const tx = new Transaction();
+		for (const instruction of instructions) {
+			tx.add(instruction);
+		}
+
+		return await this.txSender.send(tx, [], this.opts);
+	}
+
+	public async placeAndFillOrder(
+		orderParams: OrderParams,
+		discountToken?: PublicKey,
+		referrer?: PublicKey
+	): Promise<TransactionSignature> {
+		return await this.txSender.send(
+			wrapInTx(
+				await this.getPlaceAndFillOrderIx(orderParams, discountToken, referrer)
+			),
+			[],
+			this.opts
+		);
+	}
+
+	public async getPlaceAndFillOrderIx(
+		orderParams: OrderParams,
+		discountToken?: PublicKey,
+		referrer?: PublicKey
+	): Promise<TransactionInstruction> {
+		const userAccountPublicKey = await this.getUserAccountPublicKey();
+		const userAccount = await this.getUserAccount();
+
+		const priceOracle =
+			this.getMarketsAccount().markets[orderParams.marketIndex.toNumber()].amm
+				.oracle;
+
+		const remainingAccounts = [];
+		if (orderParams.optionalAccounts.discountToken) {
+			if (!discountToken) {
+				throw Error(
+					'Optional accounts specified discount token but no discount token present'
+				);
+			}
+
+			remainingAccounts.push({
+				pubkey: discountToken,
+				isWritable: false,
+				isSigner: false,
+			});
+		}
+
+		if (orderParams.optionalAccounts.referrer) {
+			if (!referrer) {
+				throw Error(
+					'Optional accounts specified referrer but no referrer present'
+				);
+			}
+
+			remainingAccounts.push({
+				pubkey: referrer,
+				isWritable: true,
+				isSigner: false,
+			});
+		}
+
+		const state = this.getStateAccount();
+		const orderState = this.getOrderStateAccount();
+		return await this.program.instruction.placeAndFillOrder(orderParams, {
+			accounts: {
+				state: await this.getStatePublicKey(),
+				user: userAccountPublicKey,
+				authority: this.wallet.publicKey,
+				markets: state.markets,
+				userOrders: await this.getUserOrdersAccountPublicKey(),
+				userPositions: userAccount.positions,
+				tradeHistory: state.tradeHistory,
+				fundingPaymentHistory: state.fundingPaymentHistory,
+				fundingRateHistory: state.fundingRateHistory,
+				orderState: await this.getOrderStatePublicKey(),
+				orderHistory: orderState.orderHistory,
+				extendedCurveHistory: state.extendedCurveHistory,
+				oracle: priceOracle,
+			},
+			remainingAccounts,
 		});
 	}
 

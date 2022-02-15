@@ -14,8 +14,9 @@ import {
 } from '../addresses';
 import { WebSocketAccountSubscriber } from './webSocketAccountSubscriber';
 import { UserAccount, UserOrdersAccount, UserPositionsAccount } from '../types';
+import { ClearingHouseConfigType } from '../factory/clearingHouse';
 
-export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
+export class WebSocketUserAccountSubscriber implements UserAccountSubscriber {
 	isSubscribed: boolean;
 	program: Program;
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
@@ -24,6 +25,8 @@ export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
 	userDataAccountSubscriber: AccountSubscriber<UserAccount>;
 	userPositionsAccountSubscriber: AccountSubscriber<UserPositionsAccount>;
 	userOrdersAccountSubscriber: AccountSubscriber<UserOrdersAccount>;
+
+	type: ClearingHouseConfigType = 'websocket';
 
 	public constructor(program: Program, authority: PublicKey) {
 		this.isSubscribed = false;
@@ -67,7 +70,7 @@ export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
 
 		const userOrdersPublicKey = await getUserOrdersAccountPublicKey(
 			this.program.programId,
-			this.authority
+			userPublicKey
 		);
 
 		this.userOrdersAccountSubscriber = new WebSocketAccountSubscriber(
@@ -100,9 +103,11 @@ export class DefaultUserAccountSubscriber implements UserAccountSubscriber {
 			return;
 		}
 
-		this.userDataAccountSubscriber.unsubscribe();
-		this.userPositionsAccountSubscriber.unsubscribe();
-		this.userOrdersAccountSubscriber.unsubscribe();
+		await Promise.all([
+			this.userDataAccountSubscriber.unsubscribe(),
+			this.userPositionsAccountSubscriber.unsubscribe(),
+			await this.userOrdersAccountSubscriber.unsubscribe(),
+		]);
 
 		this.isSubscribed = false;
 	}

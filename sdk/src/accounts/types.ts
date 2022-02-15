@@ -1,6 +1,6 @@
 import {
-	CurveHistoryAccount,
 	DepositHistoryAccount,
+	ExtendedCurveHistoryAccount,
 	FundingPaymentHistoryAccount,
 	FundingRateHistoryAccount,
 	LiquidationHistoryAccount,
@@ -15,12 +15,15 @@ import {
 } from '../types';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import { EventEmitter } from 'events';
+import { PublicKey } from '@solana/web3.js';
+import { AccountInfo } from '@solana/spl-token';
+import { ClearingHouseConfigType, ClearingHouseUserConfigType } from '..';
 
 export interface AccountSubscriber<T> {
 	data?: T;
 	subscribe(onChange: (data: T) => void): Promise<void>;
 	fetch(): Promise<void>;
-	unsubscribe(): void;
+	unsubscribe(): Promise<void>;
 }
 
 export class NotSubscribedError extends Error {
@@ -37,10 +40,11 @@ export interface ClearingHouseAccountEvents {
 	tradeHistoryAccountUpdate: (payload: TradeHistoryAccount) => void;
 	liquidationHistoryAccountUpdate: (payload: LiquidationHistoryAccount) => void;
 	depositHistoryAccountUpdate: (payload: DepositHistoryAccount) => void;
-	curveHistoryAccountUpdate: (payload: CurveHistoryAccount) => void;
+	curveHistoryAccountUpdate: (payload: ExtendedCurveHistoryAccount) => void;
 	orderHistoryAccountUpdate: (payload: OrderHistoryAccount) => void;
 	orderStateAccountUpdate: (payload: OrderStateAccount) => void;
 	update: void;
+	error: (e: Error) => void;
 }
 
 export type ClearingHouseAccountTypes =
@@ -70,37 +74,12 @@ export interface ClearingHouseAccountSubscriber {
 	getDepositHistoryAccount(): DepositHistoryAccount;
 	getFundingPaymentHistoryAccount(): FundingPaymentHistoryAccount;
 	getFundingRateHistoryAccount(): FundingRateHistoryAccount;
-	getCurveHistoryAccount(): CurveHistoryAccount;
+	getCurveHistoryAccount(): ExtendedCurveHistoryAccount;
 	getLiquidationHistoryAccount(): LiquidationHistoryAccount;
 	getOrderStateAccount(): OrderStateAccount;
 	getOrderHistoryAccount(): OrderHistoryAccount;
-}
 
-export interface HistoryAccountEvents {
-	fundingPaymentHistoryAccountUpdate: (
-		payload: FundingPaymentHistoryAccount
-	) => void;
-	fundingRateHistoryAccountUpdate: (payload: FundingRateHistoryAccount) => void;
-	tradeHistoryAccountUpdate: (payload: TradeHistoryAccount) => void;
-	liquidationHistoryAccountUpdate: (payload: LiquidationHistoryAccount) => void;
-	depositHistoryAccountUpdate: (payload: DepositHistoryAccount) => void;
-	curveHistoryAccountUpdate: (payload: CurveHistoryAccount) => void;
-	update: void;
-}
-
-export interface HistoryAccountSubscriber {
-	eventEmitter: StrictEventEmitter<EventEmitter, HistoryAccountEvents>;
-	isSubscribed: boolean;
-
-	subscribe(): Promise<boolean>;
-	unsubscribe(): Promise<void>;
-
-	getTradeHistoryAccount(): TradeHistoryAccount;
-	getDepositHistoryAccount(): DepositHistoryAccount;
-	getFundingPaymentHistoryAccount(): FundingPaymentHistoryAccount;
-	getFundingRateHistoryAccount(): FundingRateHistoryAccount;
-	getCurveHistoryAccount(): CurveHistoryAccount;
-	getLiquidationHistoryAccount(): LiquidationHistoryAccount;
+	type: ClearingHouseConfigType;
 }
 
 export interface UserAccountEvents {
@@ -108,6 +87,7 @@ export interface UserAccountEvents {
 	userPositionsData: (payload: UserPositionsAccount) => void;
 	userOrdersData: (payload: UserOrdersAccount) => void;
 	update: void;
+	error: (e: Error) => void;
 }
 
 export interface UserAccountSubscriber {
@@ -121,4 +101,34 @@ export interface UserAccountSubscriber {
 	getUserAccount(): UserAccount;
 	getUserPositionsAccount(): UserPositionsAccount;
 	getUserOrdersAccount(): UserOrdersAccount;
+	type: ClearingHouseUserConfigType;
 }
+
+export interface TokenAccountEvents {
+	tokenAccountUpdate: (payload: AccountInfo) => void;
+	update: void;
+	error: (e: Error) => void;
+}
+
+export interface TokenAccountSubscriber {
+	eventEmitter: StrictEventEmitter<EventEmitter, TokenAccountEvents>;
+	isSubscribed: boolean;
+
+	subscribe(): Promise<boolean>;
+	fetch(): Promise<void>;
+	unsubscribe(): Promise<void>;
+
+	getTokenAccount(): AccountInfo;
+}
+
+export type AccountToPoll = {
+	key: string;
+	publicKey: PublicKey;
+	eventType: string;
+	callbackId?: string;
+};
+
+export type AccountData = {
+	slot: number;
+	buffer: Buffer | undefined;
+};

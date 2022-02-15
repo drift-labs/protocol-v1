@@ -16,7 +16,7 @@ import {
 } from '@solana/web3.js';
 import { assert } from 'chai';
 import buffer from 'buffer';
-import BN from 'bn.js';
+import { BN } from '../sdk';
 import { ClearingHouse, ClearingHouseUser } from '../sdk/src';
 
 export async function mockOracle(
@@ -34,7 +34,10 @@ export async function mockOracle(
 	});
 
 	const feedData = await getFeedData(program, priceFeedAddress);
-	assert.ok(feedData.price === price);
+	if (feedData.price !== price) {
+		console.log('mockOracle precision error:', feedData.price, '!=', price);
+	}
+	assert.ok(Math.abs(feedData.price - price) < 1e-10);
 
 	return priceFeedAddress;
 }

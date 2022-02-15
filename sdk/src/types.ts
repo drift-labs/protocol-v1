@@ -1,5 +1,5 @@
 import { PublicKey, Transaction } from '@solana/web3.js';
-import BN from 'bn.js';
+import { BN } from '.';
 
 // # Utility Types / Enums / Constants
 export class SwapDirection {
@@ -19,7 +19,9 @@ export class OracleSource {
 
 export class OrderType {
 	static readonly LIMIT = { limit: {} };
-	static readonly STOP = { stop: {} };
+	static readonly TRIGGER_MARKET = { triggerMarket: {} };
+	static readonly TRIGGER_LIMIT = { triggerLimit: {} };
+	static readonly MARKET = { market: {} };
 }
 
 export class OrderStatus {
@@ -77,9 +79,9 @@ export type DepositHistoryAccount = {
 	depositRecords: DepositRecord[];
 };
 
-export type CurveHistoryAccount = {
+export type ExtendedCurveHistoryAccount = {
 	head: BN;
-	curveRecords: CurveRecord[];
+	curveRecords: ExtendedCurveRecord[];
 };
 
 export type FundingRateHistoryAccount = {
@@ -117,7 +119,7 @@ export type DepositRecord = {
 	amount: BN;
 };
 
-export type CurveRecord = {
+export type ExtendedCurveRecord = {
 	ts: BN;
 	recordId: BN;
 	marketIndex: BN;
@@ -133,6 +135,8 @@ export type CurveRecord = {
 	baseAssetAmountShort: BN;
 	baseAssetAmount: BN;
 	openInterest: BN;
+	oraclePrice: BN;
+	tradeId: BN;
 };
 
 export type TradeRecord = {
@@ -210,6 +214,7 @@ export type OrderRecord = {
 	filler: PublicKey;
 	baseAssetAmountFilled: BN;
 	quoteAssetAmountFilled: BN;
+	fee: BN;
 	fillerReward: BN;
 	tradeRecordId: BN;
 };
@@ -252,6 +257,7 @@ export type StateAccount = {
 	oracleGuardRails: OracleGuardRails;
 	maxDeposit: BN;
 	orderState: PublicKey;
+	extendedCurveHistory: PublicKey;
 };
 
 export type OrderStateAccount = {
@@ -298,6 +304,7 @@ export type AMM = {
 	totalFee: BN;
 	minimumQuoteAssetTradeSize: BN;
 	minimumBaseAssetTradeSize: BN;
+	lastOraclePrice: BN;
 };
 
 // # User Account Types
@@ -321,6 +328,8 @@ export type UserAccount = {
 	positions: PublicKey;
 	totalFeePaid: BN;
 	totalTokenDiscount: BN;
+	totalReferralReward: BN;
+	totalRefereeDiscount: BN;
 };
 
 export type UserOrdersAccount = {
@@ -333,16 +342,47 @@ export type Order = {
 	orderType: OrderType;
 	ts: BN;
 	orderId: BN;
+	userOrderId: number;
 	marketIndex: BN;
 	price: BN;
+	userBaseAssetAmount: BN;
 	baseAssetAmount: BN;
 	baseAssetAmountFilled: BN;
+	quoteAssetAmount: BN;
 	quoteAssetAmountFilled: BN;
+	fee: BN;
 	direction: PositionDirection;
 	reduceOnly: boolean;
 	triggerPrice: BN;
 	triggerCondition: OrderTriggerCondition;
 	discountTier: OrderDiscountTier;
+	referrer: PublicKey;
+	postOnly: boolean;
+	immediateOrCancel: boolean;
+	oraclePriceOffset: BN;
+};
+
+export type OrderParams = {
+	orderType: OrderType;
+	userOrderId: number;
+	direction: PositionDirection;
+	quoteAssetAmount: BN;
+	baseAssetAmount: BN;
+	price: BN;
+	marketIndex: BN;
+	reduceOnly: boolean;
+	postOnly: boolean;
+	immediateOrCancel: boolean;
+	triggerPrice: BN;
+	triggerCondition: OrderTriggerCondition;
+	positionLimit: BN;
+	oraclePriceOffset: BN;
+	padding0: boolean;
+	padding1: BN;
+	optionalAccounts: {
+		discountToken: boolean;
+		referrer: boolean;
+	};
 };
 
 // # Misc Types
@@ -401,5 +441,5 @@ export type OracleGuardRails = {
 export type OrderFillerRewardStructure = {
 	rewardNumerator: BN;
 	rewardDenominator: BN;
-	timeBasedRewardLowerbound: BN;
+	timeBasedRewardLowerBound: BN;
 };

@@ -12,7 +12,7 @@ import {
 	OracleSource,
 	OrderFillerRewardStructure,
 } from './types';
-import { BN, Idl, Program, Provider } from '@project-serum/anchor';
+import { BN, Provider } from '@project-serum/anchor';
 import * as anchor from '@project-serum/anchor';
 import {
 	getClearingHouseStateAccountPublicKey,
@@ -22,11 +22,12 @@ import {
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { ClearingHouse } from './clearingHouse';
 import { PEG_PRECISION } from './constants/numericConstants';
-import clearingHouseIDL from './idl/clearing_house.json';
-import { DefaultClearingHouseAccountSubscriber } from './accounts/defaultClearingHouseAccountSubscriber';
-import { DefaultTxSender } from './tx/defaultTxSender';
 import { calculateTargetPriceTrade } from './math/trade';
 import { calculateAmmReservesAfterSwap, getSwapDirection } from './math/amm';
+import {
+	getAdmin,
+	getWebSocketClearingHouseConfig,
+} from './factory/clearingHouse';
 
 export class Admin extends ClearingHouse {
 	public static from(
@@ -35,24 +36,13 @@ export class Admin extends ClearingHouse {
 		clearingHouseProgramId: PublicKey,
 		opts: ConfirmOptions = Provider.defaultOptions()
 	): Admin {
-		const provider = new Provider(connection, wallet, opts);
-		const program = new Program(
-			clearingHouseIDL as Idl,
-			clearingHouseProgramId,
-			provider
-		);
-		const accountSubscriber = new DefaultClearingHouseAccountSubscriber(
-			program
-		);
-		const txSender = new DefaultTxSender(provider);
-		return new Admin(
+		const config = getWebSocketClearingHouseConfig(
 			connection,
 			wallet,
-			program,
-			accountSubscriber,
-			txSender,
+			clearingHouseProgramId,
 			opts
 		);
+		return getAdmin(config);
 	}
 
 	public async initialize(
@@ -165,7 +155,7 @@ export class Admin extends ClearingHouse {
 					await this.program.account.depositHistory.createInstruction(
 						depositHistory
 					),
-					await this.program.account.curveHistory.createInstruction(
+					await this.program.account.extendedCurveHistory.createInstruction(
 						curveHistory
 					),
 				],
@@ -275,13 +265,38 @@ export class Admin extends ClearingHouse {
 		marketIndex: BN
 	): Promise<TransactionSignature> {
 		const state = this.getStateAccount();
+		const markets = this.getMarketsAccount();
+		const marketData = markets.markets[marketIndex.toNumber()];
+		const ammData = marketData.amm;
+
 		return await this.program.rpc.updateK(sqrtK, marketIndex, {
 			accounts: {
 				state: await this.getStatePublicKey(),
 				admin: this.wallet.publicKey,
 				markets: state.markets,
-				curveHistory: state.curveHistory,
+				curveHistory: state.extendedCurveHistory,
+				oracle: ammData.oracle,
 			},
+		});
+	}
+
+	public async updateCurveHistory(): Promise<TransactionSignature> {
+		const extendedCurveHistory = anchor.web3.Keypair.generate();
+
+		const state = this.getStateAccount();
+		return await this.program.rpc.updateCurveHistory({
+			accounts: {
+				state: await this.getStatePublicKey(),
+				admin: this.wallet.publicKey,
+				curveHistory: state.curveHistory,
+				extendedCurveHistory: extendedCurveHistory.publicKey,
+			},
+			instructions: [
+				await this.program.account.extendedCurveHistory.createInstruction(
+					extendedCurveHistory
+				),
+			],
+			signers: [extendedCurveHistory],
 		});
 	}
 
@@ -334,7 +349,45 @@ export class Admin extends ClearingHouse {
 				admin: this.wallet.publicKey,
 				oracle: ammData.oracle,
 				markets: state.markets,
-				curveHistory: state.curveHistory,
+				curveHistory: state.extendedCurveHistory,
+			},
+		});
+	}
+
+	public async updateAmmOracleTwap(
+		marketIndex: BN
+	): Promise<TransactionSignature> {
+		const state = this.getStateAccount();
+		const markets = this.getMarketsAccount();
+		const marketData = markets.markets[marketIndex.toNumber()];
+		const ammData = marketData.amm;
+
+		return await this.program.rpc.updateAmmOracleTwap(marketIndex, {
+			accounts: {
+				state: await this.getStatePublicKey(),
+				admin: this.wallet.publicKey,
+				oracle: ammData.oracle,
+				markets: state.markets,
+				curveHistory: state.extendedCurveHistory,
+			},
+		});
+	}
+
+	public async resetAmmOracleTwap(
+		marketIndex: BN
+	): Promise<TransactionSignature> {
+		const state = this.getStateAccount();
+		const markets = this.getMarketsAccount();
+		const marketData = markets.markets[marketIndex.toNumber()];
+		const ammData = marketData.amm;
+
+		return await this.program.rpc.resetAmmOracleTwap(marketIndex, {
+			accounts: {
+				state: await this.getStatePublicKey(),
+				admin: this.wallet.publicKey,
+				oracle: ammData.oracle,
+				markets: state.markets,
+				curveHistory: state.extendedCurveHistory,
 			},
 		});
 	}

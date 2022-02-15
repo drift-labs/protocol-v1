@@ -50,12 +50,12 @@ export async function getUserAccountPublicKey(
 
 export async function getUserOrdersAccountPublicKeyAndNonce(
 	programId: PublicKey,
-	authority: PublicKey
+	userAccount: PublicKey
 ): Promise<[PublicKey, number]> {
 	return anchor.web3.PublicKey.findProgramAddress(
 		[
 			Buffer.from(anchor.utils.bytes.utf8.encode('user_orders')),
-			authority.toBuffer(),
+			userAccount.toBuffer(),
 		],
 		programId
 	);
@@ -63,7 +63,9 @@ export async function getUserOrdersAccountPublicKeyAndNonce(
 
 export async function getUserOrdersAccountPublicKey(
 	programId: PublicKey,
-	authority: PublicKey
+	userAccount: PublicKey
 ): Promise<PublicKey> {
-	return (await getUserOrdersAccountPublicKeyAndNonce(programId, authority))[0];
+	return (
+		await getUserOrdersAccountPublicKeyAndNonce(programId, userAccount)
+	)[0];
 }

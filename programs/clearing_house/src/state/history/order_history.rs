@@ -5,17 +5,17 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[account(zero_copy)]
 pub struct OrderHistory {
     head: u64,
-    last_order_id: u128,
+    pub last_order_id: u128,
     order_records: [OrderRecord; 1024],
 }
 
 impl Default for OrderHistory {
     fn default() -> Self {
-        return OrderHistory {
+        OrderHistory {
             head: 0,
             last_order_id: 0,
             order_records: [OrderRecord::default(); 1024],
-        };
+        }
     }
 }
 
@@ -32,13 +32,13 @@ impl OrderHistory {
     pub fn next_record_id(&self) -> u128 {
         let prev_record_id = if self.head == 0 { 1023 } else { self.head - 1 };
         let prev_record = &self.order_records[OrderHistory::index_of(prev_record_id)];
-        return prev_record.record_id + 1;
+        prev_record.record_id + 1
     }
 
     pub fn next_order_id(&mut self) -> u128 {
         let next_order_id = self.last_order_id + 1;
         self.last_order_id = next_order_id;
-        return next_order_id;
+        next_order_id
     }
 }
 
@@ -55,7 +55,9 @@ pub struct OrderRecord {
     pub trade_record_id: u128,
     pub base_asset_amount_filled: u128,
     pub quote_asset_amount_filled: u128,
+    pub fee: u128,
     pub filler_reward: u128,
+    pub padding: [u64; 10],
 }
 
 #[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq)]
