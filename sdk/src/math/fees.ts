@@ -54,7 +54,7 @@ export function calculateReferralRewardAndRefereeDiscount(fee: BN, feeStructure:
     return [referralReward, refereeDiscount];
 }
 
-export function calculateOrderFeeTier(feeStructure: FeeStructure, discountToken?: AccountInfo) {
+export function calculateOrderFeeTier(feeStructure: FeeStructure, discountToken?: AccountInfo) : OrderDiscountTier {
 
     let tier = OrderDiscountTier.NONE;
     let tierIndex = -1;
