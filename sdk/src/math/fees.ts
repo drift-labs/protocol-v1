@@ -25,6 +25,8 @@ export function calculateTokenDiscount(fee: BN, feeStructure: FeeStructure, disc
             discount = possibleDiscount;
         }
     })
+    
+    return discount;
 
 }
 
