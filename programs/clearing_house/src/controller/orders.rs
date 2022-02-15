@@ -351,14 +351,16 @@ pub fn fill_order(
     let mark_price_before: u128;
     let oracle_mark_spread_pct_before: i128;
     let is_oracle_valid: bool;
+    let oracle_price: i128;
     {
         let markets = &mut markets
             .load_mut()
             .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         let market = markets.get_market_mut(market_index);
         mark_price_before = market.amm.mark_price()?;
-        let (oracle_price, _, _oracle_mark_spread_pct_before) =
+        let (_oracle_price, _, _oracle_mark_spread_pct_before) =
             amm::calculate_oracle_mark_spread_pct(&market.amm, oracle, 0, clock_slot, None)?;
+        oracle_price = _oracle_price;
         oracle_mark_spread_pct_before = _oracle_mark_spread_pct_before;
         is_oracle_valid = amm::is_oracle_valid(
             &market.amm,
@@ -371,6 +373,11 @@ pub fn fill_order(
         }
     }
 
+    let valid_oracle_price = if is_oracle_valid {
+        Some(oracle_price)
+    } else {
+        None
+    };
     let (base_asset_amount, quote_asset_amount, potentially_risk_increasing) = execute_order(
         state,
         user,
@@ -382,6 +389,7 @@ pub fn fill_order(
         market_index,
         mark_price_before,
         now,
+        valid_oracle_price,
     )?;
 
     if base_asset_amount == 0 {
@@ -605,6 +613,7 @@ pub fn execute_order(
     market_index: u64,
     mark_price_before: u128,
     now: i64,
+    value_oracle_price: Option<i128>,
 ) -> ClearingHouseResult<(u128, u128, bool)> {
     match order.order_type {
         OrderType::Market => execute_market_order(
@@ -625,6 +634,7 @@ pub fn execute_order(
             market_index,
             mark_price_before,
             now,
+            value_oracle_price,
         ),
     }
 }
@@ -695,6 +705,7 @@ pub fn execute_non_market_order(
     market_index: u64,
     mark_price_before: u128,
     now: i64,
+    valid_oracle_price: Option<i128>,
 ) -> ClearingHouseResult<(u128, u128, bool)> {
     // Determine the base asset amount the user can fill
     let base_asset_amount_user_can_execute = calculate_base_asset_amount_user_can_execute(
@@ -713,8 +724,12 @@ pub fn execute_non_market_order(
 
     // Determine the base asset amount the market can fill
     let market = markets.get_market_mut(market_index);
-    let base_asset_amount_market_can_execute =
-        calculate_base_asset_amount_market_can_execute(order, market, Some(mark_price_before))?;
+    let base_asset_amount_market_can_execute = calculate_base_asset_amount_market_can_execute(
+        order,
+        market,
+        Some(mark_price_before),
+        valid_oracle_price,
+    )?;
 
     if base_asset_amount_market_can_execute == 0 {
         msg!("Market cant execute order");

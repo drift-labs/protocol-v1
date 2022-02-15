@@ -52,7 +52,10 @@ const enumsAreEqual = (
 };
 
 describe('orders', () => {
-	const provider = anchor.Provider.local();
+	const provider = anchor.Provider.local(undefined, {
+		preflightCommitment: 'confirmed',
+		commitment: 'confirmed',
+	});
 	const connection = provider.connection;
 	anchor.setProvider(provider);
 	const chProgram = anchor.workspace.ClearingHouse as Program;
@@ -1485,7 +1488,7 @@ describe('orders', () => {
 		)[2]; // set entryPrice as limit
 
 		const prePosition = clearingHouseUser.getUserPosition(marketIndex);
-		console.log(prePosition);
+		console.log(prePosition.baseAssetAmount.toString());
 		// assert(prePosition==undefined); // no existing position
 
 		const fillerUserAccount0 = fillerUser.getUserAccount();
