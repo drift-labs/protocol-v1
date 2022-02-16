@@ -220,7 +220,7 @@ pub fn calculate_available_quote_asset_user_can_execute(
         // When opening new position, user may realize -1 pnl from rounding
         // Subtract 1 from free collateral to avoid going over initial margin requirements
         free_collateral
-            .checked_sub(1)
+            .checked_sub(if free_collateral == 0 { 0 } else { 1 })
             .ok_or_else(math_error!())?
             .checked_mul(max_leverage)
             .ok_or_else(math_error!())?
@@ -237,7 +237,7 @@ pub fn calculate_available_quote_asset_user_can_execute(
         // When opening new position, user may realize -1 pnl from rounding
         // Subtract 1 from free collateral to avoid going over initial margin requirements
         free_collateral
-            .checked_sub(1)
+            .checked_sub(if free_collateral == 0 { 0 } else { 1 })
             .ok_or_else(math_error!())?
             .checked_mul(max_leverage)
             .ok_or_else(math_error!())?
