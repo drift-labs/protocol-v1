@@ -1,5 +1,4 @@
 import { PublicKey } from '@solana/web3.js';
-import BN from 'bn.js';
 import { EventEmitter } from 'events';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import { ClearingHouse } from './clearingHouse';
@@ -18,7 +17,6 @@ import {
 	PRICE_TO_QUOTE_PRECISION,
 } from './constants/numericConstants';
 import { UserAccountSubscriber, UserAccountEvents } from './accounts/types';
-import { DefaultUserAccountSubscriber } from './accounts/defaultUserAccountSubscriber';
 import {
 	calculateMarkPrice,
 	calculateBaseAssetValue,
@@ -26,26 +24,48 @@ import {
 	calculatePositionPNL,
 	PositionDirection,
 	calculateTradeSlippage,
+	BN,
 } from '.';
 import { getUserAccountPublicKey } from './addresses';
+import {
+	getClearingHouseUser,
+	getWebSocketClearingHouseUserConfig,
+} from './factory/clearingHouseUser';
 
 export class ClearingHouseUser {
 	clearingHouse: ClearingHouse;
 	authority: PublicKey;
 	accountSubscriber: UserAccountSubscriber;
 	userAccountPublicKey?: PublicKey;
-	isSubscribed = false;
+	_isSubscribed = false;
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
 
+	public get isSubscribed() {
+		return this._isSubscribed && this.accountSubscriber.isSubscribed;
+	}
+
+	public set isSubscribed(val: boolean) {
+		this._isSubscribed = val;
+	}
+
+	/**
+	 * @deprecated You should use getClearingHouseUser factory method instead
+	 * @param clearingHouse
+	 * @param authority
+	 * @returns
+	 */
 	public static from(
 		clearingHouse: ClearingHouse,
 		authority: PublicKey
 	): ClearingHouseUser {
-		const accountSubscriber = new DefaultUserAccountSubscriber(
-			clearingHouse.program,
+		if (clearingHouse.accountSubscriber.type !== 'websocket')
+			throw 'This method only works for clearing houses with a websocket account listener. Try using the getClearingHouseUser factory method to initialize a ClearingHouseUser instead';
+
+		const config = getWebSocketClearingHouseUserConfig(
+			clearingHouse,
 			authority
 		);
-		return new ClearingHouseUser(clearingHouse, authority, accountSubscriber);
+		return getClearingHouseUser(config);
 	}
 
 	public constructor(

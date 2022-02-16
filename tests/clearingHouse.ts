@@ -1,6 +1,6 @@
 import * as anchor from '@project-serum/anchor';
 import { assert } from 'chai';
-import BN from 'bn.js';
+import { BN } from '../sdk';
 
 import { Program } from '@project-serum/anchor';
 import { getTokenAccount } from '@project-serum/common';
@@ -931,14 +931,6 @@ describe('clearing_house', () => {
 			ammInitialQuoteAssetAmount.mul(new BN(120)),
 			new BN(0)
 		);
-		try {
-			await clearingHouse.closePosition(new BN(0));
-			assert(false, 'Excess oracle-mark divergence close order not blocked!');
-		} catch {
-			assert(true);
-		}
-
-		await setFeedPrice(anchor.workspace.Pyth, 700, marketData.amm.oracle);
 		await clearingHouse.closePosition(new BN(0));
 
 		const user: any = await clearingHouse.program.account.user.fetch(
