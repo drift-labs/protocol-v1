@@ -3,6 +3,7 @@ use crate::error::ClearingHouseResult;
 use crate::error::*;
 use crate::math::casting::cast;
 use crate::math_error;
+use crate::print_error;
 use crate::state::user_orders::Order;
 use anchor_lang::prelude::*;
 use solana_program::msg;
@@ -171,7 +172,7 @@ pub fn cancel_order_by_order_id(
         .orders
         .iter()
         .position(|order| order.order_id == order_id)
-        .ok_or(ErrorCode::OrderDoesNotExist)?;
+        .ok_or_else(print_error!(ErrorCode::OrderDoesNotExist))?;
     let order = &mut user_orders.orders[order_index];
 
     cancel_order(
@@ -203,7 +204,7 @@ pub fn cancel_order_by_user_order_id(
         .orders
         .iter()
         .position(|order| order.user_order_id == user_order_id)
-        .ok_or(ErrorCode::OrderDoesNotExist)?;
+        .ok_or_else(print_error!(ErrorCode::OrderDoesNotExist))?;
     let order = &mut user_orders.orders[order_index];
 
     cancel_order(
@@ -325,7 +326,7 @@ pub fn fill_order(
         .orders
         .iter()
         .position(|order| order.order_id == order_id)
-        .ok_or(ErrorCode::OrderDoesNotExist)?;
+        .ok_or_else(print_error!(ErrorCode::OrderDoesNotExist))?;
     let order = &mut user_orders.orders[order_index];
 
     if order.status != OrderStatus::Open {
