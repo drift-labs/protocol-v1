@@ -1,5 +1,4 @@
 import { MarketsAccount, StateAccount } from '../types';
-import BN from 'bn.js';
 import { Connection } from '@solana/web3.js';
 
 /**
@@ -23,6 +22,6 @@ export async function calculateUserCollateralSize(
 		).value.amount
 	);
 	return marketsAccount.markets.reduce((collateralVaultAmount, market) => {
-		return collateralVaultAmount.sub(market.amm.totalFee.div(new BN(2)));
+		return collateralVaultAmount.sub(market.amm.totalFee);
 	}, collateralVaultAmount);
 }
