@@ -119,10 +119,11 @@ pub enum ErrorCode {
 }
 
 #[macro_export]
-macro_rules! wrap_error {
+macro_rules! print_error {
     ($err:expr) => {{
         || {
-            msg!("Error thrown at {}:{}", file!(), line!());
+            let error_code: ErrorCode = $err;
+            msg!("{:?} thrown at {}:{}", error_code, file!(), line!());
             $err
         }
     }};

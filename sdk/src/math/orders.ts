@@ -1,6 +1,6 @@
 import { ClearingHouseUser } from '../clearingHouseUser';
 import { isVariant, Order } from '../types';
-import { ZERO } from '../constants/numericConstants';
+import { ZERO, TWO } from '../constants/numericConstants';
 
 export function isOrderRiskIncreasing(
 	user: ClearingHouseUser,
@@ -33,7 +33,9 @@ export function isOrderRiskIncreasing(
 	}
 
 	// if order will flip position
-	if (position.baseAssetAmount.abs().gt(order.baseAssetAmountFilled)) {
+	if (order.baseAssetAmountFilled.gt(position.baseAssetAmount.abs().mul(TWO))) {
 		return true;
 	}
+
+	return false;
 }

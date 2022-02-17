@@ -1021,7 +1021,7 @@ pub mod clearing_house {
         )?;
 
         if base_asset_amount == 0 {
-            return Err(ErrorCode::CouldNotFillOrder.into());
+            return Err(print_error!(ErrorCode::CouldNotFillOrder)().into());
         }
 
         Ok(())
