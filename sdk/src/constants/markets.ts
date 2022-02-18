@@ -1,4 +1,4 @@
-import BN from 'bn.js';
+import { BN } from '../';
 
 type Market = {
 	symbol: string;
@@ -91,18 +91,35 @@ export const Markets: Market[] = [
 		launchTs: 1643084413000,
 	},
 	{
-		symbol: 'mSOL-PERP',
-		baseAssetSymbol: 'mSOL',
+		symbol: 'ALGO-PERP',
+		baseAssetSymbol: 'ALGO',
 		marketIndex: new BN(10),
-		devnetPythOracle: '9a6RNx3tCu1TSs6TBSfV2XRXEPEZXQ6WB7jRojZRvyeZ',
-		mainnetPythOracle: 'E4v1BBgoso9s64TQvmyownAVJbhbEPGyzA3qn4n46qj9',
-		launchTs: 1643346125000,
+		devnetPythOracle: 'c1A946dY5NHuVda77C8XXtXytyR3wK1SCP3eA9VRfC3',
+		mainnetPythOracle: 'HqFyq1wh1xKvL7KDqqT7NJeSPdAqsDqnmBisUC2XdXAX',
+		launchTs: 1643686767000,
 	},
 	{
-		symbol: 'DOT-PERP',
-		baseAssetSymbol: 'DOT',
-		marketIndex: new BN(8),
-		devnetPythOracle: '4dqq5VBpN4EwYb7wyywjjfknvMKu7m78j9mKZRXTj462',
-		mainnetPythOracle: 'EcV1X1gY2yb4KXxjVQtTHTbioum2gvmPnFk4zYAt7zne',
+		symbol: 'FTT-PERP',
+		baseAssetSymbol: 'FTT',
+		marketIndex: new BN(11),
+		devnetPythOracle: '6vivTRs5ZPeeXbjo7dfburfaYDWoXjBtdtuYgQRuGfu',
+		mainnetPythOracle: '8JPJJkmDScpcNmBRKGZuPuG2GYAveQgP3t5gFuMymwvF',
+		launchTs: 1644382122000,
 	},
+	{
+		symbol: 'LTC-PERP',
+		baseAssetSymbol: 'LTC',
+		marketIndex: new BN(12),
+		devnetPythOracle: 'BLArYBCUYhdWiY8PCUTpvFE21iaJq85dvxLk9bYMobcU',
+		mainnetPythOracle: '8RMnV1eD55iqUFJLMguPkYBkq8DCtx81XcmAja93LvRR',
+		launchTs: 1645027429000,
+	},
+	// {
+	// 	symbol: 'mSOL-PERP',
+	// 	baseAssetSymbol: 'mSOL',
+	// 	marketIndex: new BN(11), //todo
+	// 	devnetPythOracle: '9a6RNx3tCu1TSs6TBSfV2XRXEPEZXQ6WB7jRojZRvyeZ',
+	// 	mainnetPythOracle: 'E4v1BBgoso9s64TQvmyownAVJbhbEPGyzA3qn4n46qj9',
+	// 	launchTs: 1643346125000,
+	// },
 ];

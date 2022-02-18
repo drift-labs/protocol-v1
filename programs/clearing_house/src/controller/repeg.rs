@@ -18,7 +18,7 @@ pub fn repeg(
     oracle_guard_rails: &OracleGuardRails,
 ) -> ClearingHouseResult<i128> {
     if new_peg_candidate == market.amm.peg_multiplier {
-        return Err(ErrorCode::InvalidRepegRedundant.into());
+        return Err(ErrorCode::InvalidRepegRedundant);
     }
     let terminal_price_before = amm::calculate_terminal_price(market)?;
 

@@ -1,10 +1,12 @@
 import * as anchor from '@project-serum/anchor';
-import BN from 'bn.js';
+import { BN } from '../sdk';
 import {
 	QUOTE_PRECISION,
 	MARK_PRICE_PRECISION,
 	PEG_PRECISION,
 	convertToNumber,
+	calculateMarkPrice,
+	calculateTargetPriceTrade
 } from '../sdk/src';
 
 import { assert } from '../sdk/src/assert/assert';
@@ -48,10 +50,11 @@ export async function stress_test(
 	// todo: should be equal at init, with xeq for scale as oracle px
 	const periodicity = new BN(1); // 1 SECOND
 	const PAIR_AMT = sqrtk;
-	const ammInitialQuoteAssetAmount = new anchor.BN(PAIR_AMT).mul(
+	console.log('sqrtK:', sqrtk)
+	const ammInitialQuoteAssetAmount = (new BN(PAIR_AMT)).mul(
 		MARK_PRICE_PRECISION
 	);
-	const ammInitialBaseAssetAmount = new anchor.BN(PAIR_AMT).mul(
+	const ammInitialBaseAssetAmount = (new BN(PAIR_AMT)).mul(
 		MARK_PRICE_PRECISION
 	);
 
@@ -105,7 +108,7 @@ export async function stress_test(
 				'update_funding',
 			];
 
-			let rand_amt = new BN(Math.floor(Math.random() * 1e2));
+			let rand_amt = new BN(Math.floor(Math.random() * 1e6));
 			const user_i = Math.floor(Math.random() * user_keys.length);
 
 			const rand_i = Math.floor(Math.random() * event_kinds.length);
@@ -136,11 +139,11 @@ export async function stress_test(
 				const oraclePriceMantissa = new BN(
 					oracleData.price * PEG_PRECISION.toNumber()
 				).mul(MARK_PRICE_PRECISION.div(PEG_PRECISION));
-				const markPriceMantissa = clearingHouse.calculateMarkPrice(market_i);
+				const markPriceMantissa = calculateMarkPrice(marketData);
 
 				[randEType, rand_amt, _entry_px] =
-					clearingHouse.calculateTargetPriceTrade(
-						market_i,
+					calculateTargetPriceTrade(
+						marketData,
 						oraclePriceMantissa
 					);
 
@@ -275,7 +278,7 @@ export async function stress_test(
 
 		// const userSummary = await user_act_info_e.summary('liq');
 		// const userSummary2 = await user_act_info_e.summary('avg');
-		const userSummary3 = await user_act_info_e.summary('last');
+		// const userSummary3 = await user_act_info_e.summary('last');
 
 		const xeq_scaled =
 			ammData.pegMultiplier.toNumber() / PEG_PRECISION.toNumber();
@@ -316,7 +319,7 @@ export async function stress_test(
 			{},
 			state_i,
 			// userSummary2,
-			userSummary3
+			// userSummary3
 			// userSummary
 		);
 
