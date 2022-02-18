@@ -2291,11 +2291,11 @@
             "type": "u128"
           },
           {
-            "name": "orderState",
+            "name": "extendedCurveHistory",
             "type": "publicKey"
           },
           {
-            "name": "extendedCurveHistory",
+            "name": "orderState",
             "type": "publicKey"
           },
           {
