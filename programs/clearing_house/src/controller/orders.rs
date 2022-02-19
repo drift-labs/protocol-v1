@@ -380,7 +380,6 @@ pub fn fill_order(
         None
     };
     let (base_asset_amount, quote_asset_amount, potentially_risk_increasing) = execute_order(
-        state,
         user,
         user_positions,
         order,
@@ -434,19 +433,14 @@ pub fn fill_order(
     }
 
     // Order fails if it's risk increasing and it brings the user below the initial margin ratio level
-    let (
-        _total_collateral_after,
-        _unrealized_pnl_after,
-        _base_asset_value_after,
-        margin_ratio_after,
-    ) = calculate_margin_ratio(
+    let meets_initial_maintenance_requirement = meets_initial_margin_requirement(
         user,
         user_positions,
         &markets
             .load()
             .or(Err(ErrorCode::UnableToLoadAccountLoader))?,
     )?;
-    if margin_ratio_after < state.margin_ratio_initial && potentially_risk_increasing {
+    if !meets_initial_maintenance_requirement && potentially_risk_increasing {
         return Err(ErrorCode::InsufficientCollateral);
     }
 
@@ -606,7 +600,6 @@ pub fn fill_order(
 }
 
 pub fn execute_order(
-    state: &State,
     user: &mut User,
     user_positions: &mut RefMut<UserPositions>,
     order: &mut Order,
@@ -627,7 +620,6 @@ pub fn execute_order(
             now,
         ),
         _ => execute_non_market_order(
-            state,
             user,
             user_positions,
             order,
@@ -698,7 +690,6 @@ pub fn execute_market_order(
 }
 
 pub fn execute_non_market_order(
-    state: &State,
     user: &mut User,
     user_positions: &mut RefMut<UserPositions>,
     order: &mut Order,
@@ -710,7 +701,6 @@ pub fn execute_non_market_order(
 ) -> ClearingHouseResult<(u128, u128, bool)> {
     // Determine the base asset amount the user can fill
     let base_asset_amount_user_can_execute = calculate_base_asset_amount_user_can_execute(
-        state,
         user,
         user_positions,
         order,

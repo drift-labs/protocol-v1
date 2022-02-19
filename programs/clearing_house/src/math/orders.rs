@@ -19,7 +19,6 @@ use crate::math::constants::{
 use crate::math::margin::calculate_free_collateral;
 use crate::math::quote_asset::asset_to_reserve_amount;
 use crate::state::market::Markets;
-use crate::state::state::State;
 use crate::state::user::{User, UserPositions};
 
 pub fn calculate_base_asset_amount_market_can_execute(
@@ -144,7 +143,6 @@ fn calculate_base_asset_amount_to_trade_for_trigger_limit(
 }
 
 pub fn calculate_base_asset_amount_user_can_execute(
-    state: &State,
     user: &mut User,
     user_positions: &mut RefMut<UserPositions>,
     order: &mut Order,
@@ -159,7 +157,6 @@ pub fn calculate_base_asset_amount_user_can_execute(
         position_index,
         user_positions,
         markets,
-        state.margin_ratio_initial,
     )?;
 
     let market = markets.get_market_mut(market_index);
@@ -201,12 +198,12 @@ pub fn calculate_available_quote_asset_user_can_execute(
     position_index: usize,
     user_positions: &mut UserPositions,
     markets: &Markets,
-    margin_ratio_initial: u128,
 ) -> ClearingHouseResult<u128> {
     let market_position = &user_positions.positions[position_index];
 
+    let market = markets.get_market(market_position.market_index);
     let max_leverage = MARGIN_PRECISION
-        .checked_div(margin_ratio_initial)
+        .checked_div(market.margin_ratio_initial.into())
         .ok_or_else(math_error!())?;
 
     let risk_increasing_in_same_direction = market_position.base_asset_amount == 0
@@ -214,8 +211,7 @@ pub fn calculate_available_quote_asset_user_can_execute(
         || market_position.base_asset_amount < 0 && order.direction == PositionDirection::Short;
 
     let available_quote_asset_for_order = if risk_increasing_in_same_direction {
-        let (free_collateral, _) =
-            calculate_free_collateral(user, user_positions, markets, max_leverage, None)?;
+        let (free_collateral, _) = calculate_free_collateral(user, user_positions, markets, None)?;
 
         // When opening new position, user may realize -1 pnl from rounding
         // Subtract 1 from free collateral to avoid going over initial margin requirements
@@ -226,13 +222,8 @@ pub fn calculate_available_quote_asset_user_can_execute(
             .ok_or_else(math_error!())?
     } else {
         let market_index = market_position.market_index;
-        let (free_collateral, closed_position_base_asset_value) = calculate_free_collateral(
-            user,
-            user_positions,
-            markets,
-            max_leverage,
-            Some(market_index),
-        )?;
+        let (free_collateral, closed_position_base_asset_value) =
+            calculate_free_collateral(user, user_positions, markets, Some(market_index))?;
 
         // When opening new position, user may realize -1 pnl from rounding
         // Subtract 1 from free collateral to avoid going over initial margin requirements

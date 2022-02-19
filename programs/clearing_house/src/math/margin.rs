@@ -9,21 +9,77 @@ use std::cell::{Ref, RefMut};
 
 use solana_program::msg;
 
-pub fn calculate_margin_ratio(
+pub fn meets_initial_margin_requirement(
     user: &User,
     user_positions: &RefMut<UserPositions>,
     markets: &Ref<Markets>,
-) -> ClearingHouseResult<(u128, i128, u128, u128)> {
-    let mut base_asset_value: u128 = 0;
+) -> ClearingHouseResult<bool> {
+    let mut initial_margin_requirement: u128 = 0;
     let mut unrealized_pnl: i128 = 0;
 
-    // loop 1 to calculate unrealized_pnl
     for market_position in user_positions.positions.iter() {
         if market_position.base_asset_amount == 0 {
             continue;
         }
 
-        let amm = &markets.markets[Markets::index_from_u64(market_position.market_index)].amm;
+        let market = markets.get_market(market_position.market_index);
+        let amm = &market.amm;
+        let (position_base_asset_value, position_unrealized_pnl) =
+            calculate_base_asset_value_and_pnl(market_position, amm)?;
+
+        initial_margin_requirement = initial_margin_requirement
+            .checked_add(
+                position_base_asset_value
+                    .checked_mul(market.margin_ratio_initial.into())
+                    .ok_or_else(math_error!())?,
+            )
+            .ok_or_else(math_error!())?;
+
+        unrealized_pnl = unrealized_pnl
+            .checked_add(position_unrealized_pnl)
+            .ok_or_else(math_error!())?;
+    }
+
+    initial_margin_requirement = initial_margin_requirement
+        .checked_div(MARGIN_PRECISION)
+        .ok_or_else(math_error!())?;
+
+    let total_collateral = calculate_updated_collateral(user.collateral, unrealized_pnl)?;
+
+    Ok(total_collateral >= initial_margin_requirement)
+}
+
+#[derive(PartialEq)]
+pub enum LiquidationType {
+    NONE,
+    PARTIAL,
+    FULL,
+}
+
+pub struct LiquidationStatus {
+    pub liquidation_type: LiquidationType,
+    pub total_collateral: u128,
+    pub unrealized_pnl: i128,
+    pub base_asset_value: u128,
+}
+
+pub fn calculate_liquidation_status(
+    user: &User,
+    user_positions: &RefMut<UserPositions>,
+    markets: &Ref<Markets>,
+) -> ClearingHouseResult<LiquidationStatus> {
+    let mut partial_margin_requirement: u128 = 0;
+    let mut maintenance_margin_requirement: u128 = 0;
+    let mut base_asset_value: u128 = 0;
+    let mut unrealized_pnl: i128 = 0;
+
+    for market_position in user_positions.positions.iter() {
+        if market_position.base_asset_amount == 0 {
+            continue;
+        }
+
+        let market = markets.get_market(market_position.market_index);
+        let amm = &market.amm;
         let (position_base_asset_value, position_unrealized_pnl) =
             calculate_base_asset_value_and_pnl(market_position, amm)?;
 
@@ -33,56 +89,82 @@ pub fn calculate_margin_ratio(
         unrealized_pnl = unrealized_pnl
             .checked_add(position_unrealized_pnl)
             .ok_or_else(math_error!())?;
-    }
 
-    let total_collateral: u128;
-    let margin_ratio: u128;
-    if base_asset_value == 0 {
-        total_collateral = user.collateral;
-        margin_ratio = u128::MAX;
-    } else {
-        total_collateral = calculate_updated_collateral(user.collateral, unrealized_pnl)?;
-        margin_ratio = total_collateral
-            .checked_mul(MARGIN_PRECISION)
-            .ok_or_else(math_error!())?
-            .checked_div(base_asset_value)
+        partial_margin_requirement = partial_margin_requirement
+            .checked_add(
+                position_base_asset_value
+                    .checked_mul(market.margin_ratio_partial.into())
+                    .ok_or_else(math_error!())?,
+            )
+            .ok_or_else(math_error!())?;
+
+        maintenance_margin_requirement = maintenance_margin_requirement
+            .checked_add(
+                position_base_asset_value
+                    .checked_mul(market.margin_ratio_maintenance.into())
+                    .ok_or_else(math_error!())?,
+            )
             .ok_or_else(math_error!())?;
     }
 
-    Ok((
+    partial_margin_requirement = partial_margin_requirement
+        .checked_div(MARGIN_PRECISION)
+        .ok_or_else(math_error!())?;
+
+    maintenance_margin_requirement = maintenance_margin_requirement
+        .checked_div(MARGIN_PRECISION)
+        .ok_or_else(math_error!())?;
+
+    let total_collateral = calculate_updated_collateral(user.collateral, unrealized_pnl)?;
+
+    let requires_partial_liquidation = total_collateral < partial_margin_requirement;
+    let requires_full_liquidation = total_collateral < maintenance_margin_requirement;
+
+    let liquidation_type = if requires_full_liquidation {
+        LiquidationType::FULL
+    } else if requires_partial_liquidation {
+        LiquidationType::PARTIAL
+    } else {
+        LiquidationType::NONE
+    };
+
+    Ok(LiquidationStatus {
+        liquidation_type,
         total_collateral,
         unrealized_pnl,
         base_asset_value,
-        margin_ratio,
-    ))
+    })
 }
 
 pub fn calculate_free_collateral(
     user: &User,
     user_positions: &mut UserPositions,
     markets: &Markets,
-    max_leverage: u128,
     market_to_close: Option<u64>,
 ) -> ClearingHouseResult<(u128, u128)> {
     let mut closed_position_base_asset_value: u128 = 0;
-    let mut base_asset_value: u128 = 0;
+    let mut initial_margin_requirement: u128 = 0;
     let mut unrealized_pnl: i128 = 0;
 
-    // loop to calculate unrealized_pnl
     for market_position in user_positions.positions.iter() {
         if market_position.base_asset_amount == 0 {
             continue;
         }
 
-        let amm = &markets.markets[Markets::index_from_u64(market_position.market_index)].amm;
+        let market = markets.get_market(market_position.market_index);
+        let amm = &market.amm;
         let (position_base_asset_value, position_unrealized_pnl) =
             calculate_base_asset_value_and_pnl(market_position, amm)?;
 
         if market_to_close.is_some() && market_to_close.unwrap() == market_position.market_index {
             closed_position_base_asset_value = position_base_asset_value;
         } else {
-            base_asset_value = base_asset_value
-                .checked_add(position_base_asset_value)
+            initial_margin_requirement = initial_margin_requirement
+                .checked_add(
+                    position_base_asset_value
+                        .checked_mul(market.margin_ratio_initial.into())
+                        .ok_or_else(math_error!())?,
+                )
                 .ok_or_else(math_error!())?;
         }
 
@@ -91,19 +173,15 @@ pub fn calculate_free_collateral(
             .ok_or_else(math_error!())?;
     }
 
-    let total_collateral = if base_asset_value == 0 {
-        user.collateral
-    } else {
-        calculate_updated_collateral(user.collateral, unrealized_pnl)?
-    };
-
-    let initial_margin_collateral_requirement = base_asset_value
-        .checked_div(max_leverage)
+    initial_margin_requirement = initial_margin_requirement
+        .checked_div(MARGIN_PRECISION)
         .ok_or_else(math_error!())?;
 
-    let free_collateral = if initial_margin_collateral_requirement < total_collateral {
+    let total_collateral = calculate_updated_collateral(user.collateral, unrealized_pnl)?;
+
+    let free_collateral = if initial_margin_requirement < total_collateral {
         total_collateral
-            .checked_sub(initial_margin_collateral_requirement)
+            .checked_sub(initial_margin_requirement)
             .ok_or_else(math_error!())?
     } else {
         0

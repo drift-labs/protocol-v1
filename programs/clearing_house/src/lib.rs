@@ -271,6 +271,9 @@ pub mod clearing_house {
             base_asset_amount_short: 0,
             base_asset_amount: 0,
             open_interest: 0,
+            margin_ratio_initial: 2000, // unit is 20% (+2 decimal places)
+            margin_ratio_partial: 625,
+            margin_ratio_maintenance: 500,
             padding0: 0,
             padding1: 0,
             padding2: 0,
@@ -423,10 +426,7 @@ pub mod clearing_house {
             .checked_sub(cast(insurance_account_withdrawal)?)
             .ok_or_else(math_error!())?;
 
-        // Verify that the user doesn't enter liquidation territory if they withdraw
-        let (_total_collateral, _unrealized_pnl, _base_asset_value, margin_ratio) =
-            calculate_margin_ratio(user, user_positions, markets)?;
-        if margin_ratio < ctx.accounts.state.margin_ratio_initial {
+        if !meets_initial_margin_requirement(user, user_positions, markets)? {
             return Err(ErrorCode::InsufficientCollateral.into());
         }
 
@@ -582,15 +582,9 @@ pub mod clearing_house {
         }
 
         // Trade fails if it's risk increasing and it brings the user below the initial margin ratio level
-        let (
-            _total_collateral_after,
-            _unrealized_pnl_after,
-            _base_asset_value_after,
-            margin_ratio_after,
-        ) = calculate_margin_ratio(user, user_positions, &ctx.accounts.markets.load()?)?;
-        if margin_ratio_after < ctx.accounts.state.margin_ratio_initial
-            && potentially_risk_increasing
-        {
+        let meets_initial_margin_requirement =
+            meets_initial_margin_requirement(user, user_positions, &ctx.accounts.markets.load()?)?;
+        if !meets_initial_margin_requirement && potentially_risk_increasing {
             return Err(ErrorCode::InsufficientCollateral.into());
         }
 
@@ -1116,22 +1110,27 @@ pub mod clearing_house {
             now,
         )?;
 
+        let margin_ratio = 0_u128;
+        let LiquidationStatus {
+            liquidation_type,
+            total_collateral,
+            unrealized_pnl,
+            base_asset_value,
+        } = calculate_liquidation_status(user, user_positions, &ctx.accounts.markets.load()?)?;
+
         // Verify that the user is in liquidation territory
         let collateral = user.collateral;
-        let (total_collateral, unrealized_pnl, base_asset_value, margin_ratio) =
-            calculate_margin_ratio(user, user_positions, &ctx.accounts.markets.load()?)?;
-        if margin_ratio > ctx.accounts.state.margin_ratio_partial {
+        if liquidation_type == LiquidationType::NONE {
             msg!("total_collateral {}", total_collateral);
             msg!("unrealized_pnl {}", unrealized_pnl);
             msg!("base_asset_value {}", base_asset_value);
-            msg!("margin ratio {}", margin_ratio);
             return Err(ErrorCode::SufficientCollateral.into());
         }
 
         // Keep track to the value of positions closed. For full liquidation this is the user's entire position,
         // for partial it is less (it's based on the clearing house state)
         let mut base_asset_value_closed: u128 = 0;
-        let is_full_liquidation = margin_ratio <= ctx.accounts.state.margin_ratio_maintenance;
+        let is_full_liquidation = liquidation_type == LiquidationType::FULL;
         if is_full_liquidation {
             let markets = &mut ctx.accounts.markets.load_mut()?;
             for market_position in user_positions.positions.iter_mut() {
