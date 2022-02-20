@@ -208,7 +208,6 @@ pub struct InitializeMarket<'info> {
 
 #[derive(Accounts)]
 pub struct DepositCollateral<'info> {
-    #[account(mut)]
     pub state: Box<Account<'info, State>>,
     #[account(
         mut,
@@ -227,6 +226,44 @@ pub struct DepositCollateral<'info> {
     pub token_program: Program<'info, Token>,
     #[account(
         constraint = &state.markets.eq(&markets.key())
+    )]
+    pub markets: AccountLoader<'info, Markets>,
+    #[account(
+        mut,
+        has_one = user
+    )]
+    pub user_positions: AccountLoader<'info, UserPositions>,
+    #[account(
+        mut,
+        constraint = &state.funding_payment_history.eq(&funding_payment_history.key())
+    )]
+    pub funding_payment_history: AccountLoader<'info, FundingPaymentHistory>,
+    #[account(
+        mut,
+        constraint = &state.deposit_history.eq(&deposit_history.key())
+    )]
+    pub deposit_history: AccountLoader<'info, DepositHistory>,
+}
+
+#[derive(Accounts)]
+pub struct DepositCollateralForUser<'info> {
+    pub state: Box<Account<'info, State>>,
+    #[account(
+        mut,
+        constraint = &user.positions.eq(&user_positions.key())
+    )]
+    pub user: Box<Account<'info, User>>,
+    pub depositor: Signer<'info>,
+    #[account(
+        mut,
+        constraint = &state.collateral_vault.eq(&collateral_vault.key())
+    )]
+    pub collateral_vault: Box<Account<'info, TokenAccount>>,
+    #[account(mut)]
+    pub depositor_token_account: Box<Account<'info, TokenAccount>>,
+    pub token_program: Program<'info, Token>,
+    #[account(
+    constraint = &state.markets.eq(&markets.key())
     )]
     pub markets: AccountLoader<'info, Markets>,
     #[account(

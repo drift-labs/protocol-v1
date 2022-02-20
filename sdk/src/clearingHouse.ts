@@ -471,6 +471,49 @@ export class ClearingHouse {
 		});
 	}
 
+	public async depositCollateralForUser(
+		amount: BN,
+		collateralAccountPublicKey: PublicKey,
+		userAccountPublicKey: PublicKey
+	): Promise<TransactionSignature> {
+		const depositCollateralIx =
+			await this.getDepositCollateralInstructionForUser(
+				amount,
+				collateralAccountPublicKey,
+				userAccountPublicKey
+			);
+
+		const tx = new Transaction().add(depositCollateralIx);
+
+		return await this.txSender.send(tx);
+	}
+
+	async getDepositCollateralInstructionForUser(
+		amount: BN,
+		collateralAccountPublicKey: PublicKey,
+		userAccountPublicKey: PublicKey
+	): Promise<TransactionInstruction> {
+		const userAccount = (await this.program.account.user.fetch(
+			userAccountPublicKey
+		)) as UserAccount;
+
+		const state = this.getStateAccount();
+		return await this.program.instruction.depositCollateralForUser(amount, {
+			accounts: {
+				state: await this.getStatePublicKey(),
+				user: userAccountPublicKey,
+				collateralVault: state.collateralVault,
+				depositorTokenAccount: collateralAccountPublicKey,
+				depositor: this.wallet.publicKey,
+				tokenProgram: TOKEN_PROGRAM_ID,
+				markets: state.markets,
+				fundingPaymentHistory: state.fundingPaymentHistory,
+				depositHistory: state.depositHistory,
+				userPositions: userAccount.positions,
+			},
+		});
+	}
+
 	/**
 	 * Creates the Clearing House User account for a user, and deposits some initial collateral
 	 * @param amount

@@ -18,6 +18,7 @@ use crate::state::{
 
 pub mod context;
 pub mod controller;
+pub mod deposit_collateral;
 pub mod error;
 pub mod math;
 pub mod optional_accounts;
@@ -39,6 +40,7 @@ pub mod clearing_house {
     use crate::state::history::liquidation::LiquidationRecord;
 
     use super::*;
+    use crate::deposit_collateral::deposit;
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
     use crate::state::order_state::{OrderFillerRewardStructure, OrderState};
 
@@ -312,65 +314,38 @@ pub mod clearing_house {
     }
 
     pub fn deposit_collateral(ctx: Context<DepositCollateral>, amount: u64) -> ProgramResult {
-        let user = &mut ctx.accounts.user;
-        let clock = Clock::get()?;
-        let now = clock.unix_timestamp;
-
-        if amount == 0 {
-            return Err(ErrorCode::InsufficientDeposit.into());
-        }
-
-        let collateral_before = user.collateral;
-        let cumulative_deposits_before = user.cumulative_deposits;
-
-        user.collateral = user
-            .collateral
-            .checked_add(cast(amount)?)
-            .ok_or_else(math_error!())?;
-        user.cumulative_deposits = user
-            .cumulative_deposits
-            .checked_add(cast(amount)?)
-            .ok_or_else(math_error!())?;
-
-        let markets = &ctx.accounts.markets.load()?;
-        let user_positions = &mut ctx.accounts.user_positions.load_mut()?;
-        let funding_payment_history = &mut ctx.accounts.funding_payment_history.load_mut()?;
-        controller::funding::settle_funding_payment(
-            user,
-            user_positions,
-            markets,
-            funding_payment_history,
-            now,
-        )?;
-
-        controller::token::receive(
+        deposit(
+            amount,
+            &ctx.accounts.state,
+            &mut ctx.accounts.user,
+            &mut ctx.accounts.user_positions,
+            &mut ctx.accounts.markets,
+            &mut ctx.accounts.funding_payment_history,
+            &mut ctx.accounts.deposit_history,
             &ctx.accounts.token_program,
             &ctx.accounts.user_collateral_account,
             &ctx.accounts.collateral_vault,
             &ctx.accounts.authority,
+        )
+    }
+
+    pub fn deposit_collateral_for_user(
+        ctx: Context<DepositCollateralForUser>,
+        amount: u64,
+    ) -> ProgramResult {
+        deposit(
             amount,
-        )?;
-
-        let deposit_history = &mut ctx.accounts.deposit_history.load_mut()?;
-        let record_id = deposit_history.next_record_id();
-        deposit_history.append(DepositRecord {
-            ts: now,
-            record_id,
-            user_authority: user.authority,
-            user: user.to_account_info().key(),
-            direction: DepositDirection::DEPOSIT,
-            collateral_before,
-            cumulative_deposits_before,
-            amount,
-        });
-
-        if ctx.accounts.state.max_deposit > 0
-            && user.cumulative_deposits > cast(ctx.accounts.state.max_deposit)?
-        {
-            return Err(ErrorCode::UserMaxDeposit.into());
-        }
-
-        Ok(())
+            &ctx.accounts.state,
+            &mut ctx.accounts.user,
+            &mut ctx.accounts.user_positions,
+            &mut ctx.accounts.markets,
+            &mut ctx.accounts.funding_payment_history,
+            &mut ctx.accounts.deposit_history,
+            &ctx.accounts.token_program,
+            &ctx.accounts.depositor_token_account,
+            &ctx.accounts.collateral_vault,
+            &ctx.accounts.depositor,
+        )
     }
 
     #[access_control(
