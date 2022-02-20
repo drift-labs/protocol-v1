@@ -39,8 +39,10 @@ pub mod clearing_house {
     use crate::state::history::liquidation::LiquidationRecord;
 
     use super::*;
+    use crate::math::amm::calculate_base_asset_amount_can_trade_to_oracle_mark_threshold;
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
     use crate::state::order_state::{OrderFillerRewardStructure, OrderState};
+    use std::cmp::min;
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -782,7 +784,7 @@ pub mod clearing_house {
         let direction_to_close =
             math::position::direction_to_close_position(market_position.base_asset_amount);
         let (quote_asset_amount, base_asset_amount) =
-            controller::position::close(user, market, market_position, now)?;
+            controller::position::close(user, market, market_position, now, None)?;
         let base_asset_amount = base_asset_amount.unsigned_abs();
 
         // Calculate the fee to charge the user
@@ -1148,24 +1150,56 @@ pub mod clearing_house {
                     .iter()
                     .find(|account_info| account_info.key.eq(&market.amm.oracle))
                     .ok_or(ErrorCode::OracleNotFound)?;
-                let (liquidations_blocked, oracle_price) = math::oracle::block_operation(
-                    &market.amm,
-                    oracle_account_info,
-                    clock_slot,
-                    &state.oracle_guard_rails,
-                    None,
-                )?;
-                if liquidations_blocked {
-                    return Err(ErrorCode::LiquidationsBlockedByOracle.into());
-                }
+                // let (liquidations_blocked, oracle_price) = math::oracle::block_operation(
+                //     &market.amm,
+                //     oracle_account_info,
+                //     clock_slot,
+                //     &state.oracle_guard_rails,
+                //     None,
+                // )?;
+                // if liquidations_blocked {
+                //     return Err(ErrorCode::LiquidationsBlockedByOracle.into());
+                // }
 
                 let direction_to_close =
                     math::position::direction_to_close_position(market_position.base_asset_amount);
 
                 let mark_price_before = market.amm.mark_price()?;
-                let (base_asset_value, base_asset_amount) =
-                    controller::position::close(user, market, market_position, now)?;
-                let base_asset_amount = base_asset_amount.unsigned_abs();
+
+                let (max_base_asset_amount_can_trade, oracle_price) =
+                    calculate_base_asset_amount_can_trade_to_oracle_mark_threshold(
+                        &market.amm,
+                        oracle_account_info,
+                        clock_slot,
+                        &direction_to_close,
+                    )?;
+
+                let mut base_asset_value = 0_u128;
+                let mut base_asset_amount = market_position.base_asset_amount.unsigned_abs();
+                if max_base_asset_amount_can_trade > base_asset_amount {
+                    let (quote_asset_amount_swapped, _) = controller::position::close(
+                        user,
+                        market,
+                        market_position,
+                        now,
+                        Some(mark_price_before),
+                    )?;
+                    base_asset_value = quote_asset_amount_swapped;
+                } else {
+                    base_asset_amount = max_base_asset_amount_can_trade;
+                    let quote_asset_amount_swapped =
+                        controller::position::reduce_with_base_asset_amount(
+                            direction_to_close,
+                            max_base_asset_amount_can_trade,
+                            user,
+                            market,
+                            market_position,
+                            now,
+                            Some(mark_price_before),
+                        )?;
+                    base_asset_value = quote_asset_amount_swapped;
+                }
+
                 base_asset_value_closed = base_asset_value_closed
                     .checked_add(base_asset_value)
                     .ok_or_else(math_error!())?;

@@ -170,8 +170,13 @@ pub fn increase_with_base_asset_amount(
         PositionDirection::Short => SwapDirection::Add,
     };
 
-    let quote_asset_swapped =
-        controller::amm::swap_base_asset(&mut market.amm, base_asset_amount, swap_direction, now)?;
+    let quote_asset_swapped = controller::amm::swap_base_asset(
+        &mut market.amm,
+        base_asset_amount,
+        swap_direction,
+        now,
+        None,
+    )?;
 
     market_position.quote_asset_amount = market_position
         .quote_asset_amount
@@ -295,14 +300,20 @@ pub fn reduce_with_base_asset_amount(
     market: &mut Market,
     market_position: &mut MarketPosition,
     now: i64,
+    precomputed_mark_price: Option<u128>,
 ) -> ClearingHouseResult<u128> {
     let swap_direction = match direction {
         PositionDirection::Long => SwapDirection::Remove,
         PositionDirection::Short => SwapDirection::Add,
     };
 
-    let quote_asset_swapped =
-        controller::amm::swap_base_asset(&mut market.amm, base_asset_amount, swap_direction, now)?;
+    let quote_asset_swapped = controller::amm::swap_base_asset(
+        &mut market.amm,
+        base_asset_amount,
+        swap_direction,
+        now,
+        precomputed_mark_price,
+    )?;
 
     let base_asset_amount = match direction {
         PositionDirection::Long => cast_to_i128(base_asset_amount)?,
@@ -373,6 +384,7 @@ pub fn close(
     market: &mut Market,
     market_position: &mut MarketPosition,
     now: i64,
+    precomputed_mark_price: Option<u128>,
 ) -> ClearingHouseResult<(u128, i128)> {
     // If user has no base asset, return early
     if market_position.base_asset_amount == 0 {
@@ -390,6 +402,7 @@ pub fn close(
         market_position.base_asset_amount.unsigned_abs(),
         swap_direction,
         now,
+        precomputed_mark_price,
     )?;
     let pnl = calculate_pnl(
         base_asset_value,
@@ -469,6 +482,7 @@ pub fn update_position_with_base_asset_amount(
             market,
             market_position,
             now,
+            None,
         )?;
 
         potentially_risk_increasing = false;
@@ -483,7 +497,7 @@ pub fn update_position_with_base_asset_amount(
             potentially_risk_increasing = false;
         }
 
-        let (quote_asset_amount_closed, _) = close(user, market, market_position, now)?;
+        let (quote_asset_amount_closed, _) = close(user, market, market_position, now, None)?;
 
         let quote_asset_amount_opened = increase_with_base_asset_amount(
             direction,
@@ -574,8 +588,13 @@ pub fn update_position_with_quote_asset_amount(
                 potentially_risk_increasing = false;
             }
 
-            let (_, base_asset_amount_closed) =
-                controller::position::close(user, market, market_position, now)?;
+            let (_, base_asset_amount_closed) = controller::position::close(
+                user,
+                market,
+                market_position,
+                now,
+                Some(mark_price_before),
+            )?;
             let base_asset_amount_closed = base_asset_amount_closed.unsigned_abs();
 
             let base_asset_amount_opened = controller::position::increase(

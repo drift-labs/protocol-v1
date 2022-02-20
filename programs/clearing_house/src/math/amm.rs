@@ -449,6 +449,42 @@ pub fn is_oracle_valid(
         || is_oracle_price_too_volatile))
 }
 
+pub fn calculate_base_asset_amount_can_trade_to_oracle_mark_threshold(
+    amm: &AMM,
+    price_oracle: &AccountInfo,
+    clock_slot: u64,
+    direction: &PositionDirection,
+) -> ClearingHouseResult<(u128, i128)> {
+    let (oracle_price, _, _, _, _) = amm.get_oracle_price(price_oracle, clock_slot)?;
+
+    let mark_price_threshold = if direction == &PositionDirection::Long {
+        cast_to_u128(
+            oracle_price
+                .checked_mul(110)
+                .ok_or_else(math_error!())?
+                .checked_div(100)
+                .ok_or_else(math_error!())?,
+        )?
+    } else {
+        cast_to_u128(
+            oracle_price
+                .checked_mul(90)
+                .ok_or_else(math_error!())?
+                .checked_div(100)
+                .ok_or_else(math_error!())?,
+        )?
+    };
+
+    let (base_asset_amount, direction_to_trade) =
+        calculate_max_base_asset_amount_to_trade(amm, mark_price_threshold)?;
+
+    if direction != &direction_to_trade {
+        Ok((0, oracle_price))
+    } else {
+        Ok((base_asset_amount, oracle_price))
+    }
+}
+
 /// To find the cost of adjusting k, compare the the net market value before and after adjusting k
 /// Increasing k costs the protocol money because it reduces slippage and improves the exit price for net market position
 /// Decreasing k costs the protocol money because it increases slippage and hurts the exit price for net market position
