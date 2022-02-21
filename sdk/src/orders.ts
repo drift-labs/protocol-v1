@@ -157,7 +157,7 @@ function calculateAmountSwapped(
 	};
 }
 
-function calculateAmountToTrade(market: Market, order: Order): BN {
+export function calculateAmountToTrade(market: Market, order: Order): BN {
 	if (isVariant(order.orderType, 'limit')) {
 		return calculateAmountToTradeForLimit(market, order);
 	} else if (isVariant(order.orderType, 'triggerLimit')) {

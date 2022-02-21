@@ -733,7 +733,22 @@ export class ClearingHouseUser {
 
 	/**
 	 * Get the maximum trade size for a given market, taking into account the user's current leverage, positions, collateral, etc.
-	 * @param marketIndex
+	 *
+	 * To Calculate Max Quote Available:
+	 *
+	 * Case 1: SameSide
+	 * 	=> Remaining quote to get to maxLeverage
+	 *
+	 * Case 2: NOT SameSide && currentLeverage <= maxLeverage
+	 * 	=> Current opposite position x2 + remaining to get to maxLeverage
+	 *
+	 * Case 3: NOT SameSide && currentLeverage > maxLeverage && otherPositions - currentPosition > maxLeverage
+	 * 	=> strictly reduce current position size
+	 *
+	 * Case 4: NOT SameSide && currentLeverage > maxLeverage && otherPositions - currentPosition < maxLeverage
+	 * 	=> current position + remaining to get to maxLeverage
+	 *
+	 * @param targetMarketIndex
 	 * @param tradeSide
 	 * @param userMaxLeverageSetting - leverage : Precision TEN_THOUSAND
 	 * @returns tradeSizeAllowed : Precision QUOTE_PRECISION
@@ -832,13 +847,18 @@ export class ClearingHouseUser {
 
 		const totalPositionAfterTradeExcludingTargetMarket =
 			this.getTotalPositionValueExcludingMarket(targetMarketIndex);
-		const newLeverage = currentMarketPositionAfterTrade
-			.add(totalPositionAfterTradeExcludingTargetMarket)
-			.abs()
-			.mul(TEN_THOUSAND)
-			.div(this.getTotalCollateral());
 
-		return newLeverage;
+		const totalCollateral = this.getTotalCollateral();
+		if (totalCollateral.gt(ZERO)) {
+			const newLeverage = currentMarketPositionAfterTrade
+				.add(totalPositionAfterTradeExcludingTargetMarket)
+				.abs()
+				.mul(TEN_THOUSAND)
+				.div(totalCollateral);
+			return newLeverage;
+		} else {
+			return new BN(0);
+		}
 	}
 
 	/**
