@@ -32,8 +32,11 @@ export function isOrderRiskIncreasing(
 		return true;
 	}
 
+	const baseAssetAmountToFill = order.baseAssetAmount.sub(
+		order.baseAssetAmountFilled
+	);
 	// if order will flip position
-	if (order.baseAssetAmountFilled.gt(position.baseAssetAmount.abs().mul(TWO))) {
+	if (baseAssetAmountToFill.gt(position.baseAssetAmount.abs().mul(TWO))) {
 		return true;
 	}
 
