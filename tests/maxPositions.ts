@@ -20,7 +20,10 @@ import {
 } from './testHelpers';
 
 describe('max positions', () => {
-	const provider = anchor.Provider.local();
+	const provider = anchor.Provider.local(undefined, {
+		preflightCommitment: 'confirmed',
+		commitment: 'confirmed',
+	});
 	const connection = provider.connection;
 	anchor.setProvider(provider);
 	const chProgram = anchor.workspace.ClearingHouse as Program;
@@ -121,6 +124,11 @@ describe('max positions', () => {
 			'confirmed'
 		);
 		console.log('compute units', computeUnits);
+		console.log(
+			'tx logs',
+			(await connection.getTransaction(txSig, { commitment: 'confirmed' })).meta
+				.logMessages
+		);
 	});
 
 	it('liquidate', async () => {

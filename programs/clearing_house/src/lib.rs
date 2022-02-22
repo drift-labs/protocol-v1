@@ -41,6 +41,7 @@ pub mod clearing_house {
     use super::*;
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
     use crate::state::order_state::{OrderFillerRewardStructure, OrderState};
+    use std::ops::Div;
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -1116,52 +1117,62 @@ pub mod clearing_house {
             total_collateral,
             unrealized_pnl,
             base_asset_value,
-        } = calculate_liquidation_status(user, user_positions, &ctx.accounts.markets.load()?)?;
+            market_statuses,
+            mut margin_requirement,
+            number_of_open_positions,
+        } = calculate_liquidation_status(
+            user,
+            user_positions,
+            &ctx.accounts.markets.load()?,
+            ctx.remaining_accounts,
+            &ctx.accounts.state.oracle_guard_rails,
+            clock_slot,
+        )?;
 
         // Verify that the user is in liquidation territory
         let collateral = user.collateral;
         if liquidation_type == LiquidationType::NONE {
             msg!("total_collateral {}", total_collateral);
-            msg!("unrealized_pnl {}", unrealized_pnl);
-            msg!("base_asset_value {}", base_asset_value);
+            msg!("margin_requirement {}", margin_requirement);
             return Err(ErrorCode::SufficientCollateral.into());
         }
 
         // Keep track to the value of positions closed. For full liquidation this is the user's entire position,
         // for partial it is less (it's based on the clearing house state)
         let mut base_asset_value_closed: u128 = 0;
+        let mut liquidation_fee = 0_u128;
         let is_full_liquidation = liquidation_type == LiquidationType::FULL;
         if is_full_liquidation {
+            let per_market_liquidation_fee = total_collateral
+                .checked_mul(state.full_liquidation_penalty_percentage_numerator)
+                .ok_or_else(math_error!())?
+                .checked_div(state.full_liquidation_penalty_percentage_denominator)
+                .ok_or_else(math_error!())?
+                .checked_div(number_of_open_positions.into())
+                .ok_or_else(math_error!())?;
+
             let markets = &mut ctx.accounts.markets.load_mut()?;
-            for market_position in user_positions.positions.iter_mut() {
-                if market_position.base_asset_amount == 0 {
+            for market_status in market_statuses.iter() {
+                if market_status.base_asset_value == 0 {
                     continue;
                 }
 
-                let market =
-                    &mut markets.markets[Markets::index_from_u64(market_position.market_index)];
-
-                // Block the liquidation if the oracle is invalid or the oracle and mark are too divergent
-                let oracle_account_info = ctx
-                    .remaining_accounts
-                    .iter()
-                    .find(|account_info| account_info.key.eq(&market.amm.oracle))
-                    .ok_or(ErrorCode::OracleNotFound)?;
-                let (liquidations_blocked, oracle_price) = math::oracle::block_operation(
-                    &market.amm,
-                    oracle_account_info,
-                    clock_slot,
-                    &state.oracle_guard_rails,
-                    None,
-                )?;
-                if liquidations_blocked {
-                    return Err(ErrorCode::LiquidationsBlockedByOracle.into());
+                let oracle_status = &market_status.oracle_status;
+                if !oracle_status.is_valid || oracle_status.mark_too_divergent {
+                    continue;
                 }
+
+                let market = markets.get_market_mut(market_status.market_index);
+                let market_position = &mut user_positions
+                    .positions
+                    .iter_mut()
+                    .find(|position| position.market_index == market_status.market_index)
+                    .unwrap();
 
                 let direction_to_close =
                     math::position::direction_to_close_position(market_position.base_asset_amount);
 
-                let mark_price_before = market.amm.mark_price()?;
+                let mark_price_before = market_status.mark_price_before;
                 let (base_asset_value, base_asset_amount) =
                     controller::position::close(user, market, market_position, now)?;
                 let base_asset_amount = base_asset_amount.unsigned_abs();
@@ -1187,40 +1198,54 @@ pub mod clearing_house {
                     referee_discount: 0,
                     liquidation: true,
                     market_index: market_position.market_index,
-                    oracle_price,
+                    oracle_price: market_status.oracle_status.price,
                 });
+
+                margin_requirement = margin_requirement
+                    .checked_sub(market_status.maintenance_margin_requirement)
+                    .ok_or_else(math_error!())?;
+
+                liquidation_fee = liquidation_fee
+                    .checked_add(per_market_liquidation_fee)
+                    .ok_or_else(math_error!())?;
+
+                let total_collateral_after_fee = total_collateral
+                    .checked_sub(liquidation_fee)
+                    .ok_or_else(math_error!())?;
+
+                if margin_requirement < total_collateral_after_fee {
+                    break;
+                }
             }
         } else {
+            let per_market_liquidation_fee = total_collateral
+                .checked_mul(state.partial_liquidation_penalty_percentage_numerator)
+                .ok_or_else(math_error!())?
+                .checked_div(state.partial_liquidation_penalty_percentage_denominator)
+                .ok_or_else(math_error!())?
+                .checked_div(number_of_open_positions.into())
+                .ok_or_else(math_error!())?;
+
             let markets = &mut ctx.accounts.markets.load_mut()?;
-            for market_position in user_positions.positions.iter_mut() {
-                if market_position.base_asset_amount == 0 {
+            for market_status in market_statuses.iter() {
+                if market_status.base_asset_value == 0 {
                     continue;
                 }
 
-                let market =
-                    &mut markets.markets[Markets::index_from_u64(market_position.market_index)];
-
-                let mark_price_before = market.amm.mark_price()?;
-
-                let oracle_account_info = ctx
-                    .remaining_accounts
-                    .iter()
-                    .find(|account_info| account_info.key.eq(&market.amm.oracle))
-                    .ok_or(ErrorCode::OracleNotFound)?;
-                let (liquidations_blocked, oracle_price) = math::oracle::block_operation(
-                    &market.amm,
-                    oracle_account_info,
-                    clock_slot,
-                    &state.oracle_guard_rails,
-                    Some(mark_price_before),
-                )?;
-                if liquidations_blocked {
-                    return Err(ErrorCode::LiquidationsBlockedByOracle.into());
+                let oracle_status = &market_status.oracle_status;
+                if !oracle_status.is_valid || oracle_status.mark_too_divergent {
+                    continue;
                 }
 
-                let (base_asset_value, _pnl) =
-                    calculate_base_asset_value_and_pnl(market_position, &market.amm)?;
+                let market = markets.get_market_mut(market_status.market_index);
+                let market_position = &mut user_positions
+                    .positions
+                    .iter_mut()
+                    .find(|position| position.market_index == market_status.market_index)
+                    .unwrap();
 
+                let mark_price_before = market_status.mark_price_before;
+                let base_asset_value = market_status.base_asset_value;
                 let base_asset_value_to_close = base_asset_value
                     .checked_mul(state.partial_liquidation_close_percentage_numerator)
                     .ok_or_else(math_error!())?
@@ -1262,24 +1287,33 @@ pub mod clearing_house {
                     referee_discount: 0,
                     liquidation: true,
                     market_index: market_position.market_index,
-                    oracle_price,
+                    oracle_price: market_status.oracle_status.price,
                 });
+
+                margin_requirement = margin_requirement
+                    .checked_sub(
+                        market_status
+                            .partial_margin_requirement
+                            .checked_mul(base_asset_value_closed)
+                            .ok_or_else(math_error!())?
+                            .checked_div(base_asset_value)
+                            .ok_or_else(math_error!())?,
+                    )
+                    .ok_or_else(math_error!())?;
+
+                liquidation_fee = liquidation_fee
+                    .checked_add(per_market_liquidation_fee)
+                    .ok_or_else(math_error!())?;
+
+                let total_collateral_after_fee = total_collateral
+                    .checked_sub(liquidation_fee)
+                    .ok_or_else(math_error!())?;
+
+                if margin_requirement < total_collateral_after_fee {
+                    break;
+                }
             }
         }
-
-        let liquidation_fee = if is_full_liquidation {
-            user.collateral
-                .checked_mul(state.full_liquidation_penalty_percentage_numerator)
-                .ok_or_else(math_error!())?
-                .checked_div(state.full_liquidation_penalty_percentage_denominator)
-                .ok_or_else(math_error!())?
-        } else {
-            total_collateral
-                .checked_mul(state.partial_liquidation_penalty_percentage_numerator)
-                .ok_or_else(math_error!())?
-                .checked_div(state.partial_liquidation_penalty_percentage_denominator)
-                .ok_or_else(math_error!())?
-        };
 
         let (withdrawal_amount, _) = calculate_withdrawal_amounts(
             cast(liquidation_fee)?,
