@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use context::*;
 use controller::position::{add_new_position, get_position_index, PositionDirection};
 use error::*;
-use math::{amm, bn, constants::*, fees, margin::*, orders::*, position::*, withdrawal::*};
+use math::{amm, bn, constants::*, fees, margin::*, orders::*, withdrawal::*};
 
 use crate::state::{
     history::trade::TradeRecord,
@@ -41,7 +41,6 @@ pub mod clearing_house {
     use super::*;
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
     use crate::state::order_state::{OrderFillerRewardStructure, OrderState};
-    use std::ops::Div;
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -1115,11 +1114,11 @@ pub mod clearing_house {
         let LiquidationStatus {
             liquidation_type,
             total_collateral,
+            adjusted_total_collateral,
             unrealized_pnl,
             base_asset_value,
             market_statuses,
             mut margin_requirement,
-            number_of_open_positions,
         } = calculate_liquidation_status(
             user,
             user_positions,
@@ -1133,6 +1132,7 @@ pub mod clearing_house {
         let collateral = user.collateral;
         if liquidation_type == LiquidationType::NONE {
             msg!("total_collateral {}", total_collateral);
+            msg!("adjusted_total_collateral {}", adjusted_total_collateral);
             msg!("margin_requirement {}", margin_requirement);
             return Err(ErrorCode::SufficientCollateral.into());
         }
@@ -1143,14 +1143,6 @@ pub mod clearing_house {
         let mut liquidation_fee = 0_u128;
         let is_full_liquidation = liquidation_type == LiquidationType::FULL;
         if is_full_liquidation {
-            let per_market_liquidation_fee = total_collateral
-                .checked_mul(state.full_liquidation_penalty_percentage_numerator)
-                .ok_or_else(math_error!())?
-                .checked_div(state.full_liquidation_penalty_percentage_denominator)
-                .ok_or_else(math_error!())?
-                .checked_div(number_of_open_positions.into())
-                .ok_or_else(math_error!())?;
-
             let markets = &mut ctx.accounts.markets.load_mut()?;
             for market_status in market_statuses.iter() {
                 if market_status.base_asset_value == 0 {
@@ -1173,11 +1165,11 @@ pub mod clearing_house {
                     math::position::direction_to_close_position(market_position.base_asset_amount);
 
                 let mark_price_before = market_status.mark_price_before;
-                let (base_asset_value, base_asset_amount) =
+                let (quote_asset_amount, base_asset_amount) =
                     controller::position::close(user, market, market_position, now)?;
                 let base_asset_amount = base_asset_amount.unsigned_abs();
                 base_asset_value_closed = base_asset_value_closed
-                    .checked_add(base_asset_value)
+                    .checked_add(quote_asset_amount)
                     .ok_or_else(math_error!())?;
                 let mark_price_after = market.amm.mark_price()?;
 
@@ -1189,7 +1181,7 @@ pub mod clearing_house {
                     user: *user.to_account_info().key,
                     direction: direction_to_close,
                     base_asset_amount,
-                    quote_asset_amount: base_asset_value,
+                    quote_asset_amount,
                     mark_price_before,
                     mark_price_after,
                     fee: 0,
@@ -1205,27 +1197,29 @@ pub mod clearing_house {
                     .checked_sub(market_status.maintenance_margin_requirement)
                     .ok_or_else(math_error!())?;
 
+                let per_market_liquidation_fee = total_collateral
+                    .checked_mul(state.full_liquidation_penalty_percentage_numerator)
+                    .ok_or_else(math_error!())?
+                    .checked_div(state.full_liquidation_penalty_percentage_denominator)
+                    .ok_or_else(math_error!())?
+                    .checked_div(quote_asset_amount)
+                    .ok_or_else(math_error!())?
+                    .checked_div(base_asset_value)
+                    .ok_or_else(math_error!())?;
+
                 liquidation_fee = liquidation_fee
                     .checked_add(per_market_liquidation_fee)
                     .ok_or_else(math_error!())?;
 
-                let total_collateral_after_fee = total_collateral
+                let adjusted_total_collateral_after_fee = adjusted_total_collateral
                     .checked_sub(liquidation_fee)
                     .ok_or_else(math_error!())?;
 
-                if margin_requirement < total_collateral_after_fee {
+                if margin_requirement < adjusted_total_collateral_after_fee {
                     break;
                 }
             }
         } else {
-            let per_market_liquidation_fee = total_collateral
-                .checked_mul(state.partial_liquidation_penalty_percentage_numerator)
-                .ok_or_else(math_error!())?
-                .checked_div(state.partial_liquidation_penalty_percentage_denominator)
-                .ok_or_else(math_error!())?
-                .checked_div(number_of_open_positions.into())
-                .ok_or_else(math_error!())?;
-
             let markets = &mut ctx.accounts.markets.load_mut()?;
             for market_status in market_statuses.iter() {
                 if market_status.base_asset_value == 0 {
@@ -1294,26 +1288,44 @@ pub mod clearing_house {
                     .checked_sub(
                         market_status
                             .partial_margin_requirement
-                            .checked_mul(base_asset_value_closed)
+                            .checked_mul(base_asset_value_to_close)
                             .ok_or_else(math_error!())?
                             .checked_div(base_asset_value)
                             .ok_or_else(math_error!())?,
                     )
                     .ok_or_else(math_error!())?;
 
+                let per_market_liquidation_fee = total_collateral
+                    .checked_mul(state.partial_liquidation_penalty_percentage_numerator)
+                    .ok_or_else(math_error!())?
+                    .checked_div(state.partial_liquidation_penalty_percentage_denominator)
+                    .ok_or_else(math_error!())?
+                    .checked_mul(base_asset_value_to_close)
+                    .ok_or_else(math_error!())?
+                    .checked_div(base_asset_value)
+                    .ok_or_else(math_error!())?;
+
                 liquidation_fee = liquidation_fee
                     .checked_add(per_market_liquidation_fee)
                     .ok_or_else(math_error!())?;
 
-                let total_collateral_after_fee = total_collateral
+                let adjusted_total_collateral_after_fee = adjusted_total_collateral
                     .checked_sub(liquidation_fee)
                     .ok_or_else(math_error!())?;
 
-                if margin_requirement < total_collateral_after_fee {
+                if margin_requirement < adjusted_total_collateral_after_fee {
                     break;
                 }
             }
         }
+
+        msg!(
+            "adjusted_total_collateral_after_fee {}",
+            adjusted_total_collateral - liquidation_fee
+        );
+        msg!("margin_requirement {}", margin_requirement);
+        msg!("base_asset_value {}", base_asset_value);
+        msg!("base_asset_value_closed {}", base_asset_value_closed);
 
         let (withdrawal_amount, _) = calculate_withdrawal_amounts(
             cast(liquidation_fee)?,

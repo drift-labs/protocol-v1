@@ -9,7 +9,10 @@ use crate::error::*;
 use crate::math::bn;
 use crate::math::bn::U192;
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
-use crate::math::constants::{MARK_PRICE_PRECISION, PEG_PRECISION, PRICE_TO_PEG_PRECISION_RATIO};
+use crate::math::constants::{
+    MARK_PRICE_PRECISION, ORACLE_MARK_SPREAD_PRECISION, ORACLE_MARK_SPREAD_PRECISION_U128,
+    PEG_PRECISION, PRICE_TO_PEG_PRECISION_RATIO,
+};
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math::quote_asset::{asset_to_reserve_amount, reserve_to_asset_amount};
 use crate::math_error;
@@ -389,7 +392,7 @@ pub fn calculate_oracle_mark_spread_pct(
         true,
     )?;
     let price_spread_pct = price_spread
-        .checked_shl(10)
+        .checked_mul(ORACLE_MARK_SPREAD_PRECISION)
         .ok_or_else(math_error!())?
         .checked_div(oracle_price)
         .ok_or_else(math_error!())?;
@@ -403,9 +406,25 @@ pub fn is_oracle_mark_too_divergent(
 ) -> ClearingHouseResult<bool> {
     let max_divergence = oracle_guard_rails
         .mark_oracle_divergence_numerator
-        .checked_shl(10)
+        .checked_mul(ORACLE_MARK_SPREAD_PRECISION_U128)
         .ok_or_else(math_error!())?
         .checked_div(oracle_guard_rails.mark_oracle_divergence_denominator)
+        .ok_or_else(math_error!())?;
+
+    Ok(price_spread_pct.unsigned_abs() > max_divergence)
+}
+
+pub fn use_oracle_price_for_margin_calculation(
+    price_spread_pct: i128,
+    oracle_guard_rails: &PriceDivergenceGuardRails,
+) -> ClearingHouseResult<bool> {
+    let max_divergence = oracle_guard_rails
+        .mark_oracle_divergence_numerator
+        .checked_mul(ORACLE_MARK_SPREAD_PRECISION_U128)
+        .ok_or_else(math_error!())?
+        .checked_div(oracle_guard_rails.mark_oracle_divergence_denominator)
+        .ok_or_else(math_error!())?
+        .checked_div(3)
         .ok_or_else(math_error!())?;
 
     Ok(price_spread_pct.unsigned_abs() > max_divergence)

@@ -16,6 +16,7 @@ pub fn block_operation(
         price: oracle_price,
         is_valid: oracle_is_valid,
         mark_too_divergent: is_oracle_mark_too_divergent,
+        oracle_mark_spread_pct: _,
     } = get_oracle_status(
         amm,
         oracle_account_info,
@@ -31,6 +32,7 @@ pub fn block_operation(
 #[derive(Default, Clone, Copy, Debug)]
 pub struct OracleStatus {
     pub price: i128,
+    pub oracle_mark_spread_pct: i128,
     pub is_valid: bool,
     pub mark_too_divergent: bool,
 }
@@ -56,6 +58,7 @@ pub fn get_oracle_status(
 
     Ok(OracleStatus {
         price: oracle_price,
+        oracle_mark_spread_pct,
         is_valid: oracle_is_valid,
         mark_too_divergent: is_oracle_mark_too_divergent,
     })
