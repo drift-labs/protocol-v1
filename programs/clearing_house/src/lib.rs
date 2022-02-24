@@ -1319,14 +1319,6 @@ pub mod clearing_house {
             }
         }
 
-        msg!(
-            "adjusted_total_collateral_after_fee {}",
-            adjusted_total_collateral - liquidation_fee
-        );
-        msg!("margin_requirement {}", margin_requirement);
-        msg!("base_asset_value {}", base_asset_value);
-        msg!("base_asset_value_closed {}", base_asset_value_closed);
-
         let (withdrawal_amount, _) = calculate_withdrawal_amounts(
             cast(liquidation_fee)?,
             &ctx.accounts.collateral_vault,

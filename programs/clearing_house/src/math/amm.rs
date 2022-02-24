@@ -283,10 +283,10 @@ pub fn calculate_oracle_mark_spread(
 
     if window > 0 {
         mark_price = cast_to_i128(amm.last_mark_price_twap)?;
-        mark_price_1bp = mark_price.checked_div(10000).ok_or_else(math_error!())?;
-        let conf_int = cast_to_i128(_oracle_twac)?;
-
         oracle_processed = if normalise {
+            mark_price_1bp = mark_price.checked_div(10000).ok_or_else(math_error!())?;
+            let conf_int = cast_to_i128(_oracle_twac)?;
+
             if mark_price > oracle_twap {
                 min(
                     max(

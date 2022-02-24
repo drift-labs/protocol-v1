@@ -15,9 +15,11 @@ use crate::math::amm::use_oracle_price_for_margin_calculation;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::oracle::{get_oracle_status, OracleStatus};
 use crate::state::state::OracleGuardRails;
-use anchor_lang::prelude::AccountInfo;
+use anchor_lang::prelude::{AccountInfo, Pubkey};
+use anchor_lang::Key;
 use solana_program::clock::Slot;
 use solana_program::msg;
+use std::collections::BTreeMap;
 use std::ops::Div;
 
 pub fn meets_initial_margin_requirement(
@@ -102,6 +104,11 @@ pub fn calculate_liquidation_status(
     let mut adjusted_unrealized_pnl: i128 = 0;
     let mut market_statuses = [MarketStatus::default(); 5];
 
+    let mut oracle_account_infos: BTreeMap<Pubkey, &AccountInfo> = BTreeMap::new();
+    for account_info in remaining_accounts.into_iter() {
+        oracle_account_infos.insert(account_info.key(), account_info);
+    }
+
     for (i, market_position) in user_positions.positions.iter().enumerate() {
         if market_position.base_asset_amount == 0 {
             continue;
@@ -120,9 +127,8 @@ pub fn calculate_liquidation_status(
             .ok_or_else(math_error!())?;
 
         // Block the liquidation if the oracle is invalid or the oracle and mark are too divergent
-        let oracle_account_info = remaining_accounts
-            .iter()
-            .find(|account_info| account_info.key.eq(&market.amm.oracle))
+        let oracle_account_info = oracle_account_infos
+            .get(&market.amm.oracle)
             .ok_or(ErrorCode::OracleNotFound)?;
 
         let mark_price_before = market.amm.mark_price()?;
@@ -149,13 +155,13 @@ pub fn calculate_liquidation_status(
                 .checked_div(market_position.base_asset_amount.unsigned_abs())
                 .ok_or_else(math_error!())?;
 
-            let slippage = cast_to_i128(amm_exit_price)?
-                .checked_sub(cast(mark_price_before)?)
+            let close_position_slippage = cast_to_i128(amm_exit_price)?
+                .checked_sub(cast_to_i128(mark_price_before)?)
                 .ok_or_else(math_error!())?;
 
             let oracle_exit_price = oracle_status
                 .price
-                .checked_add(slippage)
+                .checked_add(close_position_slippage)
                 .ok_or_else(math_error!())?;
 
             let (oracle_position_base_asset_value, oracle_position_unrealized_pnl) =
