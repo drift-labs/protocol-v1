@@ -775,8 +775,13 @@ pub mod clearing_house {
         )?;
         let direction_to_close =
             math::position::direction_to_close_position(market_position.base_asset_amount);
-        let (quote_asset_amount, base_asset_amount) =
-            controller::position::close(user, market, market_position, now)?;
+        let (quote_asset_amount, base_asset_amount) = controller::position::close(
+            user,
+            market,
+            market_position,
+            now,
+            Some(mark_price_before),
+        )?;
         let base_asset_amount = base_asset_amount.unsigned_abs();
 
         // Calculate the fee to charge the user
@@ -1165,8 +1170,13 @@ pub mod clearing_house {
                     math::position::direction_to_close_position(market_position.base_asset_amount);
 
                 let mark_price_before = market_status.mark_price_before;
-                let (quote_asset_amount, base_asset_amount) =
-                    controller::position::close(user, market, market_position, now)?;
+                let (quote_asset_amount, base_asset_amount) = controller::position::close(
+                    user,
+                    market,
+                    market_position,
+                    now,
+                    Some(mark_price_before),
+                )?;
                 let base_asset_amount = base_asset_amount.unsigned_abs();
                 base_asset_value_closed = base_asset_value_closed
                     .checked_add(quote_asset_amount)
