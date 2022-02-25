@@ -172,14 +172,14 @@ pub struct InitializeUserOrders<'info> {
 #[instruction(user_orders_nonce: u8)]
 pub struct InitializeUserOrdersWithExplicitPayer<'info> {
     #[account(
-    has_one = authority,
+        has_one = authority,
     )]
     pub user: Box<Account<'info, User>>,
     #[account(
-    init,
-    seeds = [b"user_orders", user.key().as_ref()],
-    bump = user_orders_nonce,
-    payer = payer
+        init,
+        seeds = [b"user_orders", user.key().as_ref()],
+        bump = user_orders_nonce,
+        payer = payer
     )]
     pub user_orders: AccountLoader<'info, UserOrders>,
     pub state: Box<Account<'info, State>>,
