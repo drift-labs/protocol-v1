@@ -151,5 +151,10 @@ describe('max positions', () => {
 			'confirmed'
 		);
 		console.log('compute units', computeUnits);
+		console.log(
+			'tx logs',
+			(await connection.getTransaction(txSig, { commitment: 'confirmed' })).meta
+				.logMessages
+		);
 	});
 });

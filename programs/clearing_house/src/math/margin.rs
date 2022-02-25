@@ -1,8 +1,6 @@
 use crate::error::*;
 use crate::math::collateral::calculate_updated_collateral;
-use crate::math::constants::{
-    AMM_TO_QUOTE_PRECISION_RATIO, MARGIN_PRECISION, MARK_PRICE_PRECISION,
-};
+use crate::math::constants::MARGIN_PRECISION;
 use crate::math::position::{
     calculate_base_asset_value_and_pnl, calculate_base_asset_value_and_pnl_with_oracle_price,
 };
@@ -14,6 +12,7 @@ use std::cell::{Ref, RefMut};
 use crate::math::amm::use_oracle_price_for_margin_calculation;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::oracle::{get_oracle_status, OracleStatus};
+use crate::math::slippage::calculate_slippage;
 use crate::state::state::OracleGuardRails;
 use anchor_lang::prelude::{AccountInfo, Pubkey};
 use anchor_lang::Key;
@@ -86,6 +85,7 @@ pub struct MarketStatus {
     pub maintenance_margin_requirement: u128,
     pub base_asset_value: u128,
     pub mark_price_before: u128,
+    pub close_position_slippage: Option<i128>,
     pub oracle_status: OracleStatus,
 }
 
@@ -143,25 +143,25 @@ pub fn calculate_liquidation_status(
 
         let market_partial_margin_requirement: u128;
         let market_maintenance_margin_requirement: u128;
+        let mut close_position_slippage = None;
         if oracle_status.is_valid
             && use_oracle_price_for_margin_calculation(
                 oracle_status.oracle_mark_spread_pct,
                 &oracle_guard_rails.price_divergence,
             )?
         {
-            let amm_exit_price = base_asset_value
-                .checked_mul(MARK_PRICE_PRECISION * AMM_TO_QUOTE_PRECISION_RATIO)
-                .ok_or_else(math_error!())?
-                .checked_div(market_position.base_asset_amount.unsigned_abs())
-                .ok_or_else(math_error!())?;
-
-            let close_position_slippage = cast_to_i128(amm_exit_price)?
-                .checked_sub(cast_to_i128(mark_price_before)?)
-                .ok_or_else(math_error!())?;
+            let market_index = market_position.market_index;
+            msg!("Calculating oracle pnl for market {}", market_index);
+            let exit_slippage = calculate_slippage(
+                base_asset_value,
+                market_position.base_asset_amount.unsigned_abs(),
+                cast_to_i128(mark_price_before)?,
+            )?;
+            close_position_slippage = Some(exit_slippage);
 
             let oracle_exit_price = oracle_status
                 .price
-                .checked_add(close_position_slippage)
+                .checked_add(exit_slippage)
                 .ok_or_else(math_error!())?;
 
             let (oracle_position_base_asset_value, oracle_position_unrealized_pnl) =
@@ -173,6 +173,7 @@ pub fn calculate_liquidation_status(
             let oracle_provides_better_pnl =
                 oracle_position_unrealized_pnl > amm_position_unrealized_pnl;
             if oracle_provides_better_pnl {
+                msg!("Using oracle pnl for market {}", market_index);
                 adjusted_unrealized_pnl = adjusted_unrealized_pnl
                     .checked_add(oracle_position_unrealized_pnl)
                     .ok_or_else(math_error!())?;
@@ -243,6 +244,7 @@ pub fn calculate_liquidation_status(
             base_asset_value: amm_position_base_asset_value,
             mark_price_before,
             oracle_status,
+            close_position_slippage,
         };
     }
 

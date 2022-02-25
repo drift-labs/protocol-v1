@@ -40,6 +40,7 @@ pub mod clearing_house {
 
     use super::*;
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
+    use crate::math::slippage::{calculate_slippage, calculate_slippage_pct};
     use crate::state::order_state::{OrderFillerRewardStructure, OrderState};
 
     pub fn initialize(
@@ -1166,17 +1167,55 @@ pub mod clearing_house {
                     .find(|position| position.market_index == market_status.market_index)
                     .unwrap();
 
+                let mark_price_before = market_status.mark_price_before;
+                let mark_price_before_i128 = cast_to_i128(mark_price_before)?;
+                let close_position_slippage = match market_status.close_position_slippage {
+                    Some(close_position_slippage) => close_position_slippage,
+                    None => calculate_slippage(
+                        market_status.base_asset_value,
+                        market_position.base_asset_amount.unsigned_abs(),
+                        mark_price_before_i128,
+                    )?,
+                };
+                let close_position_slippage_pct =
+                    calculate_slippage_pct(close_position_slippage, mark_price_before_i128)?;
+
                 let direction_to_close =
                     math::position::direction_to_close_position(market_position.base_asset_amount);
 
-                let mark_price_before = market_status.mark_price_before;
-                let (quote_asset_amount, base_asset_amount) = controller::position::close(
-                    user,
-                    market,
-                    market_position,
-                    now,
-                    Some(mark_price_before),
-                )?;
+                // just reduce position if position is too big
+                let reduce_position = close_position_slippage_pct > MAX_LIQUIDATION_SLIPPAGE
+                    || close_position_slippage_pct < -MAX_LIQUIDATION_SLIPPAGE;
+
+                let (quote_asset_amount, base_asset_amount) = if reduce_position {
+                    let quote_asset_amount = market_status
+                        .base_asset_value
+                        .checked_mul(MAX_LIQUIDATION_SLIPPAGE_U128)
+                        .ok_or_else(math_error!())?
+                        .checked_div(close_position_slippage_pct.unsigned_abs())
+                        .ok_or_else(math_error!())?;
+
+                    let base_asset_amount = controller::position::reduce(
+                        direction_to_close,
+                        quote_asset_amount,
+                        user,
+                        market,
+                        market_position,
+                        now,
+                        Some(mark_price_before),
+                    )?;
+
+                    (quote_asset_amount, base_asset_amount)
+                } else {
+                    controller::position::close(
+                        user,
+                        market,
+                        market_position,
+                        now,
+                        Some(mark_price_before),
+                    )?
+                };
+
                 let base_asset_amount = base_asset_amount.unsigned_abs();
                 base_asset_value_closed = base_asset_value_closed
                     .checked_add(quote_asset_amount)
@@ -1204,7 +1243,14 @@ pub mod clearing_house {
                 });
 
                 margin_requirement = margin_requirement
-                    .checked_sub(market_status.maintenance_margin_requirement)
+                    .checked_sub(
+                        market_status
+                            .maintenance_margin_requirement
+                            .checked_mul(quote_asset_amount)
+                            .ok_or_else(math_error!())?
+                            .checked_div(market_status.base_asset_value)
+                            .ok_or_else(math_error!())?,
+                    )
                     .ok_or_else(math_error!())?;
 
                 let per_market_liquidation_fee = total_collateral
@@ -1212,7 +1258,7 @@ pub mod clearing_house {
                     .ok_or_else(math_error!())?
                     .checked_div(state.full_liquidation_penalty_percentage_denominator)
                     .ok_or_else(math_error!())?
-                    .checked_div(quote_asset_amount)
+                    .checked_mul(quote_asset_amount)
                     .ok_or_else(math_error!())?
                     .checked_div(base_asset_value)
                     .ok_or_else(math_error!())?;
@@ -1249,22 +1295,22 @@ pub mod clearing_house {
                     .unwrap();
 
                 let mark_price_before = market_status.mark_price_before;
-                let base_asset_value = market_status.base_asset_value;
-                let base_asset_value_to_close = base_asset_value
+                let quote_asset_amount = market_status
+                    .base_asset_value
                     .checked_mul(state.partial_liquidation_close_percentage_numerator)
                     .ok_or_else(math_error!())?
                     .checked_div(state.partial_liquidation_close_percentage_denominator)
                     .ok_or_else(math_error!())?;
                 base_asset_value_closed = base_asset_value_closed
-                    .checked_add(base_asset_value_to_close)
+                    .checked_add(quote_asset_amount)
                     .ok_or_else(math_error!())?;
 
                 let direction_to_reduce =
                     math::position::direction_to_close_position(market_position.base_asset_amount);
 
-                let base_asset_amount_change = controller::position::reduce(
+                let base_asset_amount = controller::position::reduce(
                     direction_to_reduce,
-                    base_asset_value_to_close,
+                    quote_asset_amount,
                     user,
                     market,
                     market_position,
@@ -1281,8 +1327,8 @@ pub mod clearing_house {
                     user_authority: user.authority,
                     user: *user.to_account_info().key,
                     direction: direction_to_reduce,
-                    base_asset_amount: base_asset_amount_change,
-                    quote_asset_amount: base_asset_value_to_close,
+                    base_asset_amount,
+                    quote_asset_amount,
                     mark_price_before,
                     mark_price_after,
                     fee: 0,
@@ -1298,9 +1344,9 @@ pub mod clearing_house {
                     .checked_sub(
                         market_status
                             .partial_margin_requirement
-                            .checked_mul(base_asset_value_to_close)
+                            .checked_mul(quote_asset_amount)
                             .ok_or_else(math_error!())?
-                            .checked_div(base_asset_value)
+                            .checked_div(market_status.base_asset_value)
                             .ok_or_else(math_error!())?,
                     )
                     .ok_or_else(math_error!())?;
@@ -1310,7 +1356,7 @@ pub mod clearing_house {
                     .ok_or_else(math_error!())?
                     .checked_div(state.partial_liquidation_penalty_percentage_denominator)
                     .ok_or_else(math_error!())?
-                    .checked_mul(base_asset_value_to_close)
+                    .checked_mul(quote_asset_amount)
                     .ok_or_else(math_error!())?
                     .checked_div(base_asset_value)
                     .ok_or_else(math_error!())?;
