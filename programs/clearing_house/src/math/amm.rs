@@ -16,7 +16,7 @@ use crate::math::constants::{
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math::quote_asset::{asset_to_reserve_amount, reserve_to_asset_amount};
 use crate::math_error;
-use crate::state::market::{Market, AMM};
+use crate::state::market::{Market, OraclePriceData, AMM};
 use crate::state::state::{PriceDivergenceGuardRails, ValidityGuardRails};
 
 pub fn calculate_price(
@@ -267,17 +267,21 @@ pub fn calculate_quote_asset_amount_swapped(
 
 pub fn calculate_oracle_mark_spread(
     amm: &AMM,
-    price_oracle: &AccountInfo,
     window: u32,
-    clock_slot: u64,
+    oracle_price: &OraclePriceData,
     precomputed_mark_price: Option<u128>,
     normalise: bool,
 ) -> ClearingHouseResult<(i128, i128)> {
     let mark_price: i128;
     let mark_price_1bp: i128;
 
-    let (oracle_price, oracle_twap, _oracle_conf, _oracle_twac, _oracle_delay) =
-        amm.get_oracle_price(price_oracle, clock_slot)?;
+    let OraclePriceData {
+        price: oracle_price,
+        twap: oracle_twap,
+        confidence: oracle_conf,
+        twap_confidence: oracle_twac,
+        ..
+    } = *oracle_price;
 
     let oracle_processed: i128;
 
@@ -285,7 +289,7 @@ pub fn calculate_oracle_mark_spread(
         mark_price = cast_to_i128(amm.last_mark_price_twap)?;
         oracle_processed = if normalise {
             mark_price_1bp = mark_price.checked_div(10000).ok_or_else(math_error!())?;
-            let conf_int = cast_to_i128(_oracle_twac)?;
+            let conf_int = cast_to_i128(oracle_twac)?;
 
             if mark_price > oracle_twap {
                 min(
@@ -334,7 +338,7 @@ pub fn calculate_oracle_mark_spread(
         //  (this guarantees more reasonable funding rates in volatile periods)
         oracle_processed = if normalise {
             mark_price_1bp = mark_price.checked_div(10000).ok_or_else(math_error!())?;
-            let conf_int = cast_to_i128(_oracle_conf)?;
+            let conf_int = cast_to_i128(oracle_conf)?;
 
             if mark_price > oracle_price {
                 min(
@@ -378,26 +382,18 @@ pub fn calculate_oracle_mark_spread(
 
 pub fn calculate_oracle_mark_spread_pct(
     amm: &AMM,
-    price_oracle: &AccountInfo,
+    oracle_price_data: &OraclePriceData,
     window: u32,
-    clock_slot: u64,
     precomputed_mark_price: Option<u128>,
-) -> ClearingHouseResult<(i128, i128, i128)> {
-    let (oracle_price, price_spread) = calculate_oracle_mark_spread(
-        amm,
-        price_oracle,
-        window,
-        clock_slot,
-        precomputed_mark_price,
-        true,
-    )?;
-    let price_spread_pct = price_spread
+) -> ClearingHouseResult<i128> {
+    let (oracle_price, price_spread) =
+        calculate_oracle_mark_spread(amm, window, oracle_price_data, precomputed_mark_price, true)?;
+
+    Ok(price_spread
         .checked_mul(ORACLE_MARK_SPREAD_PRECISION)
         .ok_or_else(math_error!())?
         .checked_div(oracle_price)
-        .ok_or_else(math_error!())?;
-
-    Ok((oracle_price, price_spread, price_spread_pct))
+        .ok_or_else(math_error!())?)
 }
 
 pub fn is_oracle_mark_too_divergent(
@@ -431,13 +427,16 @@ pub fn use_oracle_price_for_margin_calculation(
 }
 
 pub fn is_oracle_valid(
-    amm: &AMM,
-    price_oracle: &AccountInfo,
-    clock_slot: u64,
+    oracle_price_data: &OraclePriceData,
     valid_oracle_guard_rails: &ValidityGuardRails,
 ) -> ClearingHouseResult<bool> {
-    let (oracle_price, oracle_twap, oracle_conf, oracle_twap_conf, oracle_delay) =
-        amm.get_oracle_price(price_oracle, clock_slot)?;
+    let OraclePriceData {
+        price: oracle_price,
+        twap: oracle_twap,
+        confidence: oracle_conf,
+        twap_confidence: oracle_twap_conf,
+        delay: oracle_delay,
+    } = *oracle_price_data;
 
     let is_oracle_price_nonpositive = (oracle_twap <= 0) || (oracle_price <= 0);
 

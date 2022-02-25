@@ -41,6 +41,7 @@ pub mod clearing_house {
     use super::*;
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
     use crate::math::slippage::{calculate_slippage, calculate_slippage_pct};
+    use crate::state::market::OraclePriceData;
     use crate::state::order_state::{OrderFillerRewardStructure, OrderState};
 
     pub fn initialize(
@@ -261,7 +262,11 @@ pub mod clearing_house {
             .ok_or_else(math_error!())?;
 
         // Verify oracle is readable
-        let (oracle_price, oracle_price_twap, _, _, _) = market
+        let OraclePriceData {
+            price: oracle_price,
+            twap: oracle_price_twap,
+            ..
+        } = market
             .amm
             .get_oracle_price(&ctx.accounts.oracle, clock_slot)
             .unwrap();
@@ -514,24 +519,22 @@ pub mod clearing_house {
             let market = &mut ctx.accounts.markets.load_mut()?.markets
                 [Markets::index_from_u64(market_index)];
             mark_price_before = market.amm.mark_price()?;
-            let (oracle_price, _, _oracle_mark_spread_pct_before) =
-                amm::calculate_oracle_mark_spread_pct(
-                    &market.amm,
-                    &ctx.accounts.oracle,
-                    0,
-                    clock_slot,
-                    None,
-                )?;
-            oracle_mark_spread_pct_before = _oracle_mark_spread_pct_before;
-            is_oracle_valid = amm::is_oracle_valid(
+            let oracle_price_data = &market
+                .amm
+                .get_oracle_price(&ctx.accounts.oracle, clock_slot)?;
+            oracle_mark_spread_pct_before = amm::calculate_oracle_mark_spread_pct(
                 &market.amm,
-                &ctx.accounts.oracle,
-                clock_slot,
+                oracle_price_data,
+                0,
+                Some(mark_price_before),
+            )?;
+            is_oracle_valid = amm::is_oracle_valid(
+                oracle_price_data,
                 &ctx.accounts.state.oracle_guard_rails.validity,
             )?;
 
             if is_oracle_valid {
-                amm::update_oracle_price_twap(&mut market.amm, now, oracle_price)?;
+                amm::update_oracle_price_twap(&mut market.amm, now, oracle_price_data.price)?;
             }
         }
 
@@ -570,16 +573,16 @@ pub mod clearing_house {
             let market = &mut ctx.accounts.markets.load_mut()?.markets
                 [Markets::index_from_u64(market_index)];
             mark_price_after = market.amm.mark_price()?;
-            let (_oracle_price_after, _oracle_mark_spread_after, _oracle_mark_spread_pct_after) =
-                amm::calculate_oracle_mark_spread_pct(
-                    &market.amm,
-                    &ctx.accounts.oracle,
-                    0,
-                    clock_slot,
-                    Some(mark_price_after),
-                )?;
-            oracle_price_after = _oracle_price_after;
-            oracle_mark_spread_pct_after = _oracle_mark_spread_pct_after;
+            let oracle_price_data = &market
+                .amm
+                .get_oracle_price(&ctx.accounts.oracle, clock_slot)?;
+            oracle_mark_spread_pct_after = amm::calculate_oracle_mark_spread_pct(
+                &market.amm,
+                oracle_price_data,
+                0,
+                Some(mark_price_after),
+            )?;
+            oracle_price_after = oracle_price_data.price;
         }
 
         // Trade fails if it's risk increasing and it brings the user below the initial margin ratio level
@@ -767,11 +770,13 @@ pub mod clearing_house {
 
         // Collect data about market before trade is executed so that it can be stored in trade history
         let mark_price_before = market.amm.mark_price()?;
-        let (_, _, oracle_mark_spread_pct_before) = amm::calculate_oracle_mark_spread_pct(
+        let oracle_price_data = &market
+            .amm
+            .get_oracle_price(&ctx.accounts.oracle, clock_slot)?;
+        let oracle_mark_spread_pct_before = amm::calculate_oracle_mark_spread_pct(
             &market.amm,
-            &ctx.accounts.oracle,
+            oracle_price_data,
             0,
-            clock_slot,
             Some(mark_price_before),
         )?;
         let direction_to_close =
@@ -844,19 +849,16 @@ pub mod clearing_house {
         let mark_price_after = market.amm.mark_price()?;
         let price_oracle = &ctx.accounts.oracle;
 
-        let (oracle_price_after, _oracle_mark_spread_after, oracle_mark_spread_pct_after) =
-            amm::calculate_oracle_mark_spread_pct(
-                &market.amm,
-                &ctx.accounts.oracle,
-                0,
-                clock_slot,
-                Some(mark_price_after),
-            )?;
+        let oracle_mark_spread_pct_after = amm::calculate_oracle_mark_spread_pct(
+            &market.amm,
+            oracle_price_data,
+            0,
+            Some(mark_price_after),
+        )?;
+        let oracle_price_after = oracle_price_data.price;
 
         let is_oracle_valid = amm::is_oracle_valid(
-            &market.amm,
-            &ctx.accounts.oracle,
-            clock_slot,
+            oracle_price_data,
             &ctx.accounts.state.oracle_guard_rails.validity,
         )?;
         if is_oracle_valid {
@@ -1570,7 +1572,10 @@ pub mod clearing_house {
         let market =
             &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
         let price_oracle = &ctx.accounts.oracle;
-        let (oracle_price, _, _, _, _) = market.amm.get_oracle_price(price_oracle, 0)?;
+        let OraclePriceData {
+            price: oracle_price,
+            ..
+        } = market.amm.get_oracle_price(price_oracle, 0)?;
 
         let peg_multiplier_before = market.amm.peg_multiplier;
         let base_asset_reserve_before = market.amm.base_asset_reserve;
@@ -1637,13 +1642,11 @@ pub mod clearing_house {
         let market =
             &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
         let price_oracle = &ctx.accounts.oracle;
-        let (_, oracle_twap, _oracle_conf, _oracle_twac, _oracle_delay) =
-            market.amm.get_oracle_price(price_oracle, clock_slot)?;
+        let oracle_price_data = &market.amm.get_oracle_price(price_oracle, clock_slot)?;
+        let oracle_twap = oracle_price_data.twap;
 
         let is_oracle_valid = amm::is_oracle_valid(
-            &market.amm,
-            &ctx.accounts.oracle,
-            clock_slot,
+            oracle_price_data,
             &ctx.accounts.state.oracle_guard_rails.validity,
         )?;
 
@@ -1690,13 +1693,10 @@ pub mod clearing_house {
         let market =
             &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
         let price_oracle = &ctx.accounts.oracle;
-        let (_, _, _oracle_conf, _oracle_twac, _oracle_delay) =
-            market.amm.get_oracle_price(price_oracle, clock_slot)?;
+        let oracle_price_data = &market.amm.get_oracle_price(price_oracle, clock_slot)?;
 
         let is_oracle_valid = amm::is_oracle_valid(
-            &market.amm,
-            &ctx.accounts.oracle,
-            clock_slot,
+            oracle_price_data,
             &ctx.accounts.state.oracle_guard_rails.validity,
         )?;
 
@@ -1886,7 +1886,10 @@ pub mod clearing_house {
         let total_fee = amm.total_fee;
         let total_fee_minus_distributions = amm.total_fee_minus_distributions;
 
-        let (oracle_price, _, _, _, _) = amm.get_oracle_price(&ctx.accounts.oracle, 0)?;
+        let OraclePriceData {
+            price: oracle_price,
+            ..
+        } = amm.get_oracle_price(&ctx.accounts.oracle, 0)?;
 
         let curve_history = &mut ctx.accounts.curve_history.load_mut()?;
         let record_id = curve_history.next_record_id();

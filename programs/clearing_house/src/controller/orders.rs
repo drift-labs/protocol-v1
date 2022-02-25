@@ -359,16 +359,17 @@ pub fn fill_order(
             .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         let market = markets.get_market_mut(market_index);
         mark_price_before = market.amm.mark_price()?;
-        let (_oracle_price, _, _oracle_mark_spread_pct_before) =
-            amm::calculate_oracle_mark_spread_pct(&market.amm, oracle, 0, clock_slot, None)?;
-        oracle_price = _oracle_price;
-        oracle_mark_spread_pct_before = _oracle_mark_spread_pct_before;
-        is_oracle_valid = amm::is_oracle_valid(
+        let oracle_price_data = &market.amm.get_oracle_price(oracle, clock_slot)?;
+        let price_spread_pct = amm::calculate_oracle_mark_spread_pct(
             &market.amm,
-            oracle,
-            clock_slot,
-            &state.oracle_guard_rails.validity,
+            oracle_price_data,
+            0,
+            Some(mark_price_before),
         )?;
+        oracle_price = oracle_price_data.price;
+        oracle_mark_spread_pct_before = price_spread_pct;
+        is_oracle_valid =
+            amm::is_oracle_valid(oracle_price_data, &state.oracle_guard_rails.validity)?;
         if is_oracle_valid {
             amm::update_oracle_price_twap(&mut market.amm, now, oracle_price)?;
         }
@@ -405,16 +406,14 @@ pub fn fill_order(
             .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         let market = markets.get_market_mut(market_index);
         mark_price_after = market.amm.mark_price()?;
-        let (_oracle_price_after, _oracle_mark_spread_after, _oracle_mark_spread_pct_after) =
-            amm::calculate_oracle_mark_spread_pct(
-                &market.amm,
-                oracle,
-                0,
-                clock_slot,
-                Some(mark_price_after),
-            )?;
-        oracle_price_after = _oracle_price_after;
-        oracle_mark_spread_pct_after = _oracle_mark_spread_pct_after;
+        let oracle_price_data = &market.amm.get_oracle_price(oracle, clock_slot)?;
+        oracle_mark_spread_pct_after = amm::calculate_oracle_mark_spread_pct(
+            &market.amm,
+            oracle_price_data,
+            0,
+            Some(mark_price_after),
+        )?;
+        oracle_price_after = oracle_price_data.price;
     }
 
     // Order fails if the trade is risk increasing and it pushes to mark price too far
