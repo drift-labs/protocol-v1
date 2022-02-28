@@ -240,6 +240,37 @@ export class Admin extends ClearingHouse {
 		return await this.txSender.send(initializeMarketTx, [], this.opts);
 	}
 
+	public async initializeSqMarket(
+		marketIndex: BN,
+		priceOracle: PublicKey,
+		baseAssetReserve: BN,
+		quoteAssetReserve: BN,
+		periodicity: BN,
+		pegMultiplier: BN = PEG_PRECISION
+	): Promise<TransactionSignature> {
+		if (this.getMarketsAccount().markets[marketIndex.toNumber()].initialized) {
+			throw Error(`MarketIndex ${marketIndex.toNumber()} already initialized`);
+		}
+
+		const initializeMarketTx =
+			await this.program.transaction.initializeSqMarket(
+				marketIndex,
+				baseAssetReserve,
+				quoteAssetReserve,
+				periodicity,
+				pegMultiplier,
+				{
+					accounts: {
+						state: await this.getStatePublicKey(),
+						admin: this.wallet.publicKey,
+						oracle: priceOracle,
+						markets: this.getStateAccount().markets,
+					},
+				}
+			);
+		return await this.txSender.send(initializeMarketTx, [], this.opts);
+	}
+
 	public async moveAmmPrice(
 		baseAssetReserve: BN,
 		quoteAssetReserve: BN,

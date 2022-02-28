@@ -215,6 +215,53 @@
       ]
     },
     {
+      "name": "initializeSqMarket",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "markets",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracle",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "marketIndex",
+          "type": "u64"
+        },
+        {
+          "name": "ammBaseAssetReserve",
+          "type": "u128"
+        },
+        {
+          "name": "ammQuoteAssetReserve",
+          "type": "u128"
+        },
+        {
+          "name": "ammPeriodicity",
+          "type": "i64"
+        },
+        {
+          "name": "ammPegMultiplier",
+          "type": "u128"
+        }
+      ]
+    },
+    {
       "name": "depositCollateral",
       "accounts": [
         {

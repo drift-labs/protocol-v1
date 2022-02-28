@@ -6,6 +6,7 @@ use solana_program::msg;
 use crate::controller::amm::{AssetType, SwapDirection};
 use crate::controller::position::PositionDirection;
 use crate::error::*;
+use crate::math::amm::squarify;
 use crate::math::bn;
 use crate::math::bn::U192;
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
@@ -30,6 +31,12 @@ pub fn calculate_price(
         .checked_mul(2)
         .ok_or_else(math_error!())?;
 
+    msg!(
+        "base_asset_reserve: {:?}, peg: {:?}, quote: {:?}",
+        base_asset_reserve,
+        peg_multiplier,
+        quote_asset_reserve
+    );
     U192::from(peg_quote_asset_amount)
         .checked_mul(U192::from(PRICE_TO_PEG_PRECISION_RATIO))
         .ok_or_else(math_error!())?
@@ -65,14 +72,17 @@ pub fn calculate_swap_output(
     };
 
     let new_input_amount_u192 = U192::from(new_input_amount);
+    // let div1 = new_input_amount_u192.ch;
 
+    // msg!("div1: {:?}", div1.try_to_u128()?);
+    // // assert_eq!(true, false);
+
+    // msg!("hihi");
     let new_output_amount = match asset_type {
         AssetType::BASE => invariant
             .checked_div(
                 new_input_amount_u192
                     .checked_mul(new_input_amount_u192)
-                    .ok_or_else(math_error!())?
-                    .checked_div(U192::from(AMM_RESERVE_PRECISION))
                     .ok_or_else(math_error!())?,
             )
             .ok_or_else(math_error!())?
@@ -81,13 +91,14 @@ pub fn calculate_swap_output(
         AssetType::QUOTE => invariant
             .checked_div(new_input_amount_u192)
             .ok_or_else(math_error!())?
-            .try_to_u128()?
-            .checked_mul(100_000_000) // 1e8
+            .checked_mul(U192::from(100_000_000)) // 1e8
             .ok_or_else(math_error!())?
-            .nth_root(2)
+            .integer_sqrt()
+            .try_to_u128()?
             .checked_div(10_000) // 1e4
             .ok_or_else(math_error!())?,
     };
+    msg!("hihi2");
 
     Ok((new_output_amount, new_input_amount))
 }

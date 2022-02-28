@@ -23,12 +23,22 @@ use crate::state::state::{PriceDivergenceGuardRails, ValidityGuardRails};
 
 // todo: should be (x + 1)^2 for low priced coin
 pub fn squarify(value: u128, precision: u128) -> ClearingHouseResult<u128> {
-    let value_half_precision = value
-        .checked_div(precision.checked_div(2).ok_or_else(math_error!())?)
-        .ok_or_else(math_error!())?;
-    let result = value_half_precision
-        .checked_mul(value_half_precision)
-        .ok_or_else(math_error!())?;
+    // let half_precision = precision.checked_div(2).ok_or_else(math_error!())?;
+    let result: u128;
+    // if half_pr ecision > value {
+    // msg!("value: {:?}", value);
+    result = value.checked_mul(value).ok_or_else(math_error!())?;
+    // .checked_div(precision)
+    // .ok_or_else(math_error!())?;
+    // } else {
+    //     let value_half_precision = value
+    //     .checked_div(half_precision)
+    //     .ok_or_else(math_error!())?;
+    //     result = value_half_precision
+    //     .checked_mul(value_half_precision)
+    //     .ok_or_else(math_error!())?;
+    // }
+
     Ok(result)
 }
 
@@ -79,6 +89,7 @@ pub fn calculate_swap_output(
         )?,
         _ => cpcurve::calculate_swap_output(swap_amount, reserve_swapped, direction, amm.sqrt_k)?,
     };
+    msg!("swap output worked {:?}", new_output_amount);
     Ok((new_output_amount, new_input_amount))
 }
 

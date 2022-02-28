@@ -323,14 +323,18 @@ pub mod clearing_house {
             return Err(ErrorCode::MarketIndexAlreadyInitialized.into());
         }
 
-        // if amm_base_asset_reserve != amm_quote_asset_reserve {
-        //     return Err(ErrorCode::InvalidInitialPeg.into());
-        // }
+        if amm_base_asset_reserve > amm_quote_asset_reserve {
+            return Err(ErrorCode::InvalidInitialPeg.into());
+        }
 
         // Verify there's no overflow
-        let _k = bn::U192::from(amm_base_asset_reserve)
+        let sqrt_k = bn::U192::from(amm_base_asset_reserve)
             .checked_mul(bn::U192::from(amm_quote_asset_reserve))
-            .ok_or_else(math_error!())?;
+            .ok_or_else(math_error!())?
+            .checked_mul(bn::U192::from(amm_base_asset_reserve))
+            .ok_or_else(math_error!())?
+            .integer_sqrt()
+            .try_to_u128()?;
 
         // Verify oracle is readable
         let (oracle_price, oracle_price_twap, _, _, _) = market
@@ -368,7 +372,7 @@ pub mod clearing_house {
                 last_oracle_price_twap: cast_to_i128(oracle_price_twap_sq)?,
                 last_mark_price_twap: oracle_price_twap_sq,
                 last_mark_price_twap_ts: now,
-                sqrt_k: amm_base_asset_reserve,
+                sqrt_k: sqrt_k,
                 peg_multiplier: amm_peg_multiplier,
                 total_fee: 0,
                 total_fee_withdrawn: 0,
