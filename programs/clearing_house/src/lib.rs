@@ -1318,6 +1318,12 @@ pub mod clearing_house {
             }
         } else {
             let markets = &mut ctx.accounts.markets.load_mut()?;
+
+            let maximium_base_asset_value_closed = base_asset_value
+                .checked_mul(state.partial_liquidation_close_percentage_numerator)
+                .ok_or_else(math_error!())?
+                .checked_div(state.partial_liquidation_close_percentage_denominator)
+                .ok_or_else(math_error!())?;
             for market_status in market_statuses.iter() {
                 if market_status.base_asset_value == 0 {
                     continue;
@@ -1418,7 +1424,7 @@ pub mod clearing_house {
                     .ok_or_else(math_error!())?
                     .checked_mul(quote_asset_amount)
                     .ok_or_else(math_error!())?
-                    .checked_div(base_asset_value)
+                    .checked_div(maximium_base_asset_value_closed)
                     .ok_or_else(math_error!())?;
 
                 liquidation_fee = liquidation_fee
