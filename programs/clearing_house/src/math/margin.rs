@@ -75,6 +75,7 @@ pub struct LiquidationStatus {
     pub unrealized_pnl: i128,
     pub adjusted_total_collateral: u128,
     pub base_asset_value: u128,
+    pub margin_ratio: u128,
     pub market_statuses: [MarketStatus; 5],
 }
 
@@ -291,6 +292,16 @@ pub fn calculate_liquidation_status(
         });
     }
 
+    let margin_ratio = if base_asset_value == 0 {
+        u128::MAX
+    } else {
+        total_collateral
+            .checked_mul(MARGIN_PRECISION)
+            .ok_or_else(math_error!())?
+            .checked_div(base_asset_value)
+            .ok_or_else(math_error!())?
+    };
+
     Ok(LiquidationStatus {
         liquidation_type,
         margin_requirement,
@@ -299,6 +310,7 @@ pub fn calculate_liquidation_status(
         adjusted_total_collateral,
         base_asset_value,
         market_statuses,
+        margin_ratio,
     })
 }
 

@@ -1129,7 +1129,6 @@ pub mod clearing_house {
             now,
         )?;
 
-        let margin_ratio = 0_u128;
         let LiquidationStatus {
             liquidation_type,
             total_collateral,
@@ -1138,6 +1137,7 @@ pub mod clearing_house {
             base_asset_value,
             market_statuses,
             mut margin_requirement,
+            margin_ratio,
         } = calculate_liquidation_status(
             user,
             user_positions,
