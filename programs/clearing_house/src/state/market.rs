@@ -196,6 +196,7 @@ impl AMM {
     }
 }
 
+#[derive(Default, Clone, Copy, Debug)]
 pub struct OraclePriceData {
     pub price: i128,
     pub twap: i128,

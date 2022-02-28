@@ -39,7 +39,7 @@ pub mod clearing_house {
     use crate::state::history::liquidation::LiquidationRecord;
 
     use super::*;
-    use crate::math::amm::is_oracle_mark_too_divergent;
+    use crate::math::amm::{calculate_oracle_mark_spread_pct, is_oracle_mark_too_divergent};
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
     use crate::math::slippage::{calculate_slippage, calculate_slippage_pct};
     use crate::state::market::OraclePriceData;
@@ -1270,7 +1270,7 @@ pub mod clearing_house {
                     referee_discount: 0,
                     liquidation: true,
                     market_index: market_position.market_index,
-                    oracle_price: market_status.oracle_status.price,
+                    oracle_price: market_status.oracle_status.price_data.price,
                 });
 
                 margin_requirement = margin_requirement
@@ -1351,6 +1351,25 @@ pub mod clearing_house {
                 .unsigned_abs();
 
                 let mark_price_after = market.amm.mark_price()?;
+                let oracle_mark_spread_pct_after_reduce = calculate_oracle_mark_spread_pct(
+                    &market.amm,
+                    &oracle_status.price_data,
+                    0,
+                    Some(mark_price_after),
+                )?;
+                let oracle_mark_is_too_divergent_after_reduce = is_oracle_mark_too_divergent(
+                    oracle_mark_spread_pct_after_reduce,
+                    &state.oracle_guard_rails.price_divergence,
+                )?;
+
+                if oracle_mark_is_too_divergent_after_reduce {
+                    msg!(
+                        "oracle_mark_spread_pct_after_reduce {}",
+                        oracle_mark_spread_pct_after_reduce
+                    );
+                    return Err(ErrorCode::OracleMarkSpreadLimit.into());
+                }
+
                 let record_id = trade_history.next_record_id();
                 trade_history.append(TradeRecord {
                     ts: now,
@@ -1368,7 +1387,7 @@ pub mod clearing_house {
                     referee_discount: 0,
                     liquidation: true,
                     market_index: market_position.market_index,
-                    oracle_price: market_status.oracle_status.price,
+                    oracle_price: market_status.oracle_status.price_data.price,
                 });
 
                 margin_requirement = margin_requirement

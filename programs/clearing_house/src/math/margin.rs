@@ -160,6 +160,7 @@ pub fn calculate_liquidation_status(
             close_position_slippage = Some(exit_slippage);
 
             let oracle_exit_price = oracle_status
+                .price_data
                 .price
                 .checked_add(exit_slippage)
                 .ok_or_else(math_error!())?;
