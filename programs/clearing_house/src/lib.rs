@@ -40,7 +40,8 @@ pub mod clearing_house {
 
     use super::*;
     use crate::math::amm::{
-        calculate_oracle_mark_spread_pct, is_oracle_mark_too_divergent, normalise_oracle_price,
+        calculate_mark_twap_spread_pct, calculate_oracle_mark_spread_pct,
+        is_oracle_mark_too_divergent, normalise_oracle_price,
     };
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
     use crate::math::slippage::{calculate_slippage, calculate_slippage_pct};
@@ -1168,19 +1169,29 @@ pub mod clearing_house {
                     continue;
                 }
 
+                let market = markets.get_market_mut(market_status.market_index);
+                let mark_price_before = market_status.mark_price_before;
                 let oracle_status = &market_status.oracle_status;
+
+                // if the oracle is invalid and the mark moves too far from twap, dont liquidate
                 if !oracle_status.is_valid {
-                    continue;
+                    let mark_twap_divergence =
+                        calculate_mark_twap_spread_pct(&market.amm, mark_price_before)?;
+                    let mark_twap_too_divergent =
+                        mark_twap_divergence.unsigned_abs() >= MAX_MARK_TWAP_DIVERGENCE;
+
+                    if mark_twap_too_divergent {
+                        msg!("mark twap divergence {}", mark_twap_too_divergent);
+                        continue;
+                    }
                 }
 
-                let market = markets.get_market_mut(market_status.market_index);
                 let market_position = &mut user_positions
                     .positions
                     .iter_mut()
                     .find(|position| position.market_index == market_status.market_index)
                     .unwrap();
 
-                let mark_price_before = market_status.mark_price_before;
                 let mark_price_before_i128 = cast_to_i128(mark_price_before)?;
                 let close_position_slippage = match market_status.close_position_slippage {
                     Some(close_position_slippage) => close_position_slippage,
@@ -1330,18 +1341,27 @@ pub mod clearing_house {
                 }
 
                 let oracle_status = &market_status.oracle_status;
-                if !oracle_status.is_valid || oracle_status.mark_too_divergent {
-                    continue;
+                let market = markets.get_market_mut(market_status.market_index);
+                let mark_price_before = market_status.mark_price_before;
+
+                if !oracle_status.is_valid {
+                    let mark_twap_divergence =
+                        calculate_mark_twap_spread_pct(&market.amm, mark_price_before)?;
+                    let mark_twap_too_divergent =
+                        mark_twap_divergence.unsigned_abs() >= MAX_MARK_TWAP_DIVERGENCE;
+
+                    if mark_twap_too_divergent {
+                        msg!("mark twap divergence {}", mark_twap_too_divergent);
+                        continue;
+                    }
                 }
 
-                let market = markets.get_market_mut(market_status.market_index);
                 let market_position = &mut user_positions
                     .positions
                     .iter_mut()
                     .find(|position| position.market_index == market_status.market_index)
                     .unwrap();
 
-                let mark_price_before = market_status.mark_price_before;
                 let quote_asset_amount = market_status
                     .base_asset_value
                     .checked_mul(state.partial_liquidation_close_percentage_numerator)

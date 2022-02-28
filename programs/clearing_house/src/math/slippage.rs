@@ -2,7 +2,7 @@ use crate::error::ClearingHouseResult;
 use crate::error::ErrorCode;
 use crate::math::casting::cast_to_i128;
 use crate::math::constants::{
-    MARK_PRICE_TIMES_AMM_TO_QUOTE_PRECISION_RATIO, ORACLE_MARK_SPREAD_PRECISION,
+    MARK_PRICE_TIMES_AMM_TO_QUOTE_PRECISION_RATIO, PRICE_SPREAD_PRECISION,
 };
 use crate::math_error;
 use solana_program::msg;
@@ -28,7 +28,7 @@ pub fn calculate_slippage_pct(
     mark_price_before: i128,
 ) -> ClearingHouseResult<i128> {
     slippage
-        .checked_mul(ORACLE_MARK_SPREAD_PRECISION)
+        .checked_mul(PRICE_SPREAD_PRECISION)
         .ok_or_else(math_error!())?
         .checked_div(mark_price_before)
         .ok_or_else(math_error!())

@@ -5,8 +5,8 @@ pub const QUOTE_PRECISION: u128 = 1_000_000; // expo = -6
 pub const FUNDING_PAYMENT_PRECISION: u128 = 10_000; // expo = -4
 pub const MARGIN_PRECISION: u128 = 10_000; // expo = -4
 pub const PEG_PRECISION: u128 = 1_000; //expo = -3
-pub const ORACLE_MARK_SPREAD_PRECISION: i128 = 10_000; // expo = -4
-pub const ORACLE_MARK_SPREAD_PRECISION_U128: u128 = 10_000; // expo = -4
+pub const PRICE_SPREAD_PRECISION: i128 = 10_000; // expo = -4
+pub const PRICE_SPREAD_PRECISION_U128: u128 = 10_000; // expo = -4
 
 // PRECISION CONVERSIONS
 pub const PRICE_TO_PEG_PRECISION_RATIO: u128 = MARK_PRICE_PRECISION / PEG_PRECISION; // expo: 7
@@ -54,3 +54,4 @@ pub const DEFAULT_REFEREE_DISCOUNT_DENOMINATOR: u128 = 100;
 // CONSTRAINTS
 pub const MAX_LIQUIDATION_SLIPPAGE: i128 = 100; // expo = -2
 pub const MAX_LIQUIDATION_SLIPPAGE_U128: u128 = 100; // expo = -2
+pub const MAX_MARK_TWAP_DIVERGENCE: u128 = 5_000; // expo = -3
