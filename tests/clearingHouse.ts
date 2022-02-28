@@ -753,7 +753,7 @@ describe('clearing_house', () => {
 			)
 		);
 		assert.ok(
-			liquidationHistory.liquidationRecords[0].marginRatio.eq(new BN(0))
+			liquidationHistory.liquidationRecords[0].marginRatio.eq(new BN(549))
 		);
 	});
 
@@ -885,7 +885,7 @@ describe('clearing_house', () => {
 			)
 		);
 		assert.ok(
-			liquidationHistory.liquidationRecords[1].marginRatio.eq(new BN(0))
+			liquidationHistory.liquidationRecords[1].marginRatio.eq(new BN(489))
 		);
 	});
 
