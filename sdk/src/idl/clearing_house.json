@@ -3029,20 +3029,8 @@
             }
           },
           {
-            "name": "marginRatioInitial",
-            "type": "u32"
-          },
-          {
-            "name": "marginRatioPartial",
-            "type": "u32"
-          },
-          {
-            "name": "marginRatioMaintenance",
-            "type": "u32"
-          },
-          {
             "name": "padding0",
-            "type": "u32"
+            "type": "u128"
           },
           {
             "name": "padding1",
