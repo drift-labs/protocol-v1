@@ -11,12 +11,12 @@ name = "clearing_house"
 [features]
 no-entrypoint = []
 cpi = ["no-entrypoint"]
-mainnet-beta=[]
+mainnet-beta = []
 
 [dependencies]
 anchor-lang = "0.19.0"
 solana-program = "1.8.0"
-spl-token = { version="3.1.1", features = [ "no-entrypoint" ] }
+spl-token = { version = "3.1.1", features = ["no-entrypoint"] }
 anchor-spl = "0.19.0"
 pyth-client = "0.2.2"
 bytemuck = { version = "1.4.0" }
@@ -26,3 +26,4 @@ uint = { version = "0.9.1", default-features = false }
 num-derive = "0.3"
 thiserror = "1.0"
 num-integer = "0.1.44"
+switchboard-aggregator = "0.1.6"

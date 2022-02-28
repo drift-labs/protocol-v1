@@ -41,7 +41,10 @@ const calculateTradeAmount = (amountOfCollateral: BN) => {
 };
 
 describe('clearing_house', () => {
-	const provider = anchor.Provider.local();
+	const provider = anchor.Provider.local(undefined, {
+		commitment: 'confirmed',
+		preflightCommitment: 'confirmed',
+	});
 	const connection = provider.connection;
 	anchor.setProvider(provider);
 	const chProgram = anchor.workspace.ClearingHouse as Program;
@@ -137,7 +140,7 @@ describe('clearing_house', () => {
 		);
 
 		await clearingHouse.fetchAccounts();
-		const marketsAccount: any = clearingHouse.getMarketsAccount();
+		const marketsAccount = clearingHouse.getMarketsAccount();
 
 		const marketData = marketsAccount.markets[0];
 		assert.ok(marketData.initialized);
@@ -153,6 +156,58 @@ describe('clearing_house', () => {
 		assert.ok(ammData.fundingPeriod.eq(periodicity));
 		assert.ok(ammData.lastFundingRate.eq(new BN(0)));
 		assert.ok(!ammData.lastFundingRateTs.eq(new BN(0)));
+	});
+
+	it('Initialize Market with a cloned switchboard oracle', async () => {
+		// This account gets cloned from mainnet when anchor starts up the test
+		// validator (see our Anchor.toml).
+		const btcUsdSwitchboard = new anchor.web3.PublicKey(
+			'8SXvChNYFhRq4EZuZvnhjrB3jJRQCv4k3P4W6hesH3Ee'
+		);
+
+		const periodicity = new BN(60 * 60); // 1 HOUR
+
+		await clearingHouse.initializeMarket(
+			Markets[1].marketIndex,
+			btcUsdSwitchboard,
+			ammInitialBaseAssetAmount,
+			ammInitialQuoteAssetAmount,
+			periodicity
+		);
+
+		await clearingHouse.fetchAccounts();
+		const marketsAccount = clearingHouse.getMarketsAccount();
+
+		const marketData = marketsAccount.markets[1];
+		const ammData = marketData.amm;
+		assert.ok(ammData.oracle.equals(btcUsdSwitchboard));
+		assert.deepEqual(ammData.oracleSource, { switchboard: {} });
+	});
+
+	it('Initialize Market with a cloned pyth oracle', async () => {
+		// This account gets cloned from mainnet when anchor starts up the test
+		// validator (see our Anchor.toml).
+		const btcUsdPyth = new anchor.web3.PublicKey(
+			'HovQMDrbAgAYPCmHVSrezcSmkMtXSSUsLDFANExrZh2J'
+		);
+
+		const periodicity = new BN(60 * 60); // 1 HOUR
+
+		await clearingHouse.initializeMarket(
+			Markets[2].marketIndex,
+			btcUsdPyth,
+			ammInitialBaseAssetAmount,
+			ammInitialQuoteAssetAmount,
+			periodicity
+		);
+
+		await clearingHouse.fetchAccounts();
+		const marketsAccount = clearingHouse.getMarketsAccount();
+
+		const marketData = marketsAccount.markets[2];
+		const ammData = marketData.amm;
+		assert.ok(ammData.oracle.equals(btcUsdPyth));
+		assert.deepEqual(ammData.oracleSource, { pyth: {} });
 	});
 
 	it('Initialize user account and deposit collateral atomically', async () => {

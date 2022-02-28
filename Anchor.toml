@@ -7,3 +7,15 @@ test = "./test-scripts/run-ts-mocha"
 
 [programs.localnet]
 clearing_house = "AsW7LnXB9UA1uec9wi9MctYTgTz7YH9snhxd16GsFaGX"
+
+[test.validator]
+url = "https://api.devnet.solana.com"
+[[test.clone]]
+# btcUsd switchboard oracle
+address = "8SXvChNYFhRq4EZuZvnhjrB3jJRQCv4k3P4W6hesH3Ee"
+[[test.clone]]
+# btcUsd pyth oracle
+address = "HovQMDrbAgAYPCmHVSrezcSmkMtXSSUsLDFANExrZh2J"
+[[test.clone]]
+# xrpUsd switchboard oracle
+address = "WMW5xc3HypXwTnPesyUT49uLsyHwNURsWAEk39onKuk"

@@ -237,8 +237,6 @@ pub mod clearing_house {
         let markets = &mut ctx.accounts.markets.load_mut()?;
         let market = &markets.markets[Markets::index_from_u64(market_index)];
         let clock = Clock::get()?;
-        let now = clock.unix_timestamp;
-        let clock_slot = clock.slot;
 
         if market.initialized {
             return Err(ErrorCode::MarketIndexAlreadyInitialized.into());
@@ -259,12 +257,6 @@ pub mod clearing_house {
             .checked_mul(bn::U192::from(amm_quote_asset_reserve))
             .ok_or_else(math_error!())?;
 
-        // Verify oracle is readable
-        let (oracle_price, oracle_price_twap, _, _, _) = market
-            .amm
-            .get_oracle_price(&ctx.accounts.oracle, clock_slot)
-            .unwrap();
-
         let market = Market {
             initialized: true,
             base_asset_amount_long: 0,
@@ -276,34 +268,15 @@ pub mod clearing_house {
             padding2: 0,
             padding3: 0,
             padding4: 0,
-            amm: AMM {
-                oracle: *ctx.accounts.oracle.key,
-                oracle_source: OracleSource::Pyth,
-                base_asset_reserve: amm_base_asset_reserve,
-                quote_asset_reserve: amm_quote_asset_reserve,
-                cumulative_repeg_rebate_long: 0,
-                cumulative_repeg_rebate_short: 0,
-                cumulative_funding_rate_long: 0,
-                cumulative_funding_rate_short: 0,
-                last_funding_rate: 0,
-                last_funding_rate_ts: now,
-                funding_period: amm_periodicity,
-                last_oracle_price_twap: oracle_price_twap,
-                last_mark_price_twap: init_mark_price,
-                last_mark_price_twap_ts: now,
-                sqrt_k: amm_base_asset_reserve,
-                peg_multiplier: amm_peg_multiplier,
-                total_fee: 0,
-                total_fee_withdrawn: 0,
-                total_fee_minus_distributions: 0,
-                minimum_quote_asset_trade_size: 10000000,
-                last_oracle_price_twap_ts: now,
-                last_oracle_price: oracle_price,
-                minimum_base_asset_trade_size: 10000000,
-                padding1: 0,
-                padding2: 0,
-                padding3: 0,
-            },
+            amm: AMM::new(
+                &ctx.accounts.oracle,
+                amm_base_asset_reserve,
+                amm_quote_asset_reserve,
+                amm_periodicity,
+                amm_peg_multiplier,
+                clock.unix_timestamp,
+                clock.slot,
+            )?,
         };
 
         markets.markets[Markets::index_from_u64(market_index)] = market;
