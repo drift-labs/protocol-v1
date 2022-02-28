@@ -2,8 +2,14 @@ import { PublicKey } from '@solana/web3.js';
 import { EventEmitter } from 'events';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import { ClearingHouse } from './clearingHouse';
-import { UserAccount, UserPosition, UserPositionsAccount } from './types';
-import { calculateEntryPrice } from './math/position';
+import {
+	Order,
+	UserAccount,
+	UserOrdersAccount,
+	UserPosition,
+	UserPositionsAccount,
+} from './types';
+import { calculateEntryPrice, isEmptyPosition } from './math/position';
 import {
 	MARK_PRICE_PRECISION,
 	AMM_TO_QUOTE_PRECISION_RATIO,
@@ -23,6 +29,8 @@ import {
 	calculatePositionFundingPNL,
 	calculatePositionPNL,
 	PositionDirection,
+	getUserOrdersAccountPublicKey,
+	calculateNewStateAfterOrder,
 	calculateTradeSlippage,
 	BN,
 } from '.';
@@ -37,6 +45,7 @@ export class ClearingHouseUser {
 	authority: PublicKey;
 	accountSubscriber: UserAccountSubscriber;
 	userAccountPublicKey?: PublicKey;
+	userOrdersAccountPublicKey?: PublicKey;
 	_isSubscribed = false;
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
 
@@ -111,6 +120,10 @@ export class ClearingHouseUser {
 		return this.accountSubscriber.getUserPositionsAccount();
 	}
 
+	public getUserOrdersAccount(): UserOrdersAccount | undefined {
+		return this.accountSubscriber.getUserOrdersAccount();
+	}
+
 	/**
 	 * Gets the user's current position for a given market. If the user has no position returns undefined
 	 * @param marketIndex
@@ -128,7 +141,28 @@ export class ClearingHouseUser {
 			lastCumulativeFundingRate: ZERO,
 			marketIndex,
 			quoteAssetAmount: ZERO,
+			openOrders: ZERO,
 		};
+	}
+
+	/**
+	 * @param orderId
+	 * @returns Order
+	 */
+	public getOrder(orderId: BN): Order | undefined {
+		return this.getUserOrdersAccount().orders.find((order) =>
+			order.orderId.eq(orderId)
+		);
+	}
+
+	/**
+	 * @param userOrderId
+	 * @returns Order
+	 */
+	public getOrderByUserOrderId(userOrderId: number): Order | undefined {
+		return this.getUserOrdersAccount().orders.find(
+			(order) => order.userOrderId === userOrderId
+		);
 	}
 
 	public async getUserAccountPublicKey(): Promise<PublicKey> {
@@ -141,6 +175,18 @@ export class ClearingHouseUser {
 			this.authority
 		);
 		return this.userAccountPublicKey;
+	}
+
+	public async getUserOrdersAccountPublicKey(): Promise<PublicKey> {
+		if (this.userOrdersAccountPublicKey) {
+			return this.userOrdersAccountPublicKey;
+		}
+
+		this.userOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(
+			this.clearingHouse.program.programId,
+			await this.getUserAccountPublicKey()
+		);
+		return this.userOrdersAccountPublicKey;
 	}
 
 	public async exists(): Promise<boolean> {
@@ -438,6 +484,7 @@ export class ClearingHouseUser {
 			),
 			lastCumulativeFundingRate: new BN(0),
 			quoteAssetAmount: new BN(0),
+			openOrders: new BN(0),
 		};
 
 		const market = this.clearingHouse.getMarket(
@@ -528,14 +575,14 @@ export class ClearingHouseUser {
 		// solves formula for example calc below
 
 		/* example: assume BTC price is $40k (examine 10% up/down)
-			
-			if 10k deposit and levered 10x short BTC => BTC up $400 means:
-			1. higher base_asset_value (+$4k)
-			2. lower collateral (-$4k)
-			3. (10k - 4k)/(100k + 4k) => 6k/104k => .0576
-	
-			for 10x long, BTC down $400:
-			3. (10k - 4k) / (100k - 4k) = 6k/96k => .0625 */
+
+        if 10k deposit and levered 10x short BTC => BTC up $400 means:
+        1. higher base_asset_value (+$4k)
+        2. lower collateral (-$4k)
+        3. (10k - 4k)/(100k + 4k) => 6k/104k => .0576
+
+        for 10x long, BTC down $400:
+        3. (10k - 4k) / (100k - 4k) = 6k/96k => .0625 */
 
 		const tc = this.getTotalCollateral();
 		const tpv = this.getTotalPositionValue();
@@ -566,6 +613,7 @@ export class ClearingHouseUser {
 			lastCumulativeFundingRate:
 				currentMarketPosition.lastCumulativeFundingRate,
 			quoteAssetAmount: new BN(0),
+			openOrders: new BN(0),
 		};
 
 		const market = this.clearingHouse.getMarket(
@@ -700,7 +748,7 @@ export class ClearingHouseUser {
 	 * Case 4: NOT SameSide && currentLeverage > maxLeverage && otherPositions - currentPosition < maxLeverage
 	 * 	=> current position + remaining to get to maxLeverage
 	 *
-	 * @param marketIndex
+	 * @param targetMarketIndex
 	 * @param tradeSide
 	 * @param userMaxLeverageSetting - leverage : Precision TEN_THOUSAND
 	 * @returns tradeSizeAllowed : Precision QUOTE_PRECISION
@@ -842,7 +890,6 @@ export class ClearingHouseUser {
 			this.getTotalPositionValueExcludingMarket(targetMarketIndex);
 
 		const totalCollateral = this.getTotalCollateral();
-
 		if (totalCollateral.gt(ZERO)) {
 			const newLeverage = currentMarketPositionAfterTrade
 				.add(totalPositionAfterTradeExcludingTargetMarket)
@@ -884,5 +931,75 @@ export class ClearingHouseUser {
 		}
 
 		return this.getTotalPositionValue().sub(currentMarketPositionValueUSDC);
+	}
+
+	public canFillOrder(order: Order): boolean {
+		const userAccount = this.getUserAccount();
+		const userPositionsAccount = this.getUserPositionsAccount();
+		const userPosition = this.getUserPosition(order.marketIndex);
+		const market = this.clearingHouse.getMarket(order.marketIndex);
+
+		if (isEmptyPosition(userPosition)) {
+			return false;
+		}
+
+		const newState = calculateNewStateAfterOrder(
+			userAccount,
+			userPosition,
+			market,
+			order
+		);
+		if (newState === null) {
+			return false;
+		}
+		const [userAccountAfter, userPositionAfter, marketAfter] = newState;
+
+		const totalPositionValue = userPositionsAccount.positions.reduce(
+			(positionValue, marketPosition) => {
+				let market = this.clearingHouse.getMarket(marketPosition.marketIndex);
+				if (marketPosition.marketIndex.eq(order.marketIndex)) {
+					market = marketAfter;
+					marketPosition = userPositionAfter;
+				}
+
+				return positionValue.add(
+					calculateBaseAssetValue(market, marketPosition)
+				);
+			},
+			ZERO
+		);
+
+		if (totalPositionValue.eq(ZERO)) {
+			return true;
+		}
+
+		const unrealizedPnL = userPositionsAccount.positions.reduce(
+			(pnl, marketPosition) => {
+				let market = this.clearingHouse.getMarket(marketPosition.marketIndex);
+				pnl = pnl.add(
+					calculatePositionFundingPNL(market, marketPosition).div(
+						PRICE_TO_QUOTE_PRECISION
+					)
+				);
+
+				if (marketPosition.marketIndex.eq(order.marketIndex)) {
+					market = marketAfter;
+					marketPosition = userPositionAfter;
+				}
+
+				// update
+				return pnl.add(calculatePositionPNL(market, marketPosition, false));
+			},
+			ZERO
+		);
+		const totalCollateral = userAccountAfter.collateral.add(unrealizedPnL);
+
+		const marginRatioAfter = totalCollateral
+			.mul(TEN_THOUSAND)
+			.div(totalPositionValue);
+
+		const marginRatioInitial =
+			this.clearingHouse.getStateAccount().marginRatioInitial;
+		return marginRatioAfter.gte(marginRatioInitial);
 	}
 }
