@@ -6,7 +6,7 @@ use crate::math::constants::{
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR,
 };
 use crate::math_error;
-use crate::state::market::{Market, OraclePriceData};
+use crate::state::market::Market;
 
 use crate::state::state::OracleGuardRails;
 

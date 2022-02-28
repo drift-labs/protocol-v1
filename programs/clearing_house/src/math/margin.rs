@@ -10,7 +10,7 @@ use crate::state::user::{User, UserPositions};
 use std::cell::{Ref, RefMut};
 
 use crate::math::amm::use_oracle_price_for_margin_calculation;
-use crate::math::casting::{cast, cast_to_i128};
+use crate::math::casting::cast_to_i128;
 use crate::math::oracle::{get_oracle_status, OracleStatus};
 use crate::math::slippage::calculate_slippage;
 use crate::state::state::OracleGuardRails;
@@ -106,7 +106,7 @@ pub fn calculate_liquidation_status(
     let mut market_statuses = [MarketStatus::default(); 5];
 
     let mut oracle_account_infos: BTreeMap<Pubkey, &AccountInfo> = BTreeMap::new();
-    for account_info in remaining_accounts.into_iter() {
+    for account_info in remaining_accounts.iter() {
         oracle_account_infos.insert(account_info.key(), account_info);
     }
 

@@ -1,6 +1,5 @@
 use std::cmp::{max, min};
 
-use anchor_lang::prelude::AccountInfo;
 use solana_program::msg;
 
 use crate::controller::amm::SwapDirection;
@@ -349,11 +348,11 @@ pub fn calculate_oracle_mark_spread_pct(
     let (oracle_price, price_spread) =
         calculate_oracle_mark_spread(amm, window, oracle_price_data, precomputed_mark_price)?;
 
-    Ok(price_spread
+    price_spread
         .checked_mul(ORACLE_MARK_SPREAD_PRECISION)
         .ok_or_else(math_error!())?
         .checked_div(oracle_price)
-        .ok_or_else(math_error!())?)
+        .ok_or_else(math_error!())
 }
 
 pub fn is_oracle_mark_too_divergent(

@@ -1,6 +1,5 @@
 use crate::error::ClearingHouseResult;
 use crate::math::amm;
-use crate::math::amm::normalise_oracle_price;
 use crate::state::market::{OraclePriceData, AMM};
 use crate::state::state::OracleGuardRails;
 use anchor_lang::prelude::AccountInfo;
