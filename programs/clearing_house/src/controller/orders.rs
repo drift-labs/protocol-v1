@@ -360,14 +360,13 @@ pub fn fill_order(
         let market = markets.get_market_mut(market_index);
         mark_price_before = market.amm.mark_price()?;
         let oracle_price_data = &market.amm.get_oracle_price(oracle, clock_slot)?;
-        let price_spread_pct = amm::calculate_oracle_mark_spread_pct(
+        oracle_mark_spread_pct_before = amm::calculate_oracle_mark_spread_pct(
             &market.amm,
             oracle_price_data,
             0,
             Some(mark_price_before),
         )?;
         oracle_price = oracle_price_data.price;
-        oracle_mark_spread_pct_before = price_spread_pct;
         is_oracle_valid =
             amm::is_oracle_valid(oracle_price_data, &state.oracle_guard_rails.validity)?;
         if is_oracle_valid {
