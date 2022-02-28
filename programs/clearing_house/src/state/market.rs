@@ -56,6 +56,7 @@ pub struct Market {
 pub enum OracleSource {
     Pyth,
     Switchboard,
+    PythSquared,
 }
 
 impl Default for OracleSource {
@@ -100,11 +101,7 @@ pub struct AMM {
 
 impl AMM {
     pub fn mark_price(&self) -> ClearingHouseResult<u128> {
-        amm::calculate_price(
-            self.quote_asset_reserve,
-            self.base_asset_reserve,
-            self.peg_multiplier,
-        )
+        amm::calculate_price(&self)
     }
 
     pub fn get_pyth_price(
@@ -174,16 +171,45 @@ impl AMM {
         ))
     }
 
-    pub fn get_oracle_price(
+    pub fn get_pyth_price_squared(
         &self,
         price_oracle: &AccountInfo,
         clock_slot: u64,
     ) -> ClearingHouseResult<(i128, i128, u128, u128, i64)> {
         let (oracle_px, oracle_twap, oracle_conf, oracle_twac, oracle_delay) =
-            match self.oracle_source {
-                OracleSource::Pyth => self.get_pyth_price(price_oracle, clock_slot)?,
-                OracleSource::Switchboard => (0, 0, 0, 0, 0),
-            };
+            self.get_pyth_price(price_oracle, clock_slot)?;
+        // sqrt(MARK_PRICE_PRECISION) = sqrt(1e10) = 1e5
+        let oracle_px_shrunk = oracle_px.checked_div(100000).ok_or_else(math_error!())?;
+        let oracle_px_sq = oracle_px_shrunk
+            .checked_mul(oracle_px_shrunk)
+            .ok_or_else(math_error!())?;
+
+        let oracle_conf_shrunk = oracle_conf.checked_div(100000).ok_or_else(math_error!())?;
+        let oracle_conf_sq = oracle_conf_shrunk
+            .checked_mul(oracle_conf_shrunk)
+            .ok_or_else(math_error!())?;
+
+        Ok((
+            oracle_px_sq,
+            0, //todo
+            oracle_conf_sq,
+            0, //todo
+            oracle_delay,
+        ))
+    }
+
+    pub fn get_oracle_price(
+        &self,
+        price_oracle: &AccountInfo,
+        clock_slot: u64,
+    ) -> ClearingHouseResult<(i128, i128, u128, u128, i64)> {
+        let (oracle_px, oracle_twap, oracle_conf, oracle_twac, oracle_delay) = match self
+            .oracle_source
+        {
+            OracleSource::Pyth => self.get_pyth_price(price_oracle, clock_slot)?,
+            OracleSource::PythSquared => self.get_pyth_price_squared(price_oracle, clock_slot)?,
+            OracleSource::Switchboard => (0, 0, 0, 0, 0),
+        };
         Ok((
             oracle_px,
             oracle_twap,

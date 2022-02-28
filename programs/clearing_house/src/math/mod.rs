@@ -3,6 +3,8 @@ pub mod bn;
 pub mod casting;
 pub mod collateral;
 pub mod constants;
+pub mod cpcurve;
+pub mod cpsqcurve;
 pub mod fees;
 pub mod funding;
 pub mod margin;

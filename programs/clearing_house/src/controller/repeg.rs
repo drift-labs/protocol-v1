@@ -43,11 +43,7 @@ pub fn repeg(
     if oracle_is_valid {
         let terminal_price_after = amm::calculate_terminal_price(market)?;
 
-        let mark_price_after = amm::calculate_price(
-            market.amm.quote_asset_reserve,
-            market.amm.base_asset_reserve,
-            market.amm.peg_multiplier,
-        )?;
+        let mark_price_after = amm::calculate_price(&market.amm)?;
 
         let oracle_conf_band_top = cast_to_u128(oracle_price)?
             .checked_add(oracle_conf)

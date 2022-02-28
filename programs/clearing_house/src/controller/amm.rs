@@ -14,6 +14,12 @@ pub enum SwapDirection {
     Remove,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum AssetType {
+    QUOTE,
+    BASE,
+}
+
 pub fn swap_quote_asset(
     amm: &mut AMM,
     quote_asset_amount: u128,
@@ -30,12 +36,8 @@ pub fn swap_quote_asset(
     }
 
     let initial_base_asset_reserve = amm.base_asset_reserve;
-    let (new_base_asset_reserve, new_quote_asset_reserve) = amm::calculate_swap_output(
-        quote_asset_reserve_amount,
-        amm.quote_asset_reserve,
-        direction,
-        amm.sqrt_k,
-    )?;
+    let (new_base_asset_reserve, new_quote_asset_reserve) =
+        amm::calculate_swap_output(amm, quote_asset_reserve_amount, direction, AssetType::QUOTE)?;
 
     amm.base_asset_reserve = new_base_asset_reserve;
     amm.quote_asset_reserve = new_quote_asset_reserve;
@@ -56,12 +58,8 @@ pub fn swap_base_asset(
     amm::update_mark_twap(amm, now, None)?;
 
     let initial_quote_asset_reserve = amm.quote_asset_reserve;
-    let (new_quote_asset_reserve, new_base_asset_reserve) = amm::calculate_swap_output(
-        base_asset_swap_amount,
-        amm.base_asset_reserve,
-        direction,
-        amm.sqrt_k,
-    )?;
+    let (new_quote_asset_reserve, new_base_asset_reserve) =
+        amm::calculate_swap_output(amm, base_asset_swap_amount, direction, AssetType::BASE)?;
 
     amm.base_asset_reserve = new_base_asset_reserve;
     amm.quote_asset_reserve = new_quote_asset_reserve;

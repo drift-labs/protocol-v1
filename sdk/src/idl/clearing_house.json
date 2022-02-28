@@ -3640,6 +3640,20 @@
       }
     },
     {
+      "name": "AssetType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "QUOTE"
+          },
+          {
+            "name": "BASE"
+          }
+        ]
+      }
+    },
+    {
       "name": "Type",
       "type": {
         "kind": "enum",
@@ -3677,6 +3691,9 @@
           },
           {
             "name": "Switchboard"
+          },
+          {
+            "name": "PythSquared"
           }
         ]
       }

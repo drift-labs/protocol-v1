@@ -1,4 +1,4 @@
-use crate::controller::amm::SwapDirection;
+use crate::controller::amm::{AssetType, SwapDirection};
 use crate::controller::position::PositionDirection;
 use crate::error::*;
 use crate::math::amm;
@@ -30,10 +30,10 @@ pub fn _calculate_base_asset_value_and_pnl(
     let swap_direction = swap_direction_to_close_position(base_asset_amount);
 
     let (new_quote_asset_reserve, _new_base_asset_reserve) = amm::calculate_swap_output(
+        amm,
         base_asset_amount.unsigned_abs(),
-        amm.base_asset_reserve,
         swap_direction,
-        amm.sqrt_k,
+        AssetType::BASE,
     )?;
 
     let base_asset_value = calculate_quote_asset_amount_swapped(

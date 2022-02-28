@@ -3,7 +3,7 @@ use std::cmp::{max, min};
 use anchor_lang::prelude::AccountInfo;
 use solana_program::msg;
 
-use crate::controller::amm::SwapDirection;
+use crate::controller::amm::{AssetType, SwapDirection};
 use crate::controller::position::PositionDirection;
 use crate::error::*;
 use crate::math::bn;
@@ -12,25 +12,74 @@ use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
 use crate::math::constants::{MARK_PRICE_PRECISION, PEG_PRECISION, PRICE_TO_PEG_PRECISION_RATIO};
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math::quote_asset::{asset_to_reserve_amount, reserve_to_asset_amount};
+
+use crate::math::cpcurve;
+use crate::math::cpsqcurve;
+use num_integer::Roots;
+
 use crate::math_error;
-use crate::state::market::{Market, AMM};
+use crate::state::market::{Market, OracleSource, AMM};
 use crate::state::state::{PriceDivergenceGuardRails, ValidityGuardRails};
 
-pub fn calculate_price(
-    quote_asset_reserve: u128,
-    base_asset_reserve: u128,
-    peg_multiplier: u128,
-) -> ClearingHouseResult<u128> {
-    let peg_quote_asset_amount = quote_asset_reserve
-        .checked_mul(peg_multiplier)
+// todo: should be (x + 1)^2 for low priced coin
+pub fn squarify(value: u128, precision: u128) -> ClearingHouseResult<u128> {
+    let value_half_precision = value
+        .checked_div(precision.checked_div(2).ok_or_else(math_error!())?)
         .ok_or_else(math_error!())?;
+    let result = value_half_precision
+        .checked_mul(value_half_precision)
+        .ok_or_else(math_error!())?;
+    Ok(result)
+}
 
-    U192::from(peg_quote_asset_amount)
-        .checked_mul(U192::from(PRICE_TO_PEG_PRECISION_RATIO))
+pub fn sqrtify(value: u128, precision: u128) -> ClearingHouseResult<u128> {
+    let result = value
+        .checked_mul(100_000_000) // 1e8
         .ok_or_else(math_error!())?
-        .checked_div(U192::from(base_asset_reserve))
-        .ok_or_else(math_error!())?
-        .try_to_u128()
+        .nth_root(2)
+        .checked_div(10_000)
+        .ok_or_else(math_error!())?;
+    Ok(result)
+}
+
+pub fn calculate_price(amm: &AMM) -> ClearingHouseResult<u128> {
+    let price = match amm.oracle_source {
+        OracleSource::PythSquared => cpsqcurve::calculate_price(
+            amm.quote_asset_reserve,
+            amm.base_asset_reserve,
+            amm.peg_multiplier,
+        )?,
+        _ => cpcurve::calculate_price(
+            amm.quote_asset_reserve,
+            amm.base_asset_reserve,
+            amm.peg_multiplier,
+        )?,
+    };
+    Ok(price)
+}
+
+pub fn calculate_swap_output(
+    amm: &AMM,
+    swap_amount: u128,
+    direction: SwapDirection,
+    asset_type: AssetType,
+) -> ClearingHouseResult<(u128, u128)> {
+    let reserve_swapped = match asset_type {
+        AssetType::BASE => amm.base_asset_reserve,
+        AssetType::QUOTE => amm.quote_asset_reserve,
+    };
+
+    let (new_output_amount, new_input_amount) = match amm.oracle_source {
+        OracleSource::PythSquared => cpsqcurve::calculate_swap_output(
+            swap_amount,
+            reserve_swapped,
+            direction,
+            amm.sqrt_k,
+            asset_type,
+        )?,
+        _ => cpcurve::calculate_swap_output(swap_amount, reserve_swapped, direction, amm.sqrt_k)?,
+    };
+    Ok((new_output_amount, new_input_amount))
 }
 
 pub fn calculate_terminal_price(market: &mut Market) -> ClearingHouseResult<u128> {
@@ -40,19 +89,45 @@ pub fn calculate_terminal_price(market: &mut Market) -> ClearingHouseResult<u128
         SwapDirection::Remove
     };
     let (new_quote_asset_amount, new_base_asset_amount) = calculate_swap_output(
+        &market.amm,
         market.base_asset_amount.unsigned_abs(),
-        market.amm.base_asset_reserve,
         swap_direction,
-        market.amm.sqrt_k,
+        AssetType::BASE,
     )?;
 
-    let terminal_price = calculate_price(
-        new_quote_asset_amount,
-        new_base_asset_amount,
-        market.amm.peg_multiplier,
-    )?;
+    let terminal_price = match market.amm.oracle_source {
+        OracleSource::PythSquared => cpsqcurve::calculate_price(
+            new_quote_asset_amount,
+            new_base_asset_amount,
+            market.amm.peg_multiplier,
+        )?,
+        _ => cpcurve::calculate_price(
+            new_quote_asset_amount,
+            new_base_asset_amount,
+            market.amm.peg_multiplier,
+        )?,
+    };
 
     Ok(terminal_price)
+}
+
+pub fn calculate_quote_asset_amount_swapped(
+    quote_asset_reserve_before: u128,
+    quote_asset_reserve_after: u128,
+    swap_direction: SwapDirection,
+    peg_multiplier: u128,
+) -> ClearingHouseResult<u128> {
+    let quote_asset_reserve_change = match swap_direction {
+        SwapDirection::Add => quote_asset_reserve_before
+            .checked_sub(quote_asset_reserve_after)
+            .ok_or_else(math_error!())?,
+
+        SwapDirection::Remove => quote_asset_reserve_after
+            .checked_sub(quote_asset_reserve_before)
+            .ok_or_else(math_error!())?,
+    };
+
+    reserve_to_asset_amount(quote_asset_reserve_change, peg_multiplier)
 }
 
 pub fn update_mark_twap(
@@ -207,59 +282,6 @@ pub fn calculate_twap(
         .ok_or_else(math_error!())?
         .checked_div(denominator)
         .ok_or_else(math_error!())
-}
-
-pub fn calculate_swap_output(
-    swap_amount: u128,
-    input_asset_amount: u128,
-    direction: SwapDirection,
-    invariant_sqrt: u128,
-) -> ClearingHouseResult<(u128, u128)> {
-    let invariant_sqrt_u192 = U192::from(invariant_sqrt);
-    let invariant = invariant_sqrt_u192
-        .checked_mul(invariant_sqrt_u192)
-        .ok_or_else(math_error!())?;
-
-    if direction == SwapDirection::Remove && swap_amount > input_asset_amount {
-        return Err(ErrorCode::TradeSizeTooLarge);
-    }
-
-    let new_input_amount = if let SwapDirection::Add = direction {
-        input_asset_amount
-            .checked_add(swap_amount)
-            .ok_or_else(math_error!())?
-    } else {
-        input_asset_amount
-            .checked_sub(swap_amount)
-            .ok_or_else(math_error!())?
-    };
-
-    let new_input_amount_u192 = U192::from(new_input_amount);
-    let new_output_amount = invariant
-        .checked_div(new_input_amount_u192)
-        .ok_or_else(math_error!())?
-        .try_to_u128()?;
-
-    Ok((new_output_amount, new_input_amount))
-}
-
-pub fn calculate_quote_asset_amount_swapped(
-    quote_asset_reserve_before: u128,
-    quote_asset_reserve_after: u128,
-    swap_direction: SwapDirection,
-    peg_multiplier: u128,
-) -> ClearingHouseResult<u128> {
-    let quote_asset_reserve_change = match swap_direction {
-        SwapDirection::Add => quote_asset_reserve_before
-            .checked_sub(quote_asset_reserve_after)
-            .ok_or_else(math_error!())?,
-
-        SwapDirection::Remove => quote_asset_reserve_after
-            .checked_sub(quote_asset_reserve_before)
-            .ok_or_else(math_error!())?,
-    };
-
-    reserve_to_asset_amount(quote_asset_reserve_change, peg_multiplier)
 }
 
 pub fn calculate_oracle_mark_spread(

@@ -248,12 +248,6 @@ pub mod clearing_house {
             return Err(ErrorCode::InvalidInitialPeg.into());
         }
 
-        let init_mark_price = amm::calculate_price(
-            amm_quote_asset_reserve,
-            amm_base_asset_reserve,
-            amm_peg_multiplier,
-        )?;
-
         // Verify there's no overflow
         let _k = bn::U192::from(amm_base_asset_reserve)
             .checked_mul(bn::U192::from(amm_quote_asset_reserve))
@@ -289,7 +283,7 @@ pub mod clearing_house {
                 last_funding_rate_ts: now,
                 funding_period: amm_periodicity,
                 last_oracle_price_twap: oracle_price_twap,
-                last_mark_price_twap: init_mark_price,
+                last_mark_price_twap: cast_to_u128(oracle_price_twap)?,
                 last_mark_price_twap_ts: now,
                 sqrt_k: amm_base_asset_reserve,
                 peg_multiplier: amm_peg_multiplier,
@@ -299,6 +293,89 @@ pub mod clearing_house {
                 minimum_quote_asset_trade_size: 10000000,
                 last_oracle_price_twap_ts: now,
                 last_oracle_price: oracle_price,
+                minimum_base_asset_trade_size: 10000000,
+                padding1: 0,
+                padding2: 0,
+                padding3: 0,
+            },
+        };
+
+        markets.markets[Markets::index_from_u64(market_index)] = market;
+
+        Ok(())
+    }
+
+    pub fn initialize_sq_market(
+        ctx: Context<InitializeMarket>,
+        market_index: u64,
+        amm_base_asset_reserve: u128,
+        amm_quote_asset_reserve: u128,
+        amm_periodicity: i64,
+        amm_peg_multiplier: u128,
+    ) -> ProgramResult {
+        let markets = &mut ctx.accounts.markets.load_mut()?;
+        let market = &markets.markets[Markets::index_from_u64(market_index)];
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+        let clock_slot = clock.slot;
+
+        if market.initialized {
+            return Err(ErrorCode::MarketIndexAlreadyInitialized.into());
+        }
+
+        // if amm_base_asset_reserve != amm_quote_asset_reserve {
+        //     return Err(ErrorCode::InvalidInitialPeg.into());
+        // }
+
+        // Verify there's no overflow
+        let _k = bn::U192::from(amm_base_asset_reserve)
+            .checked_mul(bn::U192::from(amm_quote_asset_reserve))
+            .ok_or_else(math_error!())?;
+
+        // Verify oracle is readable
+        let (oracle_price, oracle_price_twap, _, _, _) = market
+            .amm
+            .get_oracle_price(&ctx.accounts.oracle, clock_slot)
+            .unwrap();
+
+        let oracle_price_sq = amm::squarify(cast_to_u128(oracle_price)?, MARK_PRICE_PRECISION)?;
+        let oracle_price_twap_sq =
+            amm::squarify(cast_to_u128(oracle_price_twap)?, MARK_PRICE_PRECISION)?;
+
+        let market = Market {
+            initialized: true,
+            base_asset_amount_long: 0,
+            base_asset_amount_short: 0,
+            base_asset_amount: 0,
+            open_interest: 0,
+            padding0: 0,
+            padding1: 0,
+            padding2: 0,
+            padding3: 0,
+            padding4: 0,
+            amm: AMM {
+                oracle: *ctx.accounts.oracle.key,
+                oracle_source: OracleSource::PythSquared,
+                base_asset_reserve: amm_base_asset_reserve,
+                quote_asset_reserve: amm_quote_asset_reserve,
+                cumulative_repeg_rebate_long: 0,
+                cumulative_repeg_rebate_short: 0,
+                cumulative_funding_rate_long: 0,
+                cumulative_funding_rate_short: 0,
+                last_funding_rate: 0,
+                last_funding_rate_ts: now,
+                funding_period: amm_periodicity,
+                last_oracle_price_twap: cast_to_i128(oracle_price_twap_sq)?,
+                last_mark_price_twap: oracle_price_twap_sq,
+                last_mark_price_twap_ts: now,
+                sqrt_k: amm_base_asset_reserve,
+                peg_multiplier: amm_peg_multiplier,
+                total_fee: 0,
+                total_fee_withdrawn: 0,
+                total_fee_minus_distributions: 0,
+                minimum_quote_asset_trade_size: 10000000,
+                last_oracle_price_twap_ts: now,
+                last_oracle_price: cast_to_i128(oracle_price_sq)?,
                 minimum_base_asset_trade_size: 10000000,
                 padding1: 0,
                 padding2: 0,
@@ -1731,11 +1808,7 @@ pub mod clearing_house {
         let base_asset_amount = market.base_asset_amount;
         let open_interest = market.open_interest;
 
-        let price_before = math::amm::calculate_price(
-            market.amm.quote_asset_reserve,
-            market.amm.base_asset_reserve,
-            market.amm.peg_multiplier,
-        )?;
+        let price_before = math::amm::calculate_price(&market.amm)?;
 
         let peg_multiplier_before = market.amm.peg_multiplier;
         let base_asset_reserve_before = market.amm.base_asset_reserve;
@@ -1769,11 +1842,7 @@ pub mod clearing_house {
 
         let amm = &market.amm;
 
-        let price_after = math::amm::calculate_price(
-            amm.quote_asset_reserve,
-            amm.base_asset_reserve,
-            amm.peg_multiplier,
-        )?;
+        let price_after = math::amm::calculate_price(amm)?;
 
         let price_change_too_large = cast_to_i128(price_before)?
             .checked_sub(cast_to_i128(price_after)?)

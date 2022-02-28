@@ -8,7 +8,7 @@ use std::cell::RefMut;
 use std::cmp::min;
 use std::ops::Div;
 
-use crate::controller::amm::SwapDirection;
+use crate::controller::amm::{AssetType, SwapDirection};
 use crate::controller::position::get_position_index;
 use crate::controller::position::PositionDirection;
 use crate::math::amm::calculate_swap_output;
@@ -181,10 +181,10 @@ pub fn calculate_base_asset_amount_user_can_execute(
 
     let initial_base_asset_amount = market.amm.base_asset_reserve;
     let (new_base_asset_amount, _new_quote_asset_amount) = calculate_swap_output(
+        &market.amm,
         quote_asset_reserve_amount,
-        market.amm.quote_asset_reserve,
         order_swap_direction,
-        market.amm.sqrt_k,
+        AssetType::QUOTE,
     )?;
 
     let base_asset_amount = cast_to_i128(initial_base_asset_amount)?
