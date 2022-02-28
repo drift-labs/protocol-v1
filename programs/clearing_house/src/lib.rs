@@ -39,7 +39,9 @@ pub mod clearing_house {
     use crate::state::history::liquidation::LiquidationRecord;
 
     use super::*;
-    use crate::math::amm::{calculate_oracle_mark_spread_pct, is_oracle_mark_too_divergent};
+    use crate::math::amm::{
+        calculate_oracle_mark_spread_pct, is_oracle_mark_too_divergent, normalise_oracle_price,
+    };
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
     use crate::math::slippage::{calculate_slippage, calculate_slippage_pct};
     use crate::state::market::OraclePriceData;
@@ -533,9 +535,13 @@ pub mod clearing_house {
                 oracle_price_data,
                 &ctx.accounts.state.oracle_guard_rails.validity,
             )?;
-
             if is_oracle_valid {
-                amm::update_oracle_price_twap(&mut market.amm, now, oracle_price_data.price)?;
+                let normalised_oracle_price = normalise_oracle_price(
+                    &market.amm,
+                    oracle_price_data,
+                    Some(mark_price_before),
+                )?;
+                amm::update_oracle_price_twap(&mut market.amm, now, normalised_oracle_price)?;
             }
         }
 
@@ -730,6 +736,7 @@ pub mod clearing_house {
                 funding_rate_history,
                 &ctx.accounts.state.oracle_guard_rails,
                 ctx.accounts.state.funding_paused,
+                Some(mark_price_before),
             )?;
         }
 
@@ -863,7 +870,9 @@ pub mod clearing_house {
             &ctx.accounts.state.oracle_guard_rails.validity,
         )?;
         if is_oracle_valid {
-            amm::update_oracle_price_twap(&mut market.amm, now, oracle_price_after)?;
+            let normalised_oracle_price =
+                normalise_oracle_price(&market.amm, oracle_price_data, Some(mark_price_before))?;
+            amm::update_oracle_price_twap(&mut market.amm, now, normalised_oracle_price)?;
         }
 
         // Trade fails if the trade is risk increasing and it pushes to mark price too far
@@ -917,6 +926,7 @@ pub mod clearing_house {
             funding_rate_history,
             &ctx.accounts.state.oracle_guard_rails,
             ctx.accounts.state.funding_paused,
+            Some(mark_price_before),
         )?;
 
         Ok(())
@@ -1858,6 +1868,7 @@ pub mod clearing_house {
             funding_rate_history,
             &ctx.accounts.state.oracle_guard_rails,
             ctx.accounts.state.funding_paused,
+            None,
         )?;
 
         Ok(())

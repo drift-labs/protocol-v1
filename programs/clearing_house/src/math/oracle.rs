@@ -1,5 +1,6 @@
 use crate::error::ClearingHouseResult;
 use crate::math::amm;
+use crate::math::amm::normalise_oracle_price;
 use crate::state::market::{OraclePriceData, AMM};
 use crate::state::state::OracleGuardRails;
 use anchor_lang::prelude::AccountInfo;
@@ -11,7 +12,7 @@ pub fn block_operation(
     clock_slot: Slot,
     guard_rails: &OracleGuardRails,
     precomputed_mark_price: Option<u128>,
-) -> ClearingHouseResult<(bool, i128)> {
+) -> ClearingHouseResult<(bool, OraclePriceData)> {
     let OracleStatus {
         price_data: oracle_price_data,
         is_valid: oracle_is_valid,
@@ -26,7 +27,7 @@ pub fn block_operation(
     )?;
 
     let block = !oracle_is_valid || is_oracle_mark_too_divergent;
-    Ok((block, oracle_price_data.price))
+    Ok((block, oracle_price_data))
 }
 
 #[derive(Default, Clone, Copy, Debug)]

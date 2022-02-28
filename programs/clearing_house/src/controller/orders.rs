@@ -22,6 +22,7 @@ use crate::state::{
 };
 
 use crate::controller;
+use crate::math::amm::normalise_oracle_price;
 use crate::math::fees::calculate_order_fee_tier;
 use crate::order_validation::validate_order;
 use crate::state::history::funding_payment::FundingPaymentHistory;
@@ -367,10 +368,12 @@ pub fn fill_order(
             Some(mark_price_before),
         )?;
         oracle_price = oracle_price_data.price;
+        let normalised_price =
+            normalise_oracle_price(&market.amm, oracle_price_data, Some(mark_price_before))?;
         is_oracle_valid =
             amm::is_oracle_valid(oracle_price_data, &state.oracle_guard_rails.validity)?;
         if is_oracle_valid {
-            amm::update_oracle_price_twap(&mut market.amm, now, oracle_price)?;
+            amm::update_oracle_price_twap(&mut market.amm, now, normalised_price)?;
         }
     }
 
@@ -379,6 +382,7 @@ pub fn fill_order(
     } else {
         None
     };
+
     let (base_asset_amount, quote_asset_amount, potentially_risk_increasing) = execute_order(
         user,
         user_positions,
@@ -591,6 +595,7 @@ pub fn fill_order(
             funding_rate_history,
             &state.oracle_guard_rails,
             state.funding_paused,
+            Some(mark_price_before),
         )?;
     }
 
