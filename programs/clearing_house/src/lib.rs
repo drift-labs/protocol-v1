@@ -39,6 +39,7 @@ pub mod clearing_house {
     use crate::state::history::liquidation::LiquidationRecord;
 
     use super::*;
+    use crate::math::amm::is_oracle_mark_too_divergent;
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
     use crate::math::slippage::{calculate_slippage, calculate_slippage_pct};
     use crate::state::market::OraclePriceData;
@@ -1158,7 +1159,7 @@ pub mod clearing_house {
                 }
 
                 let oracle_status = &market_status.oracle_status;
-                if !oracle_status.is_valid || oracle_status.mark_too_divergent {
+                if !oracle_status.is_valid {
                     continue;
                 }
 
@@ -1182,14 +1183,42 @@ pub mod clearing_house {
                 let close_position_slippage_pct =
                     calculate_slippage_pct(close_position_slippage, mark_price_before_i128)?;
 
+                let close_slippage_pct_too_large = close_position_slippage_pct
+                    > MAX_LIQUIDATION_SLIPPAGE
+                    || close_position_slippage_pct < -MAX_LIQUIDATION_SLIPPAGE;
+
+                let oracle_mark_too_divergence_after_close = if !close_slippage_pct_too_large {
+                    oracle_status
+                        .oracle_mark_spread_pct
+                        .checked_add(close_position_slippage_pct)
+                        .ok_or_else(math_error!())?
+                } else if close_position_slippage_pct > 0 {
+                    oracle_status
+                        .oracle_mark_spread_pct
+                        .checked_add(MAX_LIQUIDATION_SLIPPAGE * 2)
+                        .ok_or_else(math_error!())?
+                } else {
+                    oracle_status
+                        .oracle_mark_spread_pct
+                        .checked_add(-MAX_LIQUIDATION_SLIPPAGE * 2)
+                        .ok_or_else(math_error!())?
+                };
+
+                let oracle_mark_too_divergent_after_close = is_oracle_mark_too_divergent(
+                    oracle_mark_too_divergence_after_close,
+                    &state.oracle_guard_rails.price_divergence,
+                )?;
+
+                // if closing pushes outside the oracle mark threshold, don't liquidate
+                if oracle_mark_too_divergent_after_close {
+                    continue;
+                }
+
                 let direction_to_close =
                     math::position::direction_to_close_position(market_position.base_asset_amount);
 
                 // just reduce position if position is too big
-                let reduce_position = close_position_slippage_pct > MAX_LIQUIDATION_SLIPPAGE
-                    || close_position_slippage_pct < -MAX_LIQUIDATION_SLIPPAGE;
-
-                let (quote_asset_amount, base_asset_amount) = if reduce_position {
+                let (quote_asset_amount, base_asset_amount) = if close_slippage_pct_too_large {
                     let quote_asset_amount = market_status
                         .base_asset_value
                         .checked_mul(MAX_LIQUIDATION_SLIPPAGE_U128)
