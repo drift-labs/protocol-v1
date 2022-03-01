@@ -1211,7 +1211,7 @@ pub mod clearing_house {
                     > MAX_LIQUIDATION_SLIPPAGE
                     || close_position_slippage_pct < -MAX_LIQUIDATION_SLIPPAGE;
 
-                let oracle_mark_too_divergence_after_close = if !close_slippage_pct_too_large {
+                let oracle_mark_divergence_after_close = if !close_slippage_pct_too_large {
                     oracle_status
                         .oracle_mark_spread_pct
                         .checked_add(close_position_slippage_pct)
@@ -1229,12 +1229,16 @@ pub mod clearing_house {
                 };
 
                 let oracle_mark_too_divergent_after_close = is_oracle_mark_too_divergent(
-                    oracle_mark_too_divergence_after_close,
+                    oracle_mark_divergence_after_close,
                     &state.oracle_guard_rails.price_divergence,
                 )?;
 
                 // if closing pushes outside the oracle mark threshold, don't liquidate
                 if oracle_is_valid && oracle_mark_too_divergent_after_close {
+                    msg!(
+                        "oracle_mark_divergence_after_close {}",
+                        oracle_mark_divergence_after_close
+                    );
                     continue;
                 }
 
