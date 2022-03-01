@@ -1176,7 +1176,8 @@ pub mod clearing_house {
                 let oracle_status = &market_status.oracle_status;
 
                 // if the oracle is invalid and the mark moves too far from twap, dont liquidate
-                if !oracle_status.is_valid {
+                let oracle_is_valid = oracle_status.is_valid;
+                if !oracle_is_valid {
                     let mark_twap_divergence =
                         calculate_mark_twap_spread_pct(&market.amm, mark_price_before)?;
                     let mark_twap_too_divergent =
@@ -1233,7 +1234,7 @@ pub mod clearing_house {
                 )?;
 
                 // if closing pushes outside the oracle mark threshold, don't liquidate
-                if oracle_mark_too_divergent_after_close {
+                if oracle_is_valid && oracle_mark_too_divergent_after_close {
                     continue;
                 }
 
@@ -1346,7 +1347,8 @@ pub mod clearing_house {
                 let market = markets.get_market_mut(market_status.market_index);
                 let mark_price_before = market_status.mark_price_before;
 
-                if !oracle_status.is_valid {
+                let oracle_is_valid = oracle_status.is_valid;
+                if !oracle_is_valid {
                     let mark_twap_divergence =
                         calculate_mark_twap_spread_pct(&market.amm, mark_price_before)?;
                     let mark_twap_too_divergent =
@@ -1400,7 +1402,7 @@ pub mod clearing_house {
                     &state.oracle_guard_rails.price_divergence,
                 )?;
 
-                if oracle_mark_is_too_divergent_after_reduce {
+                if oracle_is_valid && oracle_mark_is_too_divergent_after_reduce {
                     msg!(
                         "oracle_mark_spread_pct_after_reduce {}",
                         oracle_mark_spread_pct_after_reduce
