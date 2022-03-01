@@ -435,7 +435,7 @@ pub fn fill_order(
         return Err(ErrorCode::OracleMarkSpreadLimit);
     }
 
-    // Order fails if it's risk increasing and it brings the user below the initial margin ratio level
+    // Order fails if it's risk increasing and it brings the user collateral below the initial margin requirement
     let meets_initial_maintenance_requirement = meets_initial_margin_requirement(
         state,
         user,

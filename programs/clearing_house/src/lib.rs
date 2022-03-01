@@ -1193,7 +1193,12 @@ pub mod clearing_house {
                         mark_twap_divergence.unsigned_abs() >= MAX_MARK_TWAP_DIVERGENCE;
 
                     if mark_twap_too_divergent {
-                        msg!("mark_twap_divergence {}", mark_twap_divergence);
+                        let market_index = market_status.market_index;
+                        msg!(
+                            "mark_twap_divergence {} for market {}",
+                            mark_twap_divergence,
+                            market_index
+                        );
                         continue;
                     }
                 }
@@ -1228,11 +1233,13 @@ pub mod clearing_house {
                 } else if close_position_slippage_pct > 0 {
                     oracle_status
                         .oracle_mark_spread_pct
+                        // approximates price impact based on slippage
                         .checked_add(MAX_LIQUIDATION_SLIPPAGE * 2)
                         .ok_or_else(math_error!())?
                 } else {
                     oracle_status
                         .oracle_mark_spread_pct
+                        // approximates price impact based on slippage
                         .checked_sub(MAX_LIQUIDATION_SLIPPAGE * 2)
                         .ok_or_else(math_error!())?
                 };
@@ -1244,9 +1251,11 @@ pub mod clearing_house {
 
                 // if closing pushes outside the oracle mark threshold, don't liquidate
                 if oracle_is_valid && oracle_mark_too_divergent_after_close {
+                    let market_index = market_position.market_index;
                     msg!(
-                        "oracle_mark_divergence_after_close {}",
-                        oracle_mark_divergence_after_close
+                        "oracle_mark_divergence_after_close {} for market {}",
+                        oracle_mark_divergence_after_close,
+                        market_index,
                     );
                     continue;
                 }
@@ -1369,7 +1378,12 @@ pub mod clearing_house {
                         mark_twap_divergence.unsigned_abs() >= MAX_MARK_TWAP_DIVERGENCE;
 
                     if mark_twap_too_divergent {
-                        msg!("mark_twap_divergence {}", mark_twap_divergence);
+                        let market_index = market_status.market_index;
+                        msg!(
+                            "mark_twap_divergence {} for market {}",
+                            mark_twap_divergence,
+                            market_index
+                        );
                         continue;
                     }
                 }
