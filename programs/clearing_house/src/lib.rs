@@ -1184,7 +1184,7 @@ pub mod clearing_house {
                         mark_twap_divergence.unsigned_abs() >= MAX_MARK_TWAP_DIVERGENCE;
 
                     if mark_twap_too_divergent {
-                        msg!("mark twap divergence {}", mark_twap_too_divergent);
+                        msg!("mark_twap_divergence {}", mark_twap_divergence);
                         continue;
                     }
                 }
@@ -1359,7 +1359,7 @@ pub mod clearing_house {
                         mark_twap_divergence.unsigned_abs() >= MAX_MARK_TWAP_DIVERGENCE;
 
                     if mark_twap_too_divergent {
-                        msg!("mark twap divergence {}", mark_twap_too_divergent);
+                        msg!("mark_twap_divergence {}", mark_twap_divergence);
                         continue;
                     }
                 }
@@ -1467,6 +1467,10 @@ pub mod clearing_house {
                     break;
                 }
             }
+        }
+
+        if base_asset_value_closed == 0 {
+            return Err(print_error!(ErrorCode::NoPositionsLiquidatable)().into());
         }
 
         let (withdrawal_amount, _) = calculate_withdrawal_amounts(

@@ -4127,6 +4127,11 @@
       "code": 6055,
       "name": "UserOrderIdAlreadyInUse",
       "msg": "User Order Id Already In Use"
+    },
+    {
+      "code": 6056,
+      "name": "NoPositionsLiquidatable",
+      "msg": "No positions liquidatable"
     }
   ]
 }
