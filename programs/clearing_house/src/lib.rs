@@ -1166,6 +1166,12 @@ pub mod clearing_house {
         let is_full_liquidation = liquidation_type == LiquidationType::FULL;
         if is_full_liquidation {
             let markets = &mut ctx.accounts.markets.load_mut()?;
+
+            let maximum_liquidation_fee = total_collateral
+                .checked_mul(state.full_liquidation_penalty_percentage_numerator)
+                .ok_or_else(math_error!())?
+                .checked_div(state.full_liquidation_penalty_percentage_denominator)
+                .ok_or_else(math_error!())?;
             for market_status in market_statuses.iter() {
                 if market_status.base_asset_value == 0 {
                     continue;
@@ -1224,7 +1230,7 @@ pub mod clearing_house {
                 } else {
                     oracle_status
                         .oracle_mark_spread_pct
-                        .checked_add(-MAX_LIQUIDATION_SLIPPAGE * 2)
+                        .checked_sub(MAX_LIQUIDATION_SLIPPAGE * 2)
                         .ok_or_else(math_error!())?
                 };
 
@@ -1312,18 +1318,14 @@ pub mod clearing_house {
                     )
                     .ok_or_else(math_error!())?;
 
-                let per_market_liquidation_fee = total_collateral
-                    .checked_mul(state.full_liquidation_penalty_percentage_numerator)
-                    .ok_or_else(math_error!())?
-                    .checked_div(state.full_liquidation_penalty_percentage_denominator)
-                    .ok_or_else(math_error!())?
+                let market_liquidation_fee = maximum_liquidation_fee
                     .checked_mul(quote_asset_amount)
                     .ok_or_else(math_error!())?
                     .checked_div(base_asset_value)
                     .ok_or_else(math_error!())?;
 
                 liquidation_fee = liquidation_fee
-                    .checked_add(per_market_liquidation_fee)
+                    .checked_add(market_liquidation_fee)
                     .ok_or_else(math_error!())?;
 
                 let adjusted_total_collateral_after_fee = adjusted_total_collateral
@@ -1337,7 +1339,12 @@ pub mod clearing_house {
         } else {
             let markets = &mut ctx.accounts.markets.load_mut()?;
 
-            let maximium_base_asset_value_closed = base_asset_value
+            let maximum_liquidation_fee = total_collateral
+                .checked_mul(state.partial_liquidation_penalty_percentage_numerator)
+                .ok_or_else(math_error!())?
+                .checked_div(state.partial_liquidation_penalty_percentage_denominator)
+                .ok_or_else(math_error!())?;
+            let maximum_base_asset_value_closed = base_asset_value
                 .checked_mul(state.partial_liquidation_close_percentage_numerator)
                 .ok_or_else(math_error!())?
                 .checked_div(state.partial_liquidation_close_percentage_denominator)
@@ -1445,18 +1452,14 @@ pub mod clearing_house {
                     )
                     .ok_or_else(math_error!())?;
 
-                let per_market_liquidation_fee = total_collateral
-                    .checked_mul(state.partial_liquidation_penalty_percentage_numerator)
-                    .ok_or_else(math_error!())?
-                    .checked_div(state.partial_liquidation_penalty_percentage_denominator)
-                    .ok_or_else(math_error!())?
+                let market_liquidation_fee = maximum_liquidation_fee
                     .checked_mul(quote_asset_amount)
                     .ok_or_else(math_error!())?
-                    .checked_div(maximium_base_asset_value_closed)
+                    .checked_div(maximum_base_asset_value_closed)
                     .ok_or_else(math_error!())?;
 
                 liquidation_fee = liquidation_fee
-                    .checked_add(per_market_liquidation_fee)
+                    .checked_add(market_liquidation_fee)
                     .ok_or_else(math_error!())?;
 
                 let adjusted_total_collateral_after_fee = adjusted_total_collateral
