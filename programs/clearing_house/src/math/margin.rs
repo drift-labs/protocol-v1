@@ -154,7 +154,6 @@ pub fn calculate_liquidation_status(
             )?
         {
             let market_index = market_position.market_index;
-            msg!("Calculating oracle pnl for market {}", market_index);
             let exit_slippage = calculate_slippage(
                 amm_position_base_asset_value,
                 market_position.base_asset_amount.unsigned_abs(),
