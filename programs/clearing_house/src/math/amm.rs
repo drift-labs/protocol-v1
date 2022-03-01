@@ -310,6 +310,10 @@ pub fn normalise_oracle_price(
     let mark_price_1bp = mark_price.checked_div(10000).ok_or_else(math_error!())?;
     let conf_int = cast_to_i128(oracle_conf)?;
 
+    //  normalises oracle toward mark price based on the oracle’s confidence interval
+    //  if mark above oracle: use oracle+conf unless it exceeds .9999 * mark price
+    //  if mark below oracle: use oracle-conf unless it less than 1.0001 * mark price
+    //  (this guarantees more reasonable funding rates in volatile periods)
     let normalised_price = if mark_price > oracle_price {
         min(
             max(
