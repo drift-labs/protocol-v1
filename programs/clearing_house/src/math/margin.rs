@@ -156,7 +156,7 @@ pub fn calculate_liquidation_status(
             let market_index = market_position.market_index;
             msg!("Calculating oracle pnl for market {}", market_index);
             let exit_slippage = calculate_slippage(
-                base_asset_value,
+                amm_position_base_asset_value,
                 market_position.base_asset_amount.unsigned_abs(),
                 cast_to_i128(mark_price_before)?,
             )?;
@@ -264,8 +264,8 @@ pub fn calculate_liquidation_status(
     let adjusted_total_collateral =
         calculate_updated_collateral(user.collateral, adjusted_unrealized_pnl)?;
 
-    let requires_partial_liquidation = total_collateral < partial_margin_requirement;
-    let requires_full_liquidation = total_collateral < maintenance_margin_requirement;
+    let requires_partial_liquidation = adjusted_total_collateral < partial_margin_requirement;
+    let requires_full_liquidation = adjusted_total_collateral < maintenance_margin_requirement;
 
     let liquidation_type = if requires_full_liquidation {
         LiquidationType::FULL
