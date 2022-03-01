@@ -277,7 +277,7 @@ pub fn calculate_liquidation_status(
     let margin_requirement = match liquidation_type {
         LiquidationType::FULL => maintenance_margin_requirement,
         LiquidationType::PARTIAL => partial_margin_requirement,
-        LiquidationType::NONE => 0,
+        LiquidationType::NONE => partial_margin_requirement,
     };
 
     // Sort the market statuses such that we close the markets with biggest margin requirements first
