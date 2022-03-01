@@ -1159,11 +1159,14 @@ pub mod clearing_house {
             return Err(ErrorCode::SufficientCollateral.into());
         }
 
+        let is_dust_position = adjusted_total_collateral <= QUOTE_PRECISION;
+
         // Keep track to the value of positions closed. For full liquidation this is the user's entire position,
         // for partial it is less (it's based on the clearing house state)
         let mut base_asset_value_closed: u128 = 0;
         let mut liquidation_fee = 0_u128;
-        let is_full_liquidation = liquidation_type == LiquidationType::FULL;
+        // have to fully liquidate dust positions to make it worth it for liquidators
+        let is_full_liquidation = liquidation_type == LiquidationType::FULL || is_dust_position;
         if is_full_liquidation {
             let markets = &mut ctx.accounts.markets.load_mut()?;
 
@@ -1332,7 +1335,7 @@ pub mod clearing_house {
                     .checked_sub(liquidation_fee)
                     .ok_or_else(math_error!())?;
 
-                if margin_requirement < adjusted_total_collateral_after_fee {
+                if !is_dust_position && margin_requirement < adjusted_total_collateral_after_fee {
                     break;
                 }
             }
