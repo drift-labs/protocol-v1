@@ -1251,13 +1251,18 @@ pub mod clearing_house {
 
                 // if closing pushes outside the oracle mark threshold, don't liquidate
                 if oracle_is_valid && oracle_mark_too_divergent_after_close {
-                    let market_index = market_position.market_index;
-                    msg!(
-                        "oracle_mark_divergence_after_close {} for market {}",
-                        oracle_mark_divergence_after_close,
-                        market_index,
-                    );
-                    continue;
+                    // but only skip the liquidation if it makes the divergence worse
+                    if oracle_status.oracle_mark_spread_pct.unsigned_abs()
+                        < oracle_mark_divergence_after_close.unsigned_abs()
+                    {
+                        let market_index = market_position.market_index;
+                        msg!(
+                            "oracle_mark_divergence_after_close {} for market {}",
+                            oracle_mark_divergence_after_close,
+                            market_index,
+                        );
+                        continue;
+                    }
                 }
 
                 let direction_to_close =
@@ -1430,12 +1435,18 @@ pub mod clearing_house {
                     &state.oracle_guard_rails.price_divergence,
                 )?;
 
+                // if reducing pushes outside the oracle mark threshold, don't liquidate
                 if oracle_is_valid && oracle_mark_is_too_divergent_after_reduce {
-                    msg!(
-                        "oracle_mark_spread_pct_after_reduce {}",
-                        oracle_mark_spread_pct_after_reduce
-                    );
-                    return Err(ErrorCode::OracleMarkSpreadLimit.into());
+                    // but only skip the liquidation if it makes the divergence worse
+                    if oracle_status.oracle_mark_spread_pct.unsigned_abs()
+                        < oracle_mark_spread_pct_after_reduce.unsigned_abs()
+                    {
+                        msg!(
+                            "oracle_mark_spread_pct_after_reduce {}",
+                            oracle_mark_spread_pct_after_reduce
+                        );
+                        return Err(ErrorCode::OracleMarkSpreadLimit.into());
+                    }
                 }
 
                 let record_id = trade_history.next_record_id();
