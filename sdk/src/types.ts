@@ -278,6 +278,9 @@ export type Market = {
 	baseAssetAmountShort: BN;
 	initialized: boolean;
 	openInterest: BN;
+	marginRatioInitial: number;
+	marginRatioMaintenance: number;
+	marginRatioPartial: number;
 };
 
 export type AMM = {
