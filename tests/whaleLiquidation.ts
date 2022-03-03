@@ -45,7 +45,7 @@ describe('whale liquidation', () => {
 		mantissaSqrtScale
 	);
 
-	const usdcAmount = new BN(25 * 10 ** 8);
+	const usdcAmount = new BN(30 * 10 ** 8);
 
 	const maxPositions = 5;
 
@@ -103,6 +103,44 @@ describe('whale liquidation', () => {
 		await clearingHouse.unsubscribe();
 	});
 
+	it('partial liquidate', async () => {
+		const markets = clearingHouse.getMarketsAccount();
+		for (let i = 0; i < maxPositions; i++) {
+			const oracle = markets.markets[i].amm.oracle;
+			await setFeedPrice(anchor.workspace.Pyth, 0.85, oracle);
+			await clearingHouse.moveAmmPrice(
+				ammInitialBaseAssetReserve.mul(new BN(10)).div(new BN(71)),
+				ammInitialQuoteAssetReserve.mul(new BN(10)).div(new BN(80)),
+				new BN(i)
+			);
+		}
+
+		const txSig = await clearingHouse.liquidate(userAccountPublicKey);
+		const computeUnits = await findComputeUnitConsumption(
+			clearingHouse.program.programId,
+			connection,
+			txSig,
+			'confirmed'
+		);
+		console.log('compute units', computeUnits);
+		console.log(
+			'tx logs',
+			(await connection.getTransaction(txSig, { commitment: 'confirmed' })).meta
+				.logMessages
+		);
+
+		const liquidationHistory = clearingHouse.getLiquidationHistoryAccount();
+		const liquidationRecord = liquidationHistory.liquidationRecords[0];
+
+		assert(liquidationRecord.partial);
+		// 15% of position closed
+		assert(liquidationRecord.baseAssetValue.eq(new BN(12574371680)));
+		assert(liquidationRecord.baseAssetValueClosed.eq(new BN(1886155752)));
+		// 1.5% of total collateral taken
+		assert(liquidationRecord.totalCollateral.eq(new BN(705857160)));
+		assert(liquidationRecord.liquidationFee.eq(new BN(10587855)));
+	});
+
 	it('liquidate', async () => {
 		const markets = clearingHouse.getMarketsAccount();
 		for (let i = 0; i < maxPositions; i++) {
@@ -130,14 +168,14 @@ describe('whale liquidation', () => {
 		);
 
 		const liquidationHistory = clearingHouse.getLiquidationHistoryAccount();
-		const liquidationRecord = liquidationHistory.liquidationRecords[0];
+		const liquidationRecord = liquidationHistory.liquidationRecords[1];
 
 		assert(!liquidationRecord.partial);
 		// 41% of position closed
-		assert(liquidationRecord.baseAssetValue.eq(new BN(10015052925)));
-		assert(liquidationRecord.baseAssetValueClosed.eq(new BN(4172938715)));
+		assert(liquidationRecord.baseAssetValue.eq(new BN(10249423566)));
+		assert(liquidationRecord.baseAssetValueClosed.eq(new BN(4180276391)));
 		// 41% of total collateral taken
-		assert(liquidationRecord.totalCollateral.eq(new BN(125131870)));
-		assert(liquidationRecord.liquidationFee.eq(new BN(52138275)));
+		assert(liquidationRecord.totalCollateral.eq(new BN(256476943)));
+		assert(liquidationRecord.liquidationFee.eq(new BN(104605344)));
 	});
 });

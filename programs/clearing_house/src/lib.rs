@@ -47,6 +47,7 @@ pub mod clearing_house {
     use crate::math::slippage::{calculate_slippage, calculate_slippage_pct};
     use crate::state::market::OraclePriceData;
     use crate::state::order_state::{OrderFillerRewardStructure, OrderState};
+    use std::ops::Div;
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -1399,12 +1400,82 @@ pub mod clearing_house {
                     .find(|position| position.market_index == market_status.market_index)
                     .unwrap();
 
-                let quote_asset_amount = market_status
+                let mut quote_asset_amount = market_status
                     .base_asset_value
                     .checked_mul(state.partial_liquidation_close_percentage_numerator)
                     .ok_or_else(math_error!())?
                     .checked_div(state.partial_liquidation_close_percentage_denominator)
                     .ok_or_else(math_error!())?;
+
+                let mark_price_before_i128 = cast_to_i128(mark_price_before)?;
+                let reduce_position_slippage = match market_status.close_position_slippage {
+                    Some(close_position_slippage) => close_position_slippage.div(4),
+                    None => calculate_slippage(
+                        market_status.base_asset_value,
+                        market_position.base_asset_amount.unsigned_abs(),
+                        mark_price_before_i128,
+                    )?
+                    .div(4),
+                };
+
+                let reduce_position_slippage_pct =
+                    calculate_slippage_pct(reduce_position_slippage, mark_price_before_i128)?;
+
+                msg!(
+                    "reduce_position_slippage_pct {}",
+                    reduce_position_slippage_pct
+                );
+
+                let reduce_slippage_pct_too_large = reduce_position_slippage_pct
+                    > MAX_LIQUIDATION_SLIPPAGE
+                    || reduce_position_slippage_pct < -MAX_LIQUIDATION_SLIPPAGE;
+
+                let oracle_mark_divergence_after_reduce = if !reduce_slippage_pct_too_large {
+                    oracle_status
+                        .oracle_mark_spread_pct
+                        .checked_add(reduce_position_slippage_pct)
+                        .ok_or_else(math_error!())?
+                } else if reduce_position_slippage_pct > 0 {
+                    oracle_status
+                        .oracle_mark_spread_pct
+                        // approximates price impact based on slippage
+                        .checked_add(MAX_LIQUIDATION_SLIPPAGE * 2)
+                        .ok_or_else(math_error!())?
+                } else {
+                    oracle_status
+                        .oracle_mark_spread_pct
+                        // approximates price impact based on slippage
+                        .checked_sub(MAX_LIQUIDATION_SLIPPAGE * 2)
+                        .ok_or_else(math_error!())?
+                };
+
+                let oracle_mark_too_divergent_after_reduce = is_oracle_mark_too_divergent(
+                    oracle_mark_divergence_after_reduce,
+                    &state.oracle_guard_rails.price_divergence,
+                )?;
+
+                // if reducing pushes outside the oracle mark threshold, don't liquidate
+                if oracle_is_valid && oracle_mark_too_divergent_after_reduce {
+                    // but only skip the liquidation if it makes the divergence worse
+                    if oracle_status.oracle_mark_spread_pct.unsigned_abs()
+                        < oracle_mark_divergence_after_reduce.unsigned_abs()
+                    {
+                        msg!(
+                            "oracle_mark_spread_pct_after_reduce {}",
+                            oracle_mark_divergence_after_reduce
+                        );
+                        return Err(ErrorCode::OracleMarkSpreadLimit.into());
+                    }
+                }
+
+                if reduce_slippage_pct_too_large {
+                    quote_asset_amount = quote_asset_amount
+                        .checked_mul(MAX_LIQUIDATION_SLIPPAGE_U128)
+                        .ok_or_else(math_error!())?
+                        .checked_div(reduce_position_slippage_pct.unsigned_abs())
+                        .ok_or_else(math_error!())?;
+                }
+
                 base_asset_value_closed = base_asset_value_closed
                     .checked_add(quote_asset_amount)
                     .ok_or_else(math_error!())?;
@@ -1424,30 +1495,6 @@ pub mod clearing_house {
                 .unsigned_abs();
 
                 let mark_price_after = market.amm.mark_price()?;
-                let oracle_mark_spread_pct_after_reduce = calculate_oracle_mark_spread_pct(
-                    &market.amm,
-                    &oracle_status.price_data,
-                    0,
-                    Some(mark_price_after),
-                )?;
-                let oracle_mark_is_too_divergent_after_reduce = is_oracle_mark_too_divergent(
-                    oracle_mark_spread_pct_after_reduce,
-                    &state.oracle_guard_rails.price_divergence,
-                )?;
-
-                // if reducing pushes outside the oracle mark threshold, don't liquidate
-                if oracle_is_valid && oracle_mark_is_too_divergent_after_reduce {
-                    // but only skip the liquidation if it makes the divergence worse
-                    if oracle_status.oracle_mark_spread_pct.unsigned_abs()
-                        < oracle_mark_spread_pct_after_reduce.unsigned_abs()
-                    {
-                        msg!(
-                            "oracle_mark_spread_pct_after_reduce {}",
-                            oracle_mark_spread_pct_after_reduce
-                        );
-                        return Err(ErrorCode::OracleMarkSpreadLimit.into());
-                    }
-                }
 
                 let record_id = trade_history.next_record_id();
                 trade_history.append(TradeRecord {
