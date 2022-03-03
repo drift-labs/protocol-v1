@@ -40,8 +40,7 @@ pub mod clearing_house {
 
     use super::*;
     use crate::math::amm::{
-        calculate_mark_twap_spread_pct, calculate_oracle_mark_spread_pct,
-        is_oracle_mark_too_divergent, normalise_oracle_price,
+        calculate_mark_twap_spread_pct, is_oracle_mark_too_divergent, normalise_oracle_price,
     };
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
     use crate::math::slippage::{calculate_slippage, calculate_slippage_pct};
