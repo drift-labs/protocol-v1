@@ -3,13 +3,14 @@ import { EventEmitter } from 'events';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import { ClearingHouse } from './clearingHouse';
 import {
+	MarginCategory,
 	Order,
 	UserAccount,
 	UserOrdersAccount,
 	UserPosition,
 	UserPositionsAccount,
 } from './types';
-import { calculateEntryPrice, isEmptyPosition } from './math/position';
+import { calculateEntryPrice } from './math/position';
 import {
 	MARK_PRICE_PRECISION,
 	AMM_TO_QUOTE_PRECISION_RATIO,
@@ -30,7 +31,6 @@ import {
 	calculatePositionPNL,
 	PositionDirection,
 	getUserOrdersAccountPublicKey,
-	calculateNewStateAfterOrder,
 	calculateTradeSlippage,
 	BN,
 } from '.';
@@ -202,9 +202,9 @@ export class ClearingHouseUser {
 	 * calculates Buying Power = FC * MAX_LEVERAGE
 	 * @returns : Precision QUOTE_PRECISION
 	 */
-	public getBuyingPower(): BN {
+	public getBuyingPower(marketIndex: BN | number): BN {
 		return this.getFreeCollateral()
-			.mul(this.getMaxLeverage('Initial'))
+			.mul(this.getMaxLeverage(marketIndex, 'Initial'))
 			.div(TEN_THOUSAND);
 	}
 
@@ -213,10 +213,37 @@ export class ClearingHouseUser {
 	 * @returns : Precision QUOTE_PRECISION
 	 */
 	public getFreeCollateral(): BN {
-		return this.getTotalCollateral().sub(
-			this.getTotalPositionValue()
-				.mul(TEN_THOUSAND)
-				.div(this.getMaxLeverage('Initial'))
+		const totalCollateral = this.getTotalCollateral();
+		const initialMarginRequirement = this.getInitialMarginRequirement();
+		const freeCollateral = totalCollateral.sub(initialMarginRequirement);
+		return freeCollateral.gte(ZERO) ? freeCollateral : ZERO;
+	}
+
+	public getInitialMarginRequirement(): BN {
+		return this.getUserPositionsAccount().positions.reduce(
+			(marginRequirement, marketPosition) => {
+				const market = this.clearingHouse.getMarket(marketPosition.marketIndex);
+				return marginRequirement.add(
+					calculateBaseAssetValue(market, marketPosition)
+						.mul(new BN(market.marginRatioInitial))
+						.div(MARK_PRICE_PRECISION)
+				);
+			},
+			ZERO
+		);
+	}
+
+	public getPartialMarginRequirement(): BN {
+		return this.getUserPositionsAccount().positions.reduce(
+			(marginRequirement, marketPosition) => {
+				const market = this.clearingHouse.getMarket(marketPosition.marketIndex);
+				return marginRequirement.add(
+					calculateBaseAssetValue(market, marketPosition)
+						.mul(new BN(market.marginRatioPartial))
+						.div(MARK_PRICE_PRECISION)
+				);
+			},
+			ZERO
 		);
 	}
 
@@ -363,25 +390,30 @@ export class ClearingHouseUser {
 	 * @params category {Initial, Partial, Maintenance}
 	 * @returns : Precision TEN_THOUSAND
 	 */
-	public getMaxLeverage(category?: 'Initial' | 'Partial' | 'Maintenance'): BN {
-		const chState = this.clearingHouse.getStateAccount();
-		let marginRatioCategory: BN;
+	public getMaxLeverage(
+		marketIndex: BN | number,
+		category: MarginCategory = 'Initial'
+	): BN {
+		const market = this.clearingHouse.getMarket(marketIndex);
+		let marginRatioCategory: number;
 
 		switch (category) {
 			case 'Initial':
-				marginRatioCategory = chState.marginRatioInitial;
+				marginRatioCategory = market.marginRatioInitial;
 				break;
 			case 'Maintenance':
-				marginRatioCategory = chState.marginRatioMaintenance;
+				marginRatioCategory = market.marginRatioMaintenance;
 				break;
 			case 'Partial':
-				marginRatioCategory = chState.marginRatioPartial;
+				marginRatioCategory = market.marginRatioPartial;
 				break;
 			default:
-				marginRatioCategory = chState.marginRatioInitial;
+				marginRatioCategory = market.marginRatioInitial;
 				break;
 		}
-		const maxLeverage = TEN_THOUSAND.mul(TEN_THOUSAND).div(marginRatioCategory);
+		const maxLeverage = TEN_THOUSAND.mul(TEN_THOUSAND).div(
+			new BN(marginRatioCategory)
+		);
 		return maxLeverage;
 	}
 
@@ -400,8 +432,10 @@ export class ClearingHouseUser {
 	}
 
 	public canBeLiquidated(): [boolean, BN] {
+		const totalCollateral = this.getTotalCollateral();
+		const partialMaintenanceRequirement = this.getPartialMarginRequirement();
 		const marginRatio = this.getMarginRatio();
-		const canLiquidate = marginRatio.lte(PARTIAL_LIQUIDATION_RATIO);
+		const canLiquidate = totalCollateral.lt(partialMaintenanceRequirement);
 		return [canLiquidate, marginRatio];
 	}
 
@@ -505,14 +539,18 @@ export class ClearingHouseUser {
 		let totalFreeCollateralUSDC = this.getTotalCollateral().sub(
 			this.getTotalPositionValue()
 				.mul(TEN_THOUSAND)
-				.div(this.getMaxLeverage('Maintenance'))
+				.div(
+					this.getMaxLeverage(proposedMarketPosition.marketIndex, 'Maintenance')
+				)
 		);
 
 		if (partial) {
 			totalFreeCollateralUSDC = this.getTotalCollateral().sub(
 				this.getTotalPositionValue()
 					.mul(TEN_THOUSAND)
-					.div(this.getMaxLeverage('Partial'))
+					.div(
+						this.getMaxLeverage(proposedMarketPosition.marketIndex, 'Partial')
+					)
 			);
 		}
 
@@ -572,7 +610,7 @@ export class ClearingHouseUser {
 		positionBaseSizeChange: BN = ZERO,
 		partial = false
 	): BN {
-		// solves formula for example calc below
+		// solves formula for example cacanBeLiquidatedlc below
 
 		/* example: assume BTC price is $40k (examine 10% up/down)
 
@@ -634,14 +672,18 @@ export class ClearingHouseUser {
 		let totalFreeCollateralUSDC = tc.sub(
 			totalCurrentPositionValueIgnoringTargetUSDC
 				.mul(TEN_THOUSAND)
-				.div(this.getMaxLeverage('Maintenance'))
+				.div(
+					this.getMaxLeverage(proposedMarketPosition.marketIndex, 'Maintenance')
+				)
 		);
 
 		if (partial) {
 			totalFreeCollateralUSDC = tc.sub(
 				totalCurrentPositionValueIgnoringTargetUSDC
 					.mul(TEN_THOUSAND)
-					.div(this.getMaxLeverage('Partial'))
+					.div(
+						this.getMaxLeverage(proposedMarketPosition.marketIndex, 'Partial')
+					)
 			);
 		}
 
@@ -931,75 +973,5 @@ export class ClearingHouseUser {
 		}
 
 		return this.getTotalPositionValue().sub(currentMarketPositionValueUSDC);
-	}
-
-	public canFillOrder(order: Order): boolean {
-		const userAccount = this.getUserAccount();
-		const userPositionsAccount = this.getUserPositionsAccount();
-		const userPosition = this.getUserPosition(order.marketIndex);
-		const market = this.clearingHouse.getMarket(order.marketIndex);
-
-		if (isEmptyPosition(userPosition)) {
-			return false;
-		}
-
-		const newState = calculateNewStateAfterOrder(
-			userAccount,
-			userPosition,
-			market,
-			order
-		);
-		if (newState === null) {
-			return false;
-		}
-		const [userAccountAfter, userPositionAfter, marketAfter] = newState;
-
-		const totalPositionValue = userPositionsAccount.positions.reduce(
-			(positionValue, marketPosition) => {
-				let market = this.clearingHouse.getMarket(marketPosition.marketIndex);
-				if (marketPosition.marketIndex.eq(order.marketIndex)) {
-					market = marketAfter;
-					marketPosition = userPositionAfter;
-				}
-
-				return positionValue.add(
-					calculateBaseAssetValue(market, marketPosition)
-				);
-			},
-			ZERO
-		);
-
-		if (totalPositionValue.eq(ZERO)) {
-			return true;
-		}
-
-		const unrealizedPnL = userPositionsAccount.positions.reduce(
-			(pnl, marketPosition) => {
-				let market = this.clearingHouse.getMarket(marketPosition.marketIndex);
-				pnl = pnl.add(
-					calculatePositionFundingPNL(market, marketPosition).div(
-						PRICE_TO_QUOTE_PRECISION
-					)
-				);
-
-				if (marketPosition.marketIndex.eq(order.marketIndex)) {
-					market = marketAfter;
-					marketPosition = userPositionAfter;
-				}
-
-				// update
-				return pnl.add(calculatePositionPNL(market, marketPosition, false));
-			},
-			ZERO
-		);
-		const totalCollateral = userAccountAfter.collateral.add(unrealizedPnL);
-
-		const marginRatioAfter = totalCollateral
-			.mul(TEN_THOUSAND)
-			.div(totalPositionValue);
-
-		const marginRatioInitial =
-			this.clearingHouse.getStateAccount().marginRatioInitial;
-		return marginRatioAfter.gte(marginRatioInitial);
 	}
 }

@@ -446,3 +446,5 @@ export type OrderFillerRewardStructure = {
 	rewardDenominator: BN;
 	timeBasedRewardLowerBound: BN;
 };
+
+export type MarginCategory = 'Initial' | 'Partial' | 'Maintenance';
