@@ -22,6 +22,7 @@ import {
 	QUOTE_PRECISION,
 	AMM_RESERVE_PRECISION,
 	PRICE_TO_QUOTE_PRECISION,
+	MARGIN_PRECISION,
 } from './constants/numericConstants';
 import { UserAccountSubscriber, UserAccountEvents } from './accounts/types';
 import {
@@ -226,7 +227,7 @@ export class ClearingHouseUser {
 				return marginRequirement.add(
 					calculateBaseAssetValue(market, marketPosition)
 						.mul(new BN(market.marginRatioInitial))
-						.div(MARK_PRICE_PRECISION)
+						.div(MARGIN_PRECISION)
 				);
 			},
 			ZERO
@@ -240,7 +241,7 @@ export class ClearingHouseUser {
 				return marginRequirement.add(
 					calculateBaseAssetValue(market, marketPosition)
 						.mul(new BN(market.marginRatioPartial))
-						.div(MARK_PRICE_PRECISION)
+						.div(MARGIN_PRECISION)
 				);
 			},
 			ZERO
@@ -600,17 +601,17 @@ export class ClearingHouseUser {
 
 	/**
 	 * Calculate the liquidation price of a position, with optional parameter to calculate the liquidation price after a trade
-	 * @param targetMarket
+	 * @param marketPosition
 	 * @param positionBaseSizeChange // change in position size to calculate liquidation price for : Precision 10^13
 	 * @param partial
 	 * @returns Precision : MARK_PRICE_PRECISION
 	 */
 	public liquidationPrice(
-		targetMarket: Pick<UserPosition, 'marketIndex'>,
+		marketPosition: Pick<UserPosition, 'marketIndex'>,
 		positionBaseSizeChange: BN = ZERO,
 		partial = false
 	): BN {
-		// solves formula for example cacanBeLiquidatedlc below
+		// solves formula for example canBeLiquidated below
 
 		/* example: assume BTC price is $40k (examine 10% up/down)
 
@@ -622,21 +623,15 @@ export class ClearingHouseUser {
         for 10x long, BTC down $400:
         3. (10k - 4k) / (100k - 4k) = 6k/96k => .0625 */
 
-		const tc = this.getTotalCollateral();
-		const tpv = this.getTotalPositionValue();
-
-		const partialLev = 16;
-		const maintLev = 20;
-
-		const thisLev = partial ? new BN(partialLev) : new BN(maintLev);
+		const totalCollateral = this.getTotalCollateral();
 
 		// calculate the total position value ignoring any value from the target market of the trade
-		const totalCurrentPositionValueIgnoringTargetUSDC =
-			this.getTotalPositionValueExcludingMarket(targetMarket.marketIndex);
+		const totalPositionValueExcludingTargetMarket =
+			this.getTotalPositionValueExcludingMarket(marketPosition.marketIndex);
 
 		const currentMarketPosition =
-			this.getUserPosition(targetMarket.marketIndex) ||
-			this.getEmptyPosition(targetMarket.marketIndex);
+			this.getUserPosition(marketPosition.marketIndex) ||
+			this.getEmptyPosition(marketPosition.marketIndex);
 
 		const currentMarketPositionBaseSize = currentMarketPosition.baseAssetAmount;
 
@@ -646,7 +641,7 @@ export class ClearingHouseUser {
 
 		// calculate position for current market after trade
 		const proposedMarketPosition: UserPosition = {
-			marketIndex: targetMarket.marketIndex,
+			marketIndex: marketPosition.marketIndex,
 			baseAssetAmount: proposedBaseAssetAmount,
 			lastCumulativeFundingRate:
 				currentMarketPosition.lastCumulativeFundingRate,
@@ -654,91 +649,112 @@ export class ClearingHouseUser {
 			openOrders: new BN(0),
 		};
 
+		if (proposedBaseAssetAmount.eq(ZERO)) return new BN(-1);
+
 		const market = this.clearingHouse.getMarket(
 			proposedMarketPosition.marketIndex
 		);
 
-		const proposedMarketPositionValueUSDC = calculateBaseAssetValue(
+		const proposedMarketPositionValue = calculateBaseAssetValue(
 			market,
 			proposedMarketPosition
 		);
 
 		// total position value after trade
-		const targetTotalPositionValueUSDC =
-			totalCurrentPositionValueIgnoringTargetUSDC.add(
-				proposedMarketPositionValueUSDC
+		const totalPositionValueAfterTrade =
+			totalPositionValueExcludingTargetMarket.add(proposedMarketPositionValue);
+
+		const marginRequirementExcludingTargetMarket =
+			this.getUserPositionsAccount().positions.reduce(
+				(totalMarginRequirement, position) => {
+					if (!position.marketIndex.eq(marketPosition.marketIndex)) {
+						const market = this.clearingHouse.getMarket(position.marketIndex);
+						const positionValue = calculateBaseAssetValue(market, position);
+						const marketMarginRequirement = positionValue
+							.mul(
+								partial
+									? new BN(market.marginRatioPartial)
+									: new BN(market.marginRatioMaintenance)
+							)
+							.div(MARGIN_PRECISION);
+						totalMarginRequirement = totalMarginRequirement.add(
+							marketMarginRequirement
+						);
+					}
+					return totalMarginRequirement;
+				},
+				ZERO
 			);
 
-		let totalFreeCollateralUSDC = tc.sub(
-			totalCurrentPositionValueIgnoringTargetUSDC
-				.mul(TEN_THOUSAND)
-				.div(
-					this.getMaxLeverage(proposedMarketPosition.marketIndex, 'Maintenance')
-				)
+		const freeCollateralExcludingTargetMarket = totalCollateral.sub(
+			marginRequirementExcludingTargetMarket
 		);
 
-		if (partial) {
-			totalFreeCollateralUSDC = tc.sub(
-				totalCurrentPositionValueIgnoringTargetUSDC
-					.mul(TEN_THOUSAND)
-					.div(
-						this.getMaxLeverage(proposedMarketPosition.marketIndex, 'Partial')
+		// if the position value after the trade is less than free collateral, there is no liq price
+		if (
+			totalPositionValueAfterTrade.lte(freeCollateralExcludingTargetMarket) &&
+			proposedMarketPosition.baseAssetAmount.abs().gt(ZERO)
+		) {
+			return new BN(-1);
+		}
+
+		const marginRequirementAfterTrade =
+			marginRequirementExcludingTargetMarket.add(
+				proposedMarketPositionValue
+					.mul(
+						partial
+							? new BN(market.marginRatioPartial)
+							: new BN(market.marginRatioMaintenance)
 					)
+					.div(MARGIN_PRECISION)
 			);
-		}
+		const freeCollateralAfterTrade = totalCollateral.sub(
+			marginRequirementAfterTrade
+		);
 
-		let priceDelt;
+		const marketMaxLeverage = partial
+			? new BN(market.marginRatioPartial)
+			: new BN(market.marginRatioMaintenance);
+
+		let priceDelta;
 		if (proposedBaseAssetAmount.lt(ZERO)) {
-			priceDelt = tc
-				.mul(thisLev)
-				.sub(tpv)
+			priceDelta = freeCollateralAfterTrade
+				.mul(marketMaxLeverage)
+				.div(marketMaxLeverage.add(new BN(1)))
 				.mul(PRICE_TO_QUOTE_PRECISION)
-				.div(thisLev.add(new BN(1)));
+				.mul(AMM_RESERVE_PRECISION)
+				.div(proposedBaseAssetAmount);
 		} else {
-			priceDelt = tc
-				.mul(thisLev)
-				.sub(tpv)
+			priceDelta = freeCollateralAfterTrade
+				.mul(marketMaxLeverage)
+				.div(marketMaxLeverage.sub(new BN(1)))
 				.mul(PRICE_TO_QUOTE_PRECISION)
-				.div(thisLev.sub(new BN(1)));
+				.mul(AMM_RESERVE_PRECISION)
+				.div(proposedBaseAssetAmount);
 		}
 
-		let currentPrice;
+		let markPriceAfterTrade;
 		if (positionBaseSizeChange.eq(ZERO)) {
-			currentPrice = calculateMarkPrice(
-				this.clearingHouse.getMarket(targetMarket.marketIndex)
+			markPriceAfterTrade = calculateMarkPrice(
+				this.clearingHouse.getMarket(marketPosition.marketIndex)
 			);
 		} else {
 			const direction = positionBaseSizeChange.gt(ZERO)
 				? PositionDirection.LONG
 				: PositionDirection.SHORT;
-			currentPrice = calculateTradeSlippage(
+			markPriceAfterTrade = calculateTradeSlippage(
 				direction,
 				positionBaseSizeChange.abs(),
-				this.clearingHouse.getMarket(targetMarket.marketIndex),
+				this.clearingHouse.getMarket(marketPosition.marketIndex),
 				'base'
 			)[3]; // newPrice after swap
 		}
 
-		// if the position value after the trade is less than total collateral, there is no liq price
-		if (
-			targetTotalPositionValueUSDC.lte(totalFreeCollateralUSDC) &&
-			proposedMarketPosition.baseAssetAmount.gt(ZERO)
-		) {
+		if (priceDelta.gt(markPriceAfterTrade)) {
 			return new BN(-1);
 		}
 
-		if (proposedBaseAssetAmount.eq(ZERO)) return new BN(-1);
-
-		const eatMargin2 = priceDelt
-			.mul(AMM_RESERVE_PRECISION)
-			.div(proposedBaseAssetAmount);
-
-		if (eatMargin2.gt(currentPrice)) {
-			return new BN(-1);
-		}
-
-		const liqPrice = currentPrice.sub(eatMargin2);
-		return liqPrice;
+		return markPriceAfterTrade.sub(priceDelta);
 	}
 
 	/**
