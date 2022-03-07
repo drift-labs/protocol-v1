@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import StrictEventEmitter from 'strict-event-emitter-types';
 import { ClearingHouse } from './clearingHouse';
 import {
+	isVariant,
 	MarginCategory,
 	Order,
 	UserAccount,
@@ -208,7 +209,7 @@ export class ClearingHouseUser {
 	}
 
 	/**
-	 * calculates Free Collateral = (TC - TPV) * MAX_LEVERAGE
+	 * calculates Free Collateral = Total collateral - initial margin requirement
 	 * @returns : Precision QUOTE_PRECISION
 	 */
 	public getFreeCollateral(): BN {
@@ -676,50 +677,33 @@ export class ClearingHouseUser {
 	 *
 	 * @param targetMarketIndex
 	 * @param tradeSide
-	 * @param userMaxLeverageSetting - leverage : Precision TEN_THOUSAND
 	 * @returns tradeSizeAllowed : Precision QUOTE_PRECISION
 	 */
 	public getMaxTradeSizeUSDC(
 		targetMarketIndex: BN,
-		tradeSide: PositionDirection,
-		userMaxLeverageSetting: BN
+		tradeSide: PositionDirection
 	): BN {
 		const currentPosition =
 			this.getUserPosition(targetMarketIndex) ||
 			this.getEmptyPosition(targetMarketIndex);
 
-		const targetSide = tradeSide === PositionDirection.SHORT ? 'short' : 'long';
+		const targetSide = isVariant(tradeSide, 'short') ? 'short' : 'long';
 
 		const currentPositionSide = currentPosition?.baseAssetAmount.isNeg()
 			? 'short'
 			: 'long';
 
-		const targettingSameSide = !currentPosition
+		const targetingSameSide = !currentPosition
 			? true
 			: targetSide === currentPositionSide;
 
 		// add any position we have on the opposite side of the current trade, because we can "flip" the size of this position without taking any extra leverage.
-		const oppositeSizeValueUSDC = targettingSameSide
+		const oppositeSizeValueUSDC = targetingSameSide
 			? ZERO
 			: this.getPositionValue(targetMarketIndex);
 
-		// get current leverage
-		const currentLeverage = this.getLeverage();
-
-		const remainingLeverage = BN.max(
-			userMaxLeverageSetting.sub(currentLeverage),
-			ZERO
-		);
-
-		// get total collateral
-		const totalCollateral = this.getTotalCollateral();
-
-		// position side allowed based purely on current leverage
-		let maxPositionSize = remainingLeverage
-			.mul(totalCollateral)
-			.div(TEN_THOUSAND);
-
-		if (userMaxLeverageSetting.sub(currentLeverage).gte(ZERO)) {
+		let maxPositionSize = this.getBuyingPower(targetMarketIndex);
+		if (maxPositionSize.gte(ZERO)) {
 			if (oppositeSizeValueUSDC.eq(ZERO)) {
 				// case 1 : Regular trade where current total position less than max, and no opposite position to account for
 				// do nothing
@@ -732,39 +716,27 @@ export class ClearingHouseUser {
 		} else {
 			// current leverage is greater than max leverage - can only reduce position size
 
-			if (!targettingSameSide) {
-				const currentPositionQuoteSize =
-					this.getPositionValue(targetMarketIndex);
+			if (!targetingSameSide) {
+				const market = this.clearingHouse.getMarket(targetMarketIndex);
+				const marketPositionValue = this.getPositionValue(targetMarketIndex);
+				const totalCollateral = this.getTotalCollateral();
+				const marginRequirement = this.getInitialMarginRequirement();
+				const marginFreedByClosing = marketPositionValue
+					.mul(new BN(market.marginRatioInitial))
+					.div(MARGIN_PRECISION);
+				const marginRequirementAfterClosing =
+					marginRequirement.sub(marginFreedByClosing);
 
-				const currentTotalQuoteSize = currentLeverage
-					.mul(totalCollateral)
-					.div(TEN_THOUSAND);
-
-				const otherPositionsTotalQuoteSize = currentTotalQuoteSize.sub(
-					currentPositionQuoteSize
-				);
-
-				const quoteValueOfMaxLeverage = userMaxLeverageSetting
-					.mul(totalCollateral)
-					.div(TEN_THOUSAND);
-
-				if (
-					otherPositionsTotalQuoteSize
-						.sub(currentPositionQuoteSize)
-						.gte(quoteValueOfMaxLeverage)
-				) {
-					// case 3: Can only reduce the current position because it will still be greater than max leverage
-
-					maxPositionSize = currentPositionQuoteSize;
+				if (marginRequirementAfterClosing.gt(totalCollateral)) {
+					maxPositionSize = marketPositionValue;
 				} else {
-					// case 4: Can reduce the position, and then take extra remaining quote to get to max leverage
-
-					const allowedQuoteSizeAfterClosingCurrentPosition =
-						quoteValueOfMaxLeverage.sub(otherPositionsTotalQuoteSize);
-
-					maxPositionSize = currentPositionQuoteSize.add(
-						allowedQuoteSizeAfterClosingCurrentPosition
+					const freeCollateralAfterClose = totalCollateral.sub(
+						marginRequirementAfterClosing
 					);
+					const buyingPowerAfterClose = freeCollateralAfterClose
+						.mul(this.getMaxLeverage(targetMarketIndex))
+						.div(TEN_THOUSAND);
+					maxPositionSize = marketPositionValue.add(buyingPowerAfterClose);
 				}
 			} else {
 				// do nothing if targetting same side
