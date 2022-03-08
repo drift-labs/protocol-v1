@@ -267,7 +267,6 @@ export type OrderStateAccount = {
 };
 
 export type MarketsAccount = {
-	accountIndex: BN;
 	markets: Market[];
 };
 
