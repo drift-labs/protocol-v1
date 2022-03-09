@@ -118,6 +118,8 @@ pub enum ErrorCode {
     MarketOrderMustBeInPlaceAndFill,
     #[msg("User Order Id Already In Use")]
     UserOrderIdAlreadyInUse,
+    #[msg("No positions liquidatable")]
+    NoPositionsLiquidatable,
 }
 
 #[macro_export]
