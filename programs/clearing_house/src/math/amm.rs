@@ -430,6 +430,7 @@ pub fn is_oracle_valid(
         confidence: oracle_conf,
         twap_confidence: oracle_twap_conf,
         delay: oracle_delay,
+        has_sufficient_number_of_data_points,
     } = *oracle_price_data;
 
     let is_oracle_price_nonpositive =
@@ -467,6 +468,7 @@ pub fn is_oracle_valid(
     let is_stale = oracle_delay.gt(&valid_oracle_guard_rails.slots_before_stale);
 
     Ok(!(is_stale
+        || !has_sufficient_number_of_data_points
         || is_oracle_price_nonpositive
         || is_oracle_price_too_volatile
         || is_conf_too_large

@@ -173,6 +173,7 @@ impl AMM {
             confidence: oracle_conf_scaled,
             twap_confidence: Some(oracle_twac_scaled),
             delay: oracle_delay,
+            has_sufficient_number_of_data_points: true,
         })
     }
 
@@ -181,12 +182,12 @@ impl AMM {
         price_oracle: &AccountInfo,
         clock_slot: u64,
     ) -> ClearingHouseResult<OraclePriceData> {
-        let price_data =
+        let aggregator_data =
             AggregatorAccountData::new(price_oracle).or(Err(ErrorCode::UnableToLoadOracle))?;
 
-        let price = convert_switchboard_decimal(&price_data.latest_confirmed_round.result)?;
+        let price = convert_switchboard_decimal(&aggregator_data.latest_confirmed_round.result)?;
         let confidence =
-            convert_switchboard_decimal(&price_data.latest_confirmed_round.std_deviation)?;
+            convert_switchboard_decimal(&aggregator_data.latest_confirmed_round.std_deviation)?;
 
         // std deviation should always be positive, if we get a negative make it u128::MAX so it's flagged as bad value
         let confidence = if confidence < 0 {
@@ -196,8 +197,13 @@ impl AMM {
         };
 
         let delay: i64 = cast_to_i64(clock_slot)?
-            .checked_sub(cast(price_data.latest_confirmed_round.round_open_slot)?)
+            .checked_sub(cast(
+                aggregator_data.latest_confirmed_round.round_open_slot,
+            )?)
             .ok_or_else(math_error!())?;
+
+        let has_sufficient_number_of_data_points =
+            aggregator_data.min_oracle_results > aggregator_data.latest_confirmed_round.num_success;
 
         Ok(OraclePriceData {
             price,
@@ -205,6 +211,7 @@ impl AMM {
             confidence,
             twap_confidence: None,
             delay,
+            has_sufficient_number_of_data_points,
         })
     }
 
@@ -227,6 +234,7 @@ pub struct OraclePriceData {
     pub confidence: u128,
     pub twap_confidence: Option<u128>,
     pub delay: i64,
+    pub has_sufficient_number_of_data_points: bool,
 }
 
 /// Given a decimal number represented as a mantissa (the digits) plus an
