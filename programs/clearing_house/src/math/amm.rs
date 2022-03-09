@@ -277,28 +277,15 @@ pub fn calculate_quote_asset_amount_swapped(
 
 pub fn calculate_oracle_mark_spread(
     amm: &AMM,
-    window: u32,
     oracle_price_data: &OraclePriceData,
     precomputed_mark_price: Option<u128>,
 ) -> ClearingHouseResult<(i128, i128)> {
-    let mark_price: i128;
-    let oracle_price: i128;
+    let mark_price = match precomputed_mark_price {
+        Some(mark_price) => cast_to_i128(mark_price)?,
+        None => cast_to_i128(amm.mark_price()?)?,
+    };
 
-    if window > 0 {
-        mark_price = cast_to_i128(amm.last_mark_price_twap)?;
-        oracle_price = match oracle_price_data.twap {
-            Some(twap) => twap,
-            None => {
-                return Err(ErrorCode::InvalidOracle);
-            }
-        }
-    } else {
-        mark_price = match precomputed_mark_price {
-            Some(mark_price) => cast_to_i128(mark_price)?,
-            None => cast_to_i128(amm.mark_price()?)?,
-        };
-        oracle_price = oracle_price_data.price;
-    }
+    let oracle_price = oracle_price_data.price;
 
     let price_spread = mark_price
         .checked_sub(oracle_price)
@@ -362,11 +349,10 @@ pub fn normalise_oracle_price(
 pub fn calculate_oracle_mark_spread_pct(
     amm: &AMM,
     oracle_price_data: &OraclePriceData,
-    window: u32,
     precomputed_mark_price: Option<u128>,
 ) -> ClearingHouseResult<i128> {
     let (oracle_price, price_spread) =
-        calculate_oracle_mark_spread(amm, window, oracle_price_data, precomputed_mark_price)?;
+        calculate_oracle_mark_spread(amm, oracle_price_data, precomputed_mark_price)?;
 
     price_spread
         .checked_mul(PRICE_SPREAD_PRECISION)

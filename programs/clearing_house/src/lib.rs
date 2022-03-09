@@ -536,7 +536,6 @@ pub mod clearing_house {
             oracle_mark_spread_pct_before = amm::calculate_oracle_mark_spread_pct(
                 &market.amm,
                 oracle_price_data,
-                0,
                 Some(mark_price_before),
             )?;
             is_oracle_valid = amm::is_oracle_valid(
@@ -595,7 +594,6 @@ pub mod clearing_house {
             oracle_mark_spread_pct_after = amm::calculate_oracle_mark_spread_pct(
                 &market.amm,
                 oracle_price_data,
-                0,
                 Some(mark_price_after),
             )?;
             oracle_price_after = oracle_price_data.price;
@@ -797,7 +795,6 @@ pub mod clearing_house {
         let oracle_mark_spread_pct_before = amm::calculate_oracle_mark_spread_pct(
             &market.amm,
             oracle_price_data,
-            0,
             Some(mark_price_before),
         )?;
         let direction_to_close =
@@ -873,7 +870,6 @@ pub mod clearing_house {
         let oracle_mark_spread_pct_after = amm::calculate_oracle_mark_spread_pct(
             &market.amm,
             oracle_price_data,
-            0,
             Some(mark_price_after),
         )?;
         let oracle_price_after = oracle_price_data.price;
