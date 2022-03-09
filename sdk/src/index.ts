@@ -3,6 +3,7 @@ import { PublicKey } from '@solana/web3.js';
 
 export * from './mockUSDCFaucet';
 export * from './pythClient';
+export * from './switchboardClient';
 export * from './types';
 export * from './constants/markets';
 export * from './accounts/webSocketClearingHouseAccountSubscriber';

@@ -29,9 +29,11 @@
 	},
 	"dependencies": {
 		"@project-serum/anchor": "0.19.1-beta.1",
+		"@project-serum/anchor-v0.22": "npm:@project-serum/anchor@^0.22.0",
 		"@pythnetwork/client": "^2.5.1",
 		"@solana/spl-token": "^0.1.6",
 		"@solana/web3.js": "^1.22.0",
+		"@switchboard-xyz/switchboard-v2": "^0.0.65",
 		"strict-event-emitter-types": "^2.0.0",
 		"uuid": "^8.3.2"
 	},
