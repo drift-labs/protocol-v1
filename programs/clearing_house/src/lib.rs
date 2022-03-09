@@ -239,6 +239,7 @@ pub mod clearing_house {
         amm_quote_asset_reserve: u128,
         amm_periodicity: i64,
         amm_peg_multiplier: u128,
+        oracle_source: OracleSource,
     ) -> ProgramResult {
         let markets = &mut ctx.accounts.markets.load_mut()?;
         let market = &markets.markets[Markets::index_from_u64(market_index)];
@@ -270,10 +271,16 @@ pub mod clearing_house {
             price: oracle_price,
             twap: oracle_price_twap,
             ..
-        } = market
-            .amm
-            .get_oracle_price(&ctx.accounts.oracle, clock_slot)
-            .unwrap();
+        } = match oracle_source {
+            OracleSource::Pyth => market
+                .amm
+                .get_pyth_price(&ctx.accounts.oracle, clock_slot)
+                .unwrap(),
+            OracleSource::Switchboard => market
+                .amm
+                .get_switchboard_price(&ctx.accounts.oracle, clock_slot)
+                .unwrap(),
+        };
 
         let market = Market {
             initialized: true,
@@ -288,7 +295,7 @@ pub mod clearing_house {
             padding4: 0,
             amm: AMM {
                 oracle: *ctx.accounts.oracle.key,
-                oracle_source: OracleSource::Pyth,
+                oracle_source,
                 base_asset_reserve: amm_base_asset_reserve,
                 quote_asset_reserve: amm_quote_asset_reserve,
                 cumulative_repeg_rebate_long: 0,
@@ -298,7 +305,10 @@ pub mod clearing_house {
                 last_funding_rate: 0,
                 last_funding_rate_ts: now,
                 funding_period: amm_periodicity,
-                last_oracle_price_twap: oracle_price_twap,
+                last_oracle_price_twap: match oracle_price_twap {
+                    Some(oracle_price_twap) => oracle_price_twap,
+                    None => oracle_price,
+                },
                 last_mark_price_twap: init_mark_price,
                 last_mark_price_twap_ts: now,
                 sqrt_k: amm_base_asset_reserve,
@@ -1823,7 +1833,8 @@ pub mod clearing_house {
             &ctx.accounts.state.oracle_guard_rails.validity,
         )?;
 
-        if is_oracle_valid {
+        if is_oracle_valid && oracle_twap.is_some() {
+            let oracle_twap = oracle_twap.unwrap();
             let oracle_mark_gap_before = cast_to_i128(market.amm.last_mark_price_twap)?
                 .checked_sub(market.amm.last_oracle_price_twap)
                 .ok_or_else(math_error!())?;

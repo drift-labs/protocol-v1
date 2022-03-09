@@ -286,7 +286,12 @@ pub fn calculate_oracle_mark_spread(
 
     if window > 0 {
         mark_price = cast_to_i128(amm.last_mark_price_twap)?;
-        oracle_price = oracle_price_data.twap;
+        oracle_price = match oracle_price_data.twap {
+            Some(twap) => twap,
+            None => {
+                return Err(ErrorCode::InvalidOracle);
+            }
+        }
     } else {
         mark_price = match precomputed_mark_price {
             Some(mark_price) => cast_to_i128(mark_price)?,
@@ -427,33 +432,45 @@ pub fn is_oracle_valid(
         delay: oracle_delay,
     } = *oracle_price_data;
 
-    let is_oracle_price_nonpositive = (oracle_twap <= 0) || (oracle_price <= 0);
+    let is_oracle_price_nonpositive =
+        oracle_price <= 0 || (oracle_twap.is_some() && oracle_twap.unwrap() <= 0);
 
-    let is_oracle_price_too_volatile = ((oracle_price
-        .checked_div(max(1, oracle_twap))
-        .ok_or_else(math_error!())?)
-    .gt(&valid_oracle_guard_rails.too_volatile_ratio))
-        || ((oracle_twap
-            .checked_div(max(1, oracle_price))
+    let is_oracle_price_too_volatile = if let Some(oracle_twap) = oracle_twap {
+        ((oracle_price
+            .checked_div(max(1, oracle_twap))
             .ok_or_else(math_error!())?)
-        .gt(&valid_oracle_guard_rails.too_volatile_ratio));
+        .gt(&valid_oracle_guard_rails.too_volatile_ratio))
+            || ((oracle_twap
+                .checked_div(max(1, oracle_price))
+                .ok_or_else(math_error!())?)
+            .gt(&valid_oracle_guard_rails.too_volatile_ratio))
+    } else {
+        false
+    };
 
     let conf_denom_of_price = cast_to_u128(oracle_price)?
         .checked_div(max(1, oracle_conf))
         .ok_or_else(math_error!())?;
-    let conf_denom_of_twap_price = cast_to_u128(oracle_twap)?
-        .checked_div(max(1, oracle_twap_conf))
-        .ok_or_else(math_error!())?;
-    let is_conf_too_large = (conf_denom_of_price
-        .lt(&valid_oracle_guard_rails.confidence_interval_max_size))
-        || (conf_denom_of_twap_price.lt(&valid_oracle_guard_rails.confidence_interval_max_size));
+    let is_conf_too_large =
+        conf_denom_of_price.lt(&valid_oracle_guard_rails.confidence_interval_max_size);
+
+    let is_twap_conf_too_large = if oracle_twap.is_some() && oracle_twap_conf.is_some() {
+        let conf_denom_of_twap_price = cast_to_u128(oracle_twap.unwrap())?
+            .checked_div(max(1, oracle_twap_conf.unwrap()))
+            .ok_or_else(math_error!())?;
+
+        conf_denom_of_twap_price.lt(&valid_oracle_guard_rails.confidence_interval_max_size)
+    } else {
+        false
+    };
 
     let is_stale = oracle_delay.gt(&valid_oracle_guard_rails.slots_before_stale);
 
     Ok(!(is_stale
-        || is_conf_too_large
         || is_oracle_price_nonpositive
-        || is_oracle_price_too_volatile))
+        || is_oracle_price_too_volatile
+        || is_conf_too_large
+        || is_twap_conf_too_large))
 }
 
 /// To find the cost of adjusting k, compare the the net market value before and after adjusting k

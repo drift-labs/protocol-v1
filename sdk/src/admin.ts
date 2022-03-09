@@ -216,7 +216,8 @@ export class Admin extends ClearingHouse {
 		baseAssetReserve: BN,
 		quoteAssetReserve: BN,
 		periodicity: BN,
-		pegMultiplier: BN = PEG_PRECISION
+		pegMultiplier: BN = PEG_PRECISION,
+		oracleSource: OracleSource = OracleSource.PYTH
 	): Promise<TransactionSignature> {
 		if (this.getMarketsAccount().markets[marketIndex.toNumber()].initialized) {
 			throw Error(`MarketIndex ${marketIndex.toNumber()} already initialized`);
@@ -228,6 +229,7 @@ export class Admin extends ClearingHouse {
 			quoteAssetReserve,
 			periodicity,
 			pegMultiplier,
+			oracleSource,
 			{
 				accounts: {
 					state: await this.getStatePublicKey(),

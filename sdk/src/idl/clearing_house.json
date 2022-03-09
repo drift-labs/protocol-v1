@@ -211,6 +211,12 @@
         {
           "name": "ammPegMultiplier",
           "type": "u128"
+        },
+        {
+          "name": "oracleSource",
+          "type": {
+            "defined": "OracleSource"
+          }
         }
       ]
     },

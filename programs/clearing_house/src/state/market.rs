@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use switchboard_v2::AggregatorAccountData;
 
 use crate::error::*;
 use crate::math::amm;
@@ -6,6 +7,7 @@ use crate::math::casting::{cast, cast_to_i128, cast_to_i64, cast_to_u128};
 use crate::math_error;
 use crate::MARK_PRICE_PRECISION;
 use solana_program::msg;
+use switchboard_v2::decimal::SwitchboardDecimal;
 
 #[account(zero_copy)]
 pub struct Markets {
@@ -111,7 +113,7 @@ impl AMM {
         &self,
         price_oracle: &AccountInfo,
         clock_slot: u64,
-    ) -> ClearingHouseResult<(i128, i128, u128, u128, i64)> {
+    ) -> ClearingHouseResult<OraclePriceData> {
         let pyth_price_data = price_oracle
             .try_borrow_data()
             .or(Err(ErrorCode::UnableToLoadOracle))?;
@@ -165,13 +167,45 @@ impl AMM {
             .checked_sub(cast(price_data.valid_slot)?)
             .ok_or_else(math_error!())?;
 
-        Ok((
-            oracle_price_scaled,
-            oracle_twap_scaled,
-            oracle_conf_scaled,
-            oracle_twac_scaled,
-            oracle_delay,
-        ))
+        Ok(OraclePriceData {
+            price: oracle_price_scaled,
+            twap: Some(oracle_twap_scaled),
+            confidence: oracle_conf_scaled,
+            twap_confidence: Some(oracle_twac_scaled),
+            delay: oracle_delay,
+        })
+    }
+
+    pub fn get_switchboard_price(
+        &self,
+        price_oracle: &AccountInfo,
+        clock_slot: u64,
+    ) -> ClearingHouseResult<OraclePriceData> {
+        let price_data =
+            AggregatorAccountData::new(price_oracle).or(Err(ErrorCode::UnableToLoadOracle))?;
+
+        let price = convert_switchboard_decimal(&price_data.latest_confirmed_round.result)?;
+        let confidence =
+            convert_switchboard_decimal(&price_data.latest_confirmed_round.std_deviation)?;
+
+        // std deviation should always be positive, if we get a negative make it u128::MAX so it's flagged as bad value
+        let confidence = if confidence < 0 {
+            u128::MAX
+        } else {
+            confidence.unsigned_abs()
+        };
+
+        let delay: i64 = cast_to_i64(clock_slot)?
+            .checked_sub(cast(price_data.latest_confirmed_round.round_open_slot)?)
+            .ok_or_else(math_error!())?;
+
+        Ok(OraclePriceData {
+            price,
+            twap: None,
+            confidence,
+            twap_confidence: None,
+            delay,
+        })
     }
 
     pub fn get_oracle_price(
@@ -179,25 +213,38 @@ impl AMM {
         price_oracle: &AccountInfo,
         clock_slot: u64,
     ) -> ClearingHouseResult<OraclePriceData> {
-        let (price, twap, confidence, twap_confidence, delay) = match self.oracle_source {
-            OracleSource::Pyth => self.get_pyth_price(price_oracle, clock_slot)?,
-            OracleSource::Switchboard => (0, 0, 0, 0, 0),
-        };
-        Ok(OraclePriceData {
-            price,
-            twap,
-            confidence,
-            twap_confidence,
-            delay,
-        })
+        match self.oracle_source {
+            OracleSource::Pyth => self.get_pyth_price(price_oracle, clock_slot),
+            OracleSource::Switchboard => self.get_switchboard_price(price_oracle, clock_slot),
+        }
     }
 }
 
 #[derive(Default, Clone, Copy, Debug)]
 pub struct OraclePriceData {
     pub price: i128,
-    pub twap: i128,
+    pub twap: Option<i128>,
     pub confidence: u128,
-    pub twap_confidence: u128,
+    pub twap_confidence: Option<u128>,
     pub delay: i64,
+}
+
+/// Given a decimal number represented as a mantissa (the digits) plus an
+/// original_precision (10.pow(some number of decimals)), scale the
+/// mantissa/digits to make sense with a new_precision.
+fn convert_switchboard_decimal(
+    switchboard_decimal: &SwitchboardDecimal,
+) -> ClearingHouseResult<i128> {
+    let switchboard_precision = 10_u128.pow(switchboard_decimal.scale);
+    if switchboard_precision > MARK_PRICE_PRECISION {
+        switchboard_decimal
+            .mantissa
+            .checked_div((switchboard_precision / MARK_PRICE_PRECISION) as i128)
+            .ok_or_else(math_error!())
+    } else {
+        switchboard_decimal
+            .mantissa
+            .checked_mul((MARK_PRICE_PRECISION / switchboard_precision) as i128)
+            .ok_or_else(math_error!())
+    }
 }
