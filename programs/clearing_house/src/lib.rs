@@ -269,7 +269,6 @@ pub mod clearing_house {
         // Verify oracle is readable
         let OraclePriceData {
             price: oracle_price,
-            twap: oracle_price_twap,
             ..
         } = match oracle_source {
             OracleSource::Pyth => market
@@ -280,6 +279,11 @@ pub mod clearing_house {
                 .amm
                 .get_switchboard_price(&ctx.accounts.oracle, clock_slot)
                 .unwrap(),
+        };
+
+        let last_oracle_price_twap = match market.amm.get_oracle_twap(&ctx.accounts.oracle)? {
+            Some(last_oracle_price_twap) => last_oracle_price_twap,
+            None => oracle_price,
         };
 
         let market = Market {
@@ -305,10 +309,7 @@ pub mod clearing_house {
                 last_funding_rate: 0,
                 last_funding_rate_ts: now,
                 funding_period: amm_periodicity,
-                last_oracle_price_twap: match oracle_price_twap {
-                    Some(oracle_price_twap) => oracle_price_twap,
-                    None => oracle_price,
-                },
+                last_oracle_price_twap,
                 last_mark_price_twap: init_mark_price,
                 last_mark_price_twap_ts: now,
                 sqrt_k: amm_base_asset_reserve,
@@ -1818,22 +1819,13 @@ pub mod clearing_house {
 
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
-        let clock_slot = clock.slot;
 
         let market =
             &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
         let price_oracle = &ctx.accounts.oracle;
-        let oracle_price_data = &market.amm.get_oracle_price(price_oracle, clock_slot)?;
-        let oracle_twap = oracle_price_data.twap;
+        let oracle_twap = market.amm.get_oracle_twap(price_oracle)?;
 
-        let is_oracle_valid = amm::is_oracle_valid(
-            &market.amm,
-            oracle_price_data,
-            &ctx.accounts.state.oracle_guard_rails.validity,
-        )?;
-
-        if is_oracle_valid && oracle_twap.is_some() {
-            let oracle_twap = oracle_twap.unwrap();
+        if let Some(oracle_twap) = oracle_twap {
             let oracle_mark_gap_before = cast_to_i128(market.amm.last_mark_price_twap)?
                 .checked_sub(market.amm.last_oracle_price_twap)
                 .ok_or_else(math_error!())?;

@@ -109,6 +109,17 @@ impl AMM {
         )
     }
 
+    pub fn get_oracle_price(
+        &self,
+        price_oracle: &AccountInfo,
+        clock_slot: u64,
+    ) -> ClearingHouseResult<OraclePriceData> {
+        match self.oracle_source {
+            OracleSource::Pyth => self.get_pyth_price(price_oracle, clock_slot),
+            OracleSource::Switchboard => self.get_switchboard_price(price_oracle, clock_slot),
+        }
+    }
+
     pub fn get_pyth_price(
         &self,
         price_oracle: &AccountInfo,
@@ -121,8 +132,6 @@ impl AMM {
 
         let oracle_price = cast_to_i128(price_data.agg.price)?;
         let oracle_conf = cast_to_u128(price_data.agg.conf)?;
-        let oracle_twap = cast_to_i128(price_data.twap.val)?;
-        let oracle_twac = cast_to_u128(price_data.twac.val)?;
 
         let oracle_precision = 10_u128.pow(price_data.expo.unsigned_abs());
 
@@ -145,19 +154,7 @@ impl AMM {
             .checked_div(cast(oracle_scale_div)?)
             .ok_or_else(math_error!())?;
 
-        let oracle_twap_scaled = (oracle_twap)
-            .checked_mul(cast(oracle_scale_mult)?)
-            .ok_or_else(math_error!())?
-            .checked_div(cast(oracle_scale_div)?)
-            .ok_or_else(math_error!())?;
-
         let oracle_conf_scaled = (oracle_conf)
-            .checked_mul(oracle_scale_mult)
-            .ok_or_else(math_error!())?
-            .checked_div(oracle_scale_div)
-            .ok_or_else(math_error!())?;
-
-        let oracle_twac_scaled = (oracle_twac)
             .checked_mul(oracle_scale_mult)
             .ok_or_else(math_error!())?
             .checked_div(oracle_scale_div)
@@ -169,9 +166,7 @@ impl AMM {
 
         Ok(OraclePriceData {
             price: oracle_price_scaled,
-            twap: Some(oracle_twap_scaled),
             confidence: oracle_conf_scaled,
-            twap_confidence: Some(oracle_twac_scaled),
             delay: oracle_delay,
             has_sufficient_number_of_data_points: true,
         })
@@ -207,32 +202,56 @@ impl AMM {
 
         Ok(OraclePriceData {
             price,
-            twap: None,
             confidence,
-            twap_confidence: None,
             delay,
             has_sufficient_number_of_data_points,
         })
     }
 
-    pub fn get_oracle_price(
-        &self,
-        price_oracle: &AccountInfo,
-        clock_slot: u64,
-    ) -> ClearingHouseResult<OraclePriceData> {
+    pub fn get_oracle_twap(&self, price_oracle: &AccountInfo) -> ClearingHouseResult<Option<i128>> {
         match self.oracle_source {
-            OracleSource::Pyth => self.get_pyth_price(price_oracle, clock_slot),
-            OracleSource::Switchboard => self.get_switchboard_price(price_oracle, clock_slot),
+            OracleSource::Pyth => Ok(Some(self.get_pyth_twap(price_oracle)?)),
+            OracleSource::Switchboard => Ok(None),
         }
+    }
+
+    pub fn get_pyth_twap(&self, price_oracle: &AccountInfo) -> ClearingHouseResult<i128> {
+        let pyth_price_data = price_oracle
+            .try_borrow_data()
+            .or(Err(ErrorCode::UnableToLoadOracle))?;
+        let price_data = pyth_client::cast::<pyth_client::Price>(&pyth_price_data);
+
+        let oracle_twap = cast_to_i128(price_data.twap.val)?;
+
+        let oracle_precision = 10_u128.pow(price_data.expo.unsigned_abs());
+
+        let mut oracle_scale_mult = 1;
+        let mut oracle_scale_div = 1;
+
+        if oracle_precision > MARK_PRICE_PRECISION {
+            oracle_scale_div = oracle_precision
+                .checked_div(MARK_PRICE_PRECISION)
+                .ok_or_else(math_error!())?;
+        } else {
+            oracle_scale_mult = MARK_PRICE_PRECISION
+                .checked_div(oracle_precision)
+                .ok_or_else(math_error!())?;
+        }
+
+        let oracle_twap_scaled = (oracle_twap)
+            .checked_mul(cast(oracle_scale_mult)?)
+            .ok_or_else(math_error!())?
+            .checked_div(cast(oracle_scale_div)?)
+            .ok_or_else(math_error!())?;
+
+        Ok(oracle_twap_scaled)
     }
 }
 
 #[derive(Default, Clone, Copy, Debug)]
 pub struct OraclePriceData {
     pub price: i128,
-    pub twap: Option<i128>,
     pub confidence: u128,
-    pub twap_confidence: Option<u128>,
     pub delay: i64,
     pub has_sufficient_number_of_data_points: bool,
 }
