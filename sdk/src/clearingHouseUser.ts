@@ -233,6 +233,9 @@ export class ClearingHouseUser {
 		);
 	}
 
+	/**
+	 * @returns The partial margin requirement in USDC. : QUOTE_PRECISION
+	 */
 	public getPartialMarginRequirement(): BN {
 		return this.getUserPositionsAccount().positions.reduce(
 			(marginRequirement, marketPosition) => {
