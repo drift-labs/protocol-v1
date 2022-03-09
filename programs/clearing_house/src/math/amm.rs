@@ -421,33 +421,29 @@ pub fn use_oracle_price_for_margin_calculation(
 }
 
 pub fn is_oracle_valid(
+    amm: &AMM,
     oracle_price_data: &OraclePriceData,
     valid_oracle_guard_rails: &ValidityGuardRails,
 ) -> ClearingHouseResult<bool> {
     let OraclePriceData {
         price: oracle_price,
-        twap: oracle_twap,
         confidence: oracle_conf,
-        twap_confidence: oracle_twap_conf,
         delay: oracle_delay,
         has_sufficient_number_of_data_points,
+        ..
     } = *oracle_price_data;
 
-    let is_oracle_price_nonpositive =
-        oracle_price <= 0 || (oracle_twap.is_some() && oracle_twap.unwrap() <= 0);
+    let is_oracle_price_nonpositive = oracle_price <= 0;
 
-    let is_oracle_price_too_volatile = if let Some(oracle_twap) = oracle_twap {
-        ((oracle_price
-            .checked_div(max(1, oracle_twap))
+    let is_oracle_price_too_volatile = ((oracle_price
+        .checked_div(max(1, amm.last_oracle_price_twap))
+        .ok_or_else(math_error!())?)
+    .gt(&valid_oracle_guard_rails.too_volatile_ratio))
+        || ((amm
+            .last_oracle_price_twap
+            .checked_div(max(1, oracle_price))
             .ok_or_else(math_error!())?)
-        .gt(&valid_oracle_guard_rails.too_volatile_ratio))
-            || ((oracle_twap
-                .checked_div(max(1, oracle_price))
-                .ok_or_else(math_error!())?)
-            .gt(&valid_oracle_guard_rails.too_volatile_ratio))
-    } else {
-        false
-    };
+        .gt(&valid_oracle_guard_rails.too_volatile_ratio));
 
     let conf_denom_of_price = cast_to_u128(oracle_price)?
         .checked_div(max(1, oracle_conf))
@@ -455,24 +451,13 @@ pub fn is_oracle_valid(
     let is_conf_too_large =
         conf_denom_of_price.lt(&valid_oracle_guard_rails.confidence_interval_max_size);
 
-    let is_twap_conf_too_large = if oracle_twap.is_some() && oracle_twap_conf.is_some() {
-        let conf_denom_of_twap_price = cast_to_u128(oracle_twap.unwrap())?
-            .checked_div(max(1, oracle_twap_conf.unwrap()))
-            .ok_or_else(math_error!())?;
-
-        conf_denom_of_twap_price.lt(&valid_oracle_guard_rails.confidence_interval_max_size)
-    } else {
-        false
-    };
-
     let is_stale = oracle_delay.gt(&valid_oracle_guard_rails.slots_before_stale);
 
     Ok(!(is_stale
         || !has_sufficient_number_of_data_points
         || is_oracle_price_nonpositive
         || is_oracle_price_too_volatile
-        || is_conf_too_large
-        || is_twap_conf_too_large))
+        || is_conf_too_large))
 }
 
 /// To find the cost of adjusting k, compare the the net market value before and after adjusting k

@@ -540,6 +540,7 @@ pub mod clearing_house {
                 Some(mark_price_before),
             )?;
             is_oracle_valid = amm::is_oracle_valid(
+                &market.amm,
                 oracle_price_data,
                 &ctx.accounts.state.oracle_guard_rails.validity,
             )?;
@@ -878,6 +879,7 @@ pub mod clearing_house {
         let oracle_price_after = oracle_price_data.price;
 
         let is_oracle_valid = amm::is_oracle_valid(
+            &market.amm,
             oracle_price_data,
             &ctx.accounts.state.oracle_guard_rails.validity,
         )?;
@@ -1829,6 +1831,7 @@ pub mod clearing_house {
         let oracle_twap = oracle_price_data.twap;
 
         let is_oracle_valid = amm::is_oracle_valid(
+            &market.amm,
             oracle_price_data,
             &ctx.accounts.state.oracle_guard_rails.validity,
         )?;
@@ -1880,6 +1883,7 @@ pub mod clearing_house {
         let oracle_price_data = &market.amm.get_oracle_price(price_oracle, clock_slot)?;
 
         let is_oracle_valid = amm::is_oracle_valid(
+            &market.amm,
             oracle_price_data,
             &ctx.accounts.state.oracle_guard_rails.validity,
         )?;

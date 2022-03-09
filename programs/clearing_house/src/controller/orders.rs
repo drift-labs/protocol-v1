@@ -370,8 +370,11 @@ pub fn fill_order(
         oracle_price = oracle_price_data.price;
         let normalised_price =
             normalise_oracle_price(&market.amm, oracle_price_data, Some(mark_price_before))?;
-        is_oracle_valid =
-            amm::is_oracle_valid(oracle_price_data, &state.oracle_guard_rails.validity)?;
+        is_oracle_valid = amm::is_oracle_valid(
+            &market.amm,
+            oracle_price_data,
+            &state.oracle_guard_rails.validity,
+        )?;
         if is_oracle_valid {
             amm::update_oracle_price_twap(&mut market.amm, now, normalised_price)?;
         }
