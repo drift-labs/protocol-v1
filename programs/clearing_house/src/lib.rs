@@ -310,7 +310,7 @@ pub mod clearing_house {
                 last_oracle_price_twap_ts: now,
                 last_oracle_price: oracle_price,
                 minimum_base_asset_trade_size: 10000000,
-                padding1: 0,
+                net_revenue_since_last_funding: 0,
                 padding2: 0,
                 padding3: 0,
             },

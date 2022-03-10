@@ -1,35 +1,34 @@
+use crate::controller::amm::SwapDirection;
 use crate::error::*;
 use crate::math::amm;
+use crate::math::amm::calculate_swap_output;
 use crate::math::bn;
 use crate::math::casting::{cast_to_i128, cast_to_u128};
 use crate::math::constants::{
-    MARK_PRICE_PRECISION, PEG_PRECISION, PRICE_TO_PEG_PRECISION_RATIO,
+    AMM_TO_QUOTE_PRECISION_RATIO, MARK_PRICE_PRECISION, PEG_PRECISION,
+    PRICE_TO_PEG_PRECISION_RATIO, QUOTE_PRECISION,
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR,
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR,
 };
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math_error;
-use crate::state::market::Market;
+use crate::state::market::{Market, OraclePriceData, AMM};
+
 use crate::state::state::OracleGuardRails;
 use anchor_lang::prelude::AccountInfo;
 use solana_program::msg;
 
 pub fn calculate_repeg_validity_full(
     market: &mut Market,
-    price_oracle: &AccountInfo,
+    oracle_account_info: &AccountInfo,
     terminal_price_before: u128,
     clock_slot: u64,
     oracle_guard_rails: &OracleGuardRails,
 ) -> ClearingHouseResult<(bool, bool, bool, bool, i128)> {
-    let (oracle_price, _oracle_twap, oracle_conf, _oracle_twac, _oracle_delay) =
-        market.amm.get_oracle_price(price_oracle, clock_slot)?;
-
-    let oracle_is_valid = amm::is_oracle_valid(
-        &market.amm,
-        price_oracle,
-        clock_slot,
-        &oracle_guard_rails.validity,
-    )?;
+    let oracle_price_data = market
+        .amm
+        .get_oracle_price(oracle_account_info, clock_slot)?;
+    let oracle_is_valid = amm::is_oracle_valid(&oracle_price_data, &oracle_guard_rails.validity)?;
 
     let (
         oracle_is_valid,
@@ -39,8 +38,7 @@ pub fn calculate_repeg_validity_full(
         oracle_terminal_divergence_pct_after,
     ) = calculate_repeg_validity(
         market,
-        oracle_price,
-        oracle_conf,
+        &oracle_price_data,
         oracle_is_valid,
         terminal_price_before,
     )?;
@@ -56,11 +54,18 @@ pub fn calculate_repeg_validity_full(
 
 pub fn calculate_repeg_validity(
     market: &mut Market,
-    oracle_price: i128,
-    oracle_conf: u128,
+    oracle_price_data: &OraclePriceData,
     oracle_is_valid: bool,
     terminal_price_before: u128,
 ) -> ClearingHouseResult<(bool, bool, bool, bool, i128)> {
+    let OraclePriceData {
+        price: oracle_price,
+        twap: oracle_twap,
+        confidence: oracle_conf,
+        twap_confidence: oracle_twap_conf,
+        delay: oracle_delay,
+    } = *oracle_price_data;
+
     let oracle_price_u128 = cast_to_u128(oracle_price)?;
 
     let terminal_price_after = amm::calculate_terminal_price(market)?;
@@ -147,7 +152,7 @@ pub fn calculate_peg_from_target_price(
     // m = y*C*PTPPR/x
     // C = m*x/y*PTPPR
 
-    return bn::U192::from(target_price)
+    let new_peg = bn::U192::from(target_price)
         .checked_mul(bn::U192::from(base_asset_reserve))
         .ok_or_else(math_error!())?
         .checked_div(bn::U192::from(quote_asset_reserve))
@@ -155,6 +160,7 @@ pub fn calculate_peg_from_target_price(
         .checked_mul(bn::U192::from(PRICE_TO_PEG_PRECISION_RATIO))
         .ok_or_else(math_error!())?
         .try_to_u128();
+    Ok(new_peg)
 }
 
 pub fn calculate_optimal_peg_and_cost(
@@ -164,6 +170,8 @@ pub fn calculate_optimal_peg_and_cost(
     terminal_price: u128,
 ) -> ClearingHouseResult<(u128, i128, &mut Market)> {
     // does minimum valid repeg allowable iff satisfies the budget
+
+    // let fspr = (oracle - mark) - (oracle_twap - mark_twap)
 
     let oracle_mark_spread = oracle_price
         .checked_sub(cast_to_i128(mark_price)?)
@@ -250,6 +258,68 @@ pub fn calculate_optimal_peg_and_cost(
     }
 
     Ok((candidate_peg, candidate_cost, repegged_market))
+}
+
+pub fn calculate_budgeted_peg(
+    market: &mut Market,
+    budget: u128,
+    current_price: u128,
+    target_price: u128,
+) -> ClearingHouseResult<u128> {
+    let order_swap_direction = if market.base_asset_amount > 0 {
+        SwapDirection::Add
+    } else {
+        SwapDirection::Remove
+    };
+
+    let (new_quote_asset_amount, _new_base_asset_amount) = calculate_swap_output(
+        market.base_asset_amount.unsigned_abs(),
+        market.amm.base_asset_reserve,
+        order_swap_direction,
+        market.amm.sqrt_k,
+    )?;
+
+    let new_peg: u128 = if new_quote_asset_amount != market.amm.quote_asset_reserve {
+        let delta_quote_asset_reserves = market
+            .amm
+            .quote_asset_reserve
+            .checked_sub(new_quote_asset_amount)
+            .ok_or_else(math_error!())?;
+
+        let delta_peg_multiplier = budget
+            .checked_mul(MARK_PRICE_PRECISION)
+            .ok_or_else(math_error!())?
+            .checked_div(
+                delta_quote_asset_reserves
+                    .checked_div(AMM_TO_QUOTE_PRECISION_RATIO)
+                    .ok_or_else(math_error!())?,
+            )
+            .ok_or_else(math_error!())?
+            .checked_mul(PEG_PRECISION)
+            .ok_or_else(math_error!())?
+            .checked_div(QUOTE_PRECISION)
+            .ok_or_else(math_error!())?;
+
+        let delta_peg_precision = delta_peg_multiplier
+            .checked_mul(PEG_PRECISION)
+            .ok_or_else(math_error!())?
+            .checked_div(MARK_PRICE_PRECISION)
+            .ok_or_else(math_error!())?;
+
+        market
+            .amm
+            .peg_multiplier
+            .checked_sub(delta_peg_precision)
+            .ok_or_else(math_error!())?
+    } else {
+        calculate_peg_from_target_price(
+            market.amm.quote_asset_reserve,
+            market.amm.base_asset_reserve,
+            target_price,
+        )?
+    };
+
+    Ok(new_peg)
 }
 
 pub fn adjust_peg_cost(

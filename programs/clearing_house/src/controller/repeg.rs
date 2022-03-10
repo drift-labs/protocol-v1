@@ -4,7 +4,7 @@ use crate::math::repeg;
 
 use crate::math::amm;
 use crate::math_error;
-use crate::state::market::Market;
+use crate::state::market::{Market, OraclePriceData, AMM};
 use crate::state::state::OracleGuardRails;
 
 use anchor_lang::prelude::AccountInfo;
@@ -85,10 +85,17 @@ pub fn repeg(
 pub fn formulaic_repeg(
     market: &mut Market,
     precomputed_mark_price: u128,
-    oracle_price: i128,
-    oracle_conf: u128,
+    oracle_price_data: &OraclePriceData,
     oracle_is_valid: bool,
 ) -> ClearingHouseResult<i128> {
+    let OraclePriceData {
+        price: oracle_price,
+        twap: oracle_twap,
+        confidence: oracle_conf,
+        twap_confidence: oracle_twap_conf,
+        delay: oracle_delay,
+    } = *oracle_price_data;
+
     let terminal_price_before = amm::calculate_terminal_price(market)?;
     let oracle_terminal_spread_before = oracle_price
         .checked_sub(cast_to_i128(terminal_price_before)?)
@@ -115,8 +122,7 @@ pub fn formulaic_repeg(
         _oracle_terminal_divergence_pct_after,
     ) = repeg::calculate_repeg_validity(
         repegged_market,
-        oracle_price,
-        oracle_conf,
+        oracle_price_data,
         oracle_is_valid,
         terminal_price_before,
     )?;

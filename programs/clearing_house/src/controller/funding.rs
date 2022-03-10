@@ -191,6 +191,7 @@ pub fn update_funding_rate(
 
         market.amm.last_funding_rate = funding_rate;
         market.amm.last_funding_rate_ts = now;
+        market.amm.net_revenue_since_last_funding = 0;
 
         let record_id = funding_rate_history.next_record_id();
         funding_rate_history.append(FundingRateRecord {
