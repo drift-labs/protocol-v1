@@ -17,6 +17,7 @@ export * from './clearingHouseUser';
 export * from './clearingHouse';
 export * from './factory/clearingHouse';
 export * from './factory/clearingHouseUser';
+export * from './math/collateral';
 export * from './math/conversion';
 export * from './math/funding';
 export * from './math/insuranceFund';
