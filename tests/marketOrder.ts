@@ -163,6 +163,7 @@ describe('market order', () => {
 		await clearingHouse.unsubscribe();
 		await clearingHouseUser.unsubscribe();
 		await fillerUser.unsubscribe();
+		await fillerClearingHouse.unsubscribe();
 	});
 
 	it('Fill market long order with base asset', async () => {
@@ -200,7 +201,7 @@ describe('market order', () => {
 		const firstPosition = userPositionsAccount.positions[0];
 		assert(firstPosition.baseAssetAmount.eq(baseAssetAmount));
 
-		const expectedQuoteAssetAmount = new BN(1000002);
+		const expectedQuoteAssetAmount = new BN(1000003);
 		assert(firstPosition.quoteAssetAmount.eq(expectedQuoteAssetAmount));
 
 		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();

@@ -22,6 +22,7 @@ use crate::state::{
 };
 
 use crate::controller;
+use crate::math::amm::normalise_oracle_price;
 use crate::math::fees::calculate_order_fee_tier;
 use crate::order_validation::validate_order;
 use crate::state::history::funding_payment::FundingPaymentHistory;
@@ -359,18 +360,20 @@ pub fn fill_order(
             .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         let market = markets.get_market_mut(market_index);
         mark_price_before = market.amm.mark_price()?;
-        let (_oracle_price, _, _oracle_mark_spread_pct_before) =
-            amm::calculate_oracle_mark_spread_pct(&market.amm, oracle, 0, clock_slot, None)?;
-        oracle_price = _oracle_price;
-        oracle_mark_spread_pct_before = _oracle_mark_spread_pct_before;
-        is_oracle_valid = amm::is_oracle_valid(
+        let oracle_price_data = &market.amm.get_oracle_price(oracle, clock_slot)?;
+        oracle_mark_spread_pct_before = amm::calculate_oracle_mark_spread_pct(
             &market.amm,
-            oracle,
-            clock_slot,
-            &state.oracle_guard_rails.validity,
+            oracle_price_data,
+            0,
+            Some(mark_price_before),
         )?;
+        oracle_price = oracle_price_data.price;
+        let normalised_price =
+            normalise_oracle_price(&market.amm, oracle_price_data, Some(mark_price_before))?;
+        is_oracle_valid =
+            amm::is_oracle_valid(oracle_price_data, &state.oracle_guard_rails.validity)?;
         if is_oracle_valid {
-            amm::update_oracle_price_twap(&mut market.amm, now, oracle_price)?;
+            amm::update_oracle_price_twap(&mut market.amm, now, normalised_price)?;
         }
     }
 
@@ -379,8 +382,8 @@ pub fn fill_order(
     } else {
         None
     };
+
     let (base_asset_amount, quote_asset_amount, potentially_risk_increasing) = execute_order(
-        state,
         user,
         user_positions,
         order,
@@ -406,25 +409,34 @@ pub fn fill_order(
             .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         let market = markets.get_market_mut(market_index);
         mark_price_after = market.amm.mark_price()?;
-        let (_oracle_price_after, _oracle_mark_spread_after, _oracle_mark_spread_pct_after) =
-            amm::calculate_oracle_mark_spread_pct(
-                &market.amm,
-                oracle,
-                0,
-                clock_slot,
-                Some(mark_price_after),
-            )?;
-        oracle_price_after = _oracle_price_after;
-        oracle_mark_spread_pct_after = _oracle_mark_spread_pct_after;
+        let oracle_price_data = &market.amm.get_oracle_price(oracle, clock_slot)?;
+        oracle_mark_spread_pct_after = amm::calculate_oracle_mark_spread_pct(
+            &market.amm,
+            oracle_price_data,
+            0,
+            Some(mark_price_after),
+        )?;
+        oracle_price_after = oracle_price_data.price;
     }
 
-    // Order fails if the trade is risk increasing and it pushes to mark price too far
-    // away from the oracle price
-    let is_oracle_mark_too_divergent = amm::is_oracle_mark_too_divergent(
+    let is_oracle_mark_too_divergent_before = amm::is_oracle_mark_too_divergent(
+        oracle_mark_spread_pct_before,
+        &state.oracle_guard_rails.price_divergence,
+    )?;
+
+    let is_oracle_mark_too_divergent_after = amm::is_oracle_mark_too_divergent(
         oracle_mark_spread_pct_after,
         &state.oracle_guard_rails.price_divergence,
     )?;
-    if is_oracle_mark_too_divergent
+
+    // if oracle-mark divergence pushed outside limit, block order
+    if is_oracle_mark_too_divergent_after && !is_oracle_mark_too_divergent_before && is_oracle_valid
+    {
+        return Err(ErrorCode::OracleMarkSpreadLimit);
+    }
+
+    // if oracle-mark divergence outside limit and risk-increasing, block order
+    if is_oracle_mark_too_divergent_after
         && oracle_mark_spread_pct_after.unsigned_abs()
             >= oracle_mark_spread_pct_before.unsigned_abs()
         && is_oracle_valid
@@ -433,20 +445,15 @@ pub fn fill_order(
         return Err(ErrorCode::OracleMarkSpreadLimit);
     }
 
-    // Order fails if it's risk increasing and it brings the user below the initial margin ratio level
-    let (
-        _total_collateral_after,
-        _unrealized_pnl_after,
-        _base_asset_value_after,
-        margin_ratio_after,
-    ) = calculate_margin_ratio(
+    // Order fails if it's risk increasing and it brings the user collateral below the initial margin requirement
+    let meets_initial_maintenance_requirement = meets_initial_margin_requirement(
         user,
         user_positions,
         &markets
             .load()
             .or(Err(ErrorCode::UnableToLoadAccountLoader))?,
     )?;
-    if margin_ratio_after < state.margin_ratio_initial && potentially_risk_increasing {
+    if !meets_initial_maintenance_requirement && potentially_risk_increasing {
         return Err(ErrorCode::InsufficientCollateral);
     }
 
@@ -599,6 +606,7 @@ pub fn fill_order(
             funding_rate_history,
             &state.oracle_guard_rails,
             state.funding_paused,
+            Some(mark_price_before),
         )?;
     }
 
@@ -606,7 +614,6 @@ pub fn fill_order(
 }
 
 pub fn execute_order(
-    state: &State,
     user: &mut User,
     user_positions: &mut RefMut<UserPositions>,
     order: &mut Order,
@@ -627,7 +634,6 @@ pub fn execute_order(
             now,
         ),
         _ => execute_non_market_order(
-            state,
             user,
             user_positions,
             order,
@@ -675,6 +681,11 @@ pub fn execute_market_order(
             )?
         };
 
+    if base_asset_amount < market.amm.minimum_base_asset_trade_size {
+        msg!("base asset amount {}", base_asset_amount);
+        return Err(print_error!(ErrorCode::TradeSizeTooSmall)());
+    }
+
     if !reduce_only && order.reduce_only {
         return Err(ErrorCode::ReduceOnlyOrderIncreasedRisk);
     }
@@ -698,7 +709,6 @@ pub fn execute_market_order(
 }
 
 pub fn execute_non_market_order(
-    state: &State,
     user: &mut User,
     user_positions: &mut RefMut<UserPositions>,
     order: &mut Order,
@@ -710,7 +720,6 @@ pub fn execute_non_market_order(
 ) -> ClearingHouseResult<(u128, u128, bool)> {
     // Determine the base asset amount the user can fill
     let base_asset_amount_user_can_execute = calculate_base_asset_amount_user_can_execute(
-        state,
         user,
         user_positions,
         order,
@@ -741,6 +750,11 @@ pub fn execute_non_market_order(
         base_asset_amount_market_can_execute,
         base_asset_amount_user_can_execute,
     );
+
+    if base_asset_amount < market.amm.minimum_base_asset_trade_size {
+        msg!("base asset amount too small {}", base_asset_amount);
+        return Ok((0, 0, false));
+    }
 
     let minimum_base_asset_trade_size = market.amm.minimum_base_asset_trade_size;
     let base_asset_amount_left_to_fill = order

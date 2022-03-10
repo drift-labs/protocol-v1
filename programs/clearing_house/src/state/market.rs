@@ -12,6 +12,15 @@ pub struct Markets {
     pub markets: [Market; 64],
 }
 
+#[derive(Default, Clone, Copy, Debug)]
+pub struct OraclePriceData {
+    pub price: i128,
+    pub twap: i128,
+    pub confidence: u128,
+    pub twap_confidence: u128,
+    pub delay: i64,
+}
+
 impl Default for Markets {
     fn default() -> Self {
         Markets {
@@ -43,9 +52,12 @@ pub struct Market {
     pub base_asset_amount: i128, // net market bias
     pub open_interest: u128,     // number of users in a position
     pub amm: AMM,
+    pub margin_ratio_initial: u32,
+    pub margin_ratio_partial: u32,
+    pub margin_ratio_maintenance: u32,
 
     // upgrade-ability
-    pub padding0: u128,
+    pub padding0: u32,
     pub padding1: u128,
     pub padding2: u128,
     pub padding3: u128,
@@ -202,20 +214,19 @@ impl AMM {
         &self,
         price_oracle: &AccountInfo,
         clock_slot: u64,
-    ) -> ClearingHouseResult<(i128, i128, u128, u128, i64)> {
-        let (oracle_px, oracle_twap, oracle_conf, oracle_twac, oracle_delay) = match self
+    ) -> ClearingHouseResult<OraclePriceData> {
+        let (price, twap, confidence, twap_confidence, delay) = match self
             .oracle_source
         {
             OracleSource::Pyth => self.get_pyth_price(price_oracle, clock_slot)?,
             OracleSource::PythSquared => self.get_pyth_price_squared(price_oracle, clock_slot)?,
             OracleSource::Switchboard => (0, 0, 0, 0, 0),
         };
-        Ok((
-            oracle_px,
-            oracle_twap,
-            oracle_conf,
-            oracle_twac,
-            oracle_delay,
-        ))
-    }
-}
+        Ok(OraclePriceData {
+            price,
+            twap,
+            confidence,
+            twap_confidence,
+            delay,
+        })
+    }} 

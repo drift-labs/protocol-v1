@@ -116,6 +116,10 @@ pub enum ErrorCode {
     MarketOrderMustBeInPlaceAndFill,
     #[msg("User Order Id Already In Use")]
     UserOrderIdAlreadyInUse,
+    #[msg("No positions liquidatable")]
+    NoPositionsLiquidatable,
+    #[msg("Invalid Margin Ratio")]
+    InvalidMarginRatio,
 }
 
 #[macro_export]

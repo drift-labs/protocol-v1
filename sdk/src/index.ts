@@ -7,6 +7,7 @@ export * from './types';
 export * from './constants/markets';
 export * from './accounts/webSocketClearingHouseAccountSubscriber';
 export * from './accounts/bulkAccountLoader';
+export * from './accounts/bulkUserSubscription';
 export * from './accounts/pollingClearingHouseAccountSubscriber';
 export * from './accounts/pollingTokenAccountSubscriber';
 export * from './accounts/types';
@@ -31,6 +32,7 @@ export * from './types';
 export * from './math/utils';
 export * from './config';
 export * from './constants/numericConstants';
+export * from './tx/retryTxSender';
 export * from './util/computeUnits';
 export * from './util/tps';
 

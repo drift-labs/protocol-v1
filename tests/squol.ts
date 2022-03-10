@@ -475,7 +475,7 @@ describe('clearing_house', () => {
 		const marketsOldAccount = clearingHouse.getMarketsAccount();
 		const marketOld: any = marketsOldAccount.markets[0];
 		await clearingHouse.openPosition(
-			PositionDirection.SHORT,
+			PositionDirection.LONG,
 			incrementalUSDCNotionalAmount,
 			new BN(0)
 		);
@@ -562,11 +562,15 @@ describe('clearing_house', () => {
 		const userPositionsAccount0: any =
 			await clearingHouse.program.account.userPositions.fetch(user0.positions);
 
-		const liqPrice = userAccount.liquidationPriceOld(
+		const liqPrice = userAccount.liquidationPrice(
 			userPositionsAccount0.positions[0],
 			new BN(0),
 			true
 		);
+		if (liqPrice.lt(new BN(0))) {
+			console.log('liq price = 0');
+			assert(false);
+		}
 		console.log(convertToNumber(liqPrice));
 
 		console.log(
@@ -718,11 +722,15 @@ describe('clearing_house', () => {
 		const userPositionsAccount0: any =
 			await clearingHouse.program.account.userPositions.fetch(user0.positions);
 
-		const liqPrice = userAccount.liquidationPriceOld(
+		const liqPrice = userAccount.liquidationPrice(
 			userPositionsAccount0.positions[0],
 			new BN(0),
 			false
 		);
+		if (liqPrice.lt(new BN(0))) {
+			console.log('liq price = 0');
+			assert(false);
+		}
 		console.log(convertToNumber(liqPrice));
 
 		const marketsAccount: any = clearingHouse.getMarketsAccount();

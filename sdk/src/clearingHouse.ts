@@ -52,7 +52,6 @@ import {
 	ClearingHouseAccountTypes,
 } from './accounts/types';
 import { TxSender } from './tx/types';
-import { DefaultTxSender } from './tx/defaultTxSender';
 import { wrapInTx } from './tx/utils';
 import {
 	getClearingHouse,
@@ -250,12 +249,13 @@ export class ClearingHouse {
 			this.program.programId,
 			newProvider
 		);
-		const newTxSender = new DefaultTxSender(newProvider);
+
+		// Update provider for txSender with new wallet details
+		this.txSender.provider = newProvider;
 
 		this.wallet = newWallet;
 		this.provider = newProvider;
 		this.program = newProgram;
-		this.txSender = newTxSender;
 		this.userAccountPublicKey = undefined;
 		this.userAccount = undefined;
 	}

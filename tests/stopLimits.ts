@@ -177,6 +177,7 @@ describe('stop limit', () => {
 		await clearingHouse.unsubscribe();
 		await clearingHouseUser.unsubscribe();
 		await fillerUser.unsubscribe();
+		await fillerClearingHouse.unsubscribe();
 	});
 
 	it('Fill stop limit short order', async () => {
@@ -337,7 +338,7 @@ describe('stop limit', () => {
 		const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[3];
 
 		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(baseAssetAmount));
-		const expectedTradeQuoteAssetAmount = new BN(999998);
+		const expectedTradeQuoteAssetAmount = new BN(999999);
 		assert.ok(
 			tradeHistoryRecord.quoteAssetAmount.eq(expectedTradeQuoteAssetAmount)
 		);
