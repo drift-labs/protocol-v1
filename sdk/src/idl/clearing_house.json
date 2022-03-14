@@ -3256,11 +3256,15 @@
             "type": "u128"
           },
           {
+            "name": "quoteAssetAmountSurplus",
+            "type": "u128"
+          },
+          {
             "name": "padding",
             "type": {
               "array": [
                 "u64",
-                10
+                8
               ]
             }
           }

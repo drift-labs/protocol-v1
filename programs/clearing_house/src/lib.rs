@@ -620,7 +620,7 @@ pub mod clearing_house {
             &ctx.accounts.authority.key(),
         )?;
         let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) =
-            fees::calculate_fee_for_market_order(
+            fees::calculate_fee_for_trade(
                 quote_asset_amount,
                 &ctx.accounts.state.fee_structure,
                 discount_token,
@@ -820,7 +820,7 @@ pub mod clearing_house {
             &ctx.accounts.authority.key(),
         )?;
         let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) =
-            fees::calculate_fee_for_market_order(
+            fees::calculate_fee_for_trade(
                 quote_asset_amount,
                 &ctx.accounts.state.fee_structure,
                 discount_token,

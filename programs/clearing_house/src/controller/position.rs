@@ -181,14 +181,12 @@ pub fn increase_with_base_asset_amount(
     )?;
 
     let (quote_asset_amount, quote_asset_amount_surplus) = match maker_limit_price {
-        Some(limit_price) => {
-            let quote_asset_amount =
-                calculate_quote_asset_amount_for_maker_order(base_asset_amount, limit_price)?;
-            let quote_asset_amount_surplus = quote_asset_amount
-                .checked_sub(quote_asset_swapped)
-                .ok_or_else(math_error!())?;
-            (quote_asset_amount, quote_asset_amount_surplus)
-        }
+        Some(limit_price) => calculate_quote_asset_amount_surplus(
+            swap_direction,
+            quote_asset_swapped,
+            base_asset_amount,
+            limit_price,
+        )?,
         None => (quote_asset_swapped, 0),
     };
 
@@ -330,14 +328,12 @@ pub fn reduce_with_base_asset_amount(
     )?;
 
     let (quote_asset_amount, quote_asset_amount_surplus) = match maker_limit_price {
-        Some(limit_price) => {
-            let quote_asset_amount =
-                calculate_quote_asset_amount_for_maker_order(base_asset_amount, limit_price)?;
-            let quote_asset_amount_surplus = quote_asset_amount
-                .checked_sub(quote_asset_swapped)
-                .ok_or_else(math_error!())?;
-            (quote_asset_amount, quote_asset_amount_surplus)
-        }
+        Some(limit_price) => calculate_quote_asset_amount_surplus(
+            swap_direction,
+            quote_asset_swapped,
+            base_asset_amount,
+            limit_price,
+        )?,
         None => (quote_asset_swapped, 0),
     };
 
@@ -433,16 +429,12 @@ pub fn close(
     )?;
 
     let (quote_asset_amount, quote_asset_amount_surplus) = match maker_limit_price {
-        Some(limit_price) => {
-            let quote_asset_amount = calculate_quote_asset_amount_for_maker_order(
-                market_position.base_asset_amount.unsigned_abs(),
-                limit_price,
-            )?;
-            let quote_asset_amount_surplus = quote_asset_amount
-                .checked_sub(quote_asset_swapped)
-                .ok_or_else(math_error!())?;
-            (quote_asset_amount, quote_asset_amount_surplus)
-        }
+        Some(limit_price) => calculate_quote_asset_amount_surplus(
+            swap_direction,
+            quote_asset_swapped,
+            market_position.base_asset_amount.unsigned_abs(),
+            limit_price,
+        )?,
         None => (quote_asset_swapped, 0),
     };
 
@@ -690,4 +682,25 @@ pub fn update_position_with_quote_asset_amount(
         quote_asset_amount,
         0,
     ))
+}
+
+fn calculate_quote_asset_amount_surplus(
+    swap_direction: SwapDirection,
+    quote_asset_swapped: u128,
+    base_asset_amount: u128,
+    limit_price: u128,
+) -> ClearingHouseResult<(u128, u128)> {
+    let quote_asset_amount =
+        calculate_quote_asset_amount_for_maker_order(base_asset_amount, limit_price)?;
+
+    let quote_asset_amount_surplus = match swap_direction {
+        SwapDirection::Remove => quote_asset_amount
+            .checked_sub(quote_asset_swapped)
+            .ok_or_else(math_error!())?,
+        SwapDirection::Add => quote_asset_swapped
+            .checked_sub(quote_asset_amount)
+            .ok_or_else(math_error!())?,
+    };
+
+    Ok((quote_asset_amount, quote_asset_amount_surplus))
 }
