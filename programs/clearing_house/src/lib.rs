@@ -568,7 +568,7 @@ pub mod clearing_house {
         {
             let markets = &mut ctx.accounts.markets.load_mut()?;
             let market = markets.get_market_mut(market_index);
-            let (_potentially_risk_increasing, _, _base_asset_amount, _quote_asset_amount) =
+            let (_potentially_risk_increasing, _, _base_asset_amount, _quote_asset_amount, _) =
                 controller::position::update_position_with_quote_asset_amount(
                     quote_asset_amount,
                     direction,
@@ -801,11 +801,12 @@ pub mod clearing_house {
         )?;
         let direction_to_close =
             math::position::direction_to_close_position(market_position.base_asset_amount);
-        let (quote_asset_amount, base_asset_amount) = controller::position::close(
+        let (quote_asset_amount, base_asset_amount, _) = controller::position::close(
             user,
             market,
             market_position,
             now,
+            None,
             Some(mark_price_before),
         )?;
         let base_asset_amount = base_asset_amount.unsigned_abs();
@@ -1298,13 +1299,16 @@ pub mod clearing_house {
 
                     (quote_asset_amount, base_asset_amount)
                 } else {
-                    controller::position::close(
+                    let (quote_asset_amount, base_asset_amount, _) = controller::position::close(
                         user,
                         market,
                         market_position,
                         now,
+                        None,
                         Some(mark_price_before),
-                    )?
+                    )?;
+
+                    (quote_asset_amount, base_asset_amount)
                 };
 
                 let base_asset_amount = base_asset_amount.unsigned_abs();

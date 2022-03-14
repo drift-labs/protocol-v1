@@ -122,9 +122,9 @@ pub fn place_order(
             Some(referrer) => referrer.key(),
             None => Pubkey::default(),
         },
+        post_only: params.post_only,
 
         // always false until we add support
-        post_only: false,
         immediate_or_cancel: false,
         oracle_price_offset: 0,
         padding: [0; 3],
@@ -659,7 +659,7 @@ pub fn execute_market_order(
     let market_position = &mut user_positions.positions[position_index];
     let market = markets.get_market_mut(market_index);
 
-    let (potentially_risk_increasing, reduce_only, base_asset_amount, quote_asset_amount) =
+    let (potentially_risk_increasing, reduce_only, base_asset_amount, quote_asset_amount, _) =
         if order.base_asset_amount > 0 {
             controller::position::update_position_with_base_asset_amount(
                 order.base_asset_amount,
@@ -668,6 +668,7 @@ pub fn execute_market_order(
                 user,
                 market_position,
                 now,
+                None,
             )?
         } else {
             controller::position::update_position_with_quote_asset_amount(
@@ -782,15 +783,26 @@ pub fn execute_non_market_order(
     let position_index = get_position_index(user_positions, market_index)?;
     let market_position = &mut user_positions.positions[position_index];
 
-    let (potentially_risk_increasing, reduce_only, _, quote_asset_amount) =
-        controller::position::update_position_with_base_asset_amount(
-            base_asset_amount,
-            order.direction,
-            market,
-            user,
-            market_position,
-            now,
-        )?;
+    let maker_limit_price = if order.post_only {
+        Some(order.price)
+    } else {
+        None
+    };
+    let (
+        potentially_risk_increasing,
+        reduce_only,
+        _,
+        quote_asset_amount,
+        _quote_asset_amount_surplus,
+    ) = controller::position::update_position_with_base_asset_amount(
+        base_asset_amount,
+        order.direction,
+        market,
+        user,
+        market_position,
+        now,
+        maker_limit_price,
+    )?;
 
     if !reduce_only && order.reduce_only {
         return Err(ErrorCode::ReduceOnlyOrderIncreasedRisk);
