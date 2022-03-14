@@ -184,8 +184,8 @@ pub fn increase_with_base_asset_amount(
         Some(limit_price) => {
             let quote_asset_amount =
                 calculate_quote_asset_amount_for_maker_order(base_asset_amount, limit_price)?;
-            let quote_asset_amount_surplus = quote_asset_swapped
-                .checked_sub(quote_asset_amount)
+            let quote_asset_amount_surplus = quote_asset_amount
+                .checked_sub(quote_asset_swapped)
                 .ok_or_else(math_error!())?;
             (quote_asset_amount, quote_asset_amount_surplus)
         }
@@ -333,8 +333,8 @@ pub fn reduce_with_base_asset_amount(
         Some(limit_price) => {
             let quote_asset_amount =
                 calculate_quote_asset_amount_for_maker_order(base_asset_amount, limit_price)?;
-            let quote_asset_amount_surplus = quote_asset_swapped
-                .checked_sub(quote_asset_amount)
+            let quote_asset_amount_surplus = quote_asset_amount
+                .checked_sub(quote_asset_swapped)
                 .ok_or_else(math_error!())?;
             (quote_asset_amount, quote_asset_amount_surplus)
         }
@@ -438,8 +438,8 @@ pub fn close(
                 market_position.base_asset_amount.unsigned_abs(),
                 limit_price,
             )?;
-            let quote_asset_amount_surplus = quote_asset_swapped
-                .checked_sub(quote_asset_amount)
+            let quote_asset_amount_surplus = quote_asset_amount
+                .checked_sub(quote_asset_swapped)
                 .ok_or_else(math_error!())?;
             (quote_asset_amount, quote_asset_amount_surplus)
         }
