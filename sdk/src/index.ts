@@ -2,6 +2,7 @@ import { BN } from '@project-serum/anchor';
 import { PublicKey } from '@solana/web3.js';
 
 export * from './mockUSDCFaucet';
+export * from './oracles/types';
 export * from './oracles/pythClient';
 export * from './oracles/switchboardClient';
 export * from './types';
