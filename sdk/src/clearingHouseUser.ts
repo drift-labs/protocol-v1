@@ -39,6 +39,7 @@ import {
 	getClearingHouseUser,
 	getWebSocketClearingHouseUserConfig,
 } from './factory/clearingHouseUser';
+import { convertToNumber } from './math/conversion';
 
 export class ClearingHouseUser {
 	clearingHouse: ClearingHouse;
@@ -496,6 +497,10 @@ export class ClearingHouseUser {
         3. (10k - 4k) / (100k - 4k) = 6k/96k => .0625 */
 
 		const totalCollateral = this.getTotalCollateral();
+		console.log(
+			'totalCollateral:',
+			convertToNumber(totalCollateral, AMM_RESERVE_PRECISION)
+		);
 
 		// calculate the total position value ignoring any value from the target market of the trade
 		const totalPositionValueExcludingTargetMarket =
@@ -535,6 +540,11 @@ export class ClearingHouseUser {
 		// total position value after trade
 		const totalPositionValueAfterTrade =
 			totalPositionValueExcludingTargetMarket.add(proposedMarketPositionValue);
+
+		console.log(
+			'totalPositionValueAfterTrade:',
+			convertToNumber(totalPositionValueAfterTrade, AMM_RESERVE_PRECISION)
+		);
 
 		const marginRequirementExcludingTargetMarket =
 			this.getUserPositionsAccount().positions.reduce(

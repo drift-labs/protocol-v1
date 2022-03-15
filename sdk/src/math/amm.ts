@@ -15,6 +15,7 @@ import {
 	SwapDirection,
 	Market,
 	isVariant,
+	OracleSource,
 } from '../types';
 import { assert } from '../assert/assert';
 import {
@@ -23,6 +24,16 @@ import {
 	convertToNumber,
 	squareRootBN,
 } from '..';
+import {
+	calculateSwapOutputCpSq,
+	calculateSwapOutputCp,
+	calculatePriceCp,
+	calculatePriceCpSq,
+} from './curve';
+
+export const matchEnum = (enum1: any, enum2) => {
+	return JSON.stringify(enum1) === JSON.stringify(enum2);
+};
 
 /**
  * Calculates a price given an arbitrary base and quote amount (they must have the same precision)
@@ -33,6 +44,7 @@ import {
  * @returns price : Precision MARK_PRICE_PRECISION
  */
 export function calculatePrice(
+	amm: AMM,
 	baseAssetAmount: BN,
 	quoteAssetAmount: BN,
 	peg_multiplier: BN
@@ -41,11 +53,15 @@ export function calculatePrice(
 		return new BN(0);
 	}
 
-	return quoteAssetAmount
-		.mul(MARK_PRICE_PRECISION)
-		.mul(peg_multiplier)
-		.div(PEG_PRECISION)
-		.div(baseAssetAmount);
+	if (matchEnum(amm.oracleSource, OracleSource.PYTHSQUARED)) {
+		return calculatePriceCpSq(
+			baseAssetAmount,
+			quoteAssetAmount,
+			peg_multiplier
+		);
+	} else {
+		return calculatePriceCp(baseAssetAmount, quoteAssetAmount, peg_multiplier);
+	}
 }
 
 export type AssetType = 'quote' | 'base';
@@ -75,19 +91,49 @@ export function calculateAmmReservesAfterSwap(
 			.mul(AMM_TIMES_PEG_TO_QUOTE_PRECISION_RATIO)
 			.div(amm.pegMultiplier);
 
-		[newQuoteAssetReserve, newBaseAssetReserve] = calculateSwapOutput(
-			amm.quoteAssetReserve,
-			swapAmount,
-			swapDirection,
-			amm.sqrtK.mul(amm.sqrtK)
-		);
+		console.log('CHECKING ORACLE SOURCE', amm.oracleSource);
+		console.log(OracleSource.PYTHSQUARED);
+		if (matchEnum(amm.oracleSource, OracleSource.PYTHSQUARED)) {
+			console.log('PYTHSQ', amm.oracleSource);
+			[newQuoteAssetReserve, newBaseAssetReserve] = calculateSwapOutputCpSq(
+				amm.quoteAssetReserve,
+				swapAmount,
+				swapDirection,
+				amm.sqrtK.mul(amm.sqrtK),
+				inputAssetType
+			);
+		} else {
+			[newQuoteAssetReserve, newBaseAssetReserve] = calculateSwapOutputCp(
+				amm.quoteAssetReserve,
+				swapAmount,
+				swapDirection,
+				amm.sqrtK.mul(amm.sqrtK),
+				inputAssetType
+			);
+		}
 	} else {
-		[newBaseAssetReserve, newQuoteAssetReserve] = calculateSwapOutput(
-			amm.baseAssetReserve,
-			swapAmount,
-			swapDirection,
-			amm.sqrtK.mul(amm.sqrtK)
-		);
+		console.log('CHECKING ORACLE SOURCE', amm.oracleSource);
+		console.log(OracleSource.PYTHSQUARED);
+		console.log(matchEnum(amm.oracleSource, OracleSource.PYTHSQUARED));
+		if (matchEnum(amm.oracleSource, OracleSource.PYTHSQUARED)) {
+			console.log('PYTHSQ', amm.oracleSource);
+
+			[newBaseAssetReserve, newQuoteAssetReserve] = calculateSwapOutputCpSq(
+				amm.baseAssetReserve,
+				swapAmount,
+				swapDirection,
+				amm.sqrtK.mul(amm.sqrtK),
+				inputAssetType
+			);
+		} else {
+			[newBaseAssetReserve, newQuoteAssetReserve] = calculateSwapOutputCp(
+				amm.baseAssetReserve,
+				swapAmount,
+				swapDirection,
+				amm.sqrtK.mul(amm.sqrtK),
+				inputAssetType
+			);
+		}
 	}
 
 	return [newQuoteAssetReserve, newBaseAssetReserve];
@@ -106,7 +152,8 @@ export function calculateSwapOutput(
 	inputAssetReserve: BN,
 	swapAmount: BN,
 	swapDirection: SwapDirection,
-	invariant: BN
+	invariant: BN,
+	inputAssetType: AssetType
 ): [BN, BN] {
 	let newInputAssetReserve;
 	if (swapDirection === SwapDirection.ADD) {
@@ -298,7 +345,10 @@ export function calculateMaxBaseAssetAmountToTrade(
 		.div(limit_price)
 		.div(PEG_PRECISION);
 
-	const newBaseAssetReserve = squareRootBN(newBaseAssetReserveSquared);
+	const newBaseAssetReserve = squareRootBN(
+		newBaseAssetReserveSquared,
+		AMM_RESERVE_PRECISION
+	);
 
 	if (newBaseAssetReserve.gt(amm.baseAssetReserve)) {
 		return [

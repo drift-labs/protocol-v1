@@ -40,7 +40,7 @@ const calculateTradeAmount = (amountOfCollateral: BN) => {
 	return tradeAmount;
 };
 
-describe('clearing_house', () => {
+describe('squol', () => {
 	const provider = anchor.Provider.local();
 	const connection = provider.connection;
 	anchor.setProvider(provider);
@@ -56,8 +56,12 @@ describe('clearing_house', () => {
 
 	// ammInvariant == k == x^2 * y
 	// const mantissaSqrtScale = new BN(Math.sqrt(MARK_PRICE_PRECISION.toNumber()));
-	const ammInitialQuoteAssetAmount = new anchor.BN(1 * 10 ** 11);
-	const ammInitialBaseAssetAmount = new anchor.BN(1 * 10 ** 11);
+	const ammInitialQuoteAssetAmount = new anchor.BN(1 * 10 ** 2).mul(
+		new BN(AMM_RESERVE_PRECISION)
+	);
+	const ammInitialBaseAssetAmount = new anchor.BN(1 * 10 ** 2).mul(
+		new BN(AMM_RESERVE_PRECISION)
+	);
 	//.div(AMM_RESERVE_PRECISION) //.mul(AMM_RESERVE_PRECISION);
 
 	const usdcAmount = new BN(10 * 10 ** 6);
@@ -73,6 +77,10 @@ describe('clearing_house', () => {
 			{
 				commitment: 'confirmed',
 			}
+		);
+		userAccount = ClearingHouseUser.from(
+			clearingHouse,
+			provider.wallet.publicKey
 		);
 	});
 
@@ -152,6 +160,17 @@ describe('clearing_house', () => {
 		assert.ok(ammData.fundingPeriod.eq(periodicity));
 		assert.ok(ammData.lastFundingRate.eq(new BN(0)));
 		assert.ok(!ammData.lastFundingRateTs.eq(new BN(0)));
+
+		console.log(
+			convertToNumber(ammData.baseAssetReserve, AMM_RESERVE_PRECISION),
+			'^2 * ',
+			convertToNumber(ammData.quoteAssetReserve, AMM_RESERVE_PRECISION),
+			'=',
+			convertToNumber(
+				ammData.sqrtK.mul(ammData.sqrtK).div(AMM_RESERVE_PRECISION),
+				AMM_RESERVE_PRECISION
+			)
+		);
 	});
 
 	it('Initialize user account and deposit collateral atomically', async () => {
@@ -164,6 +183,8 @@ describe('clearing_house', () => {
 		const user: any = await clearingHouse.program.account.user.fetch(
 			userAccountPublicKey
 		);
+
+		await userAccount.subscribe();
 
 		assert.ok(user.authority.equals(provider.wallet.publicKey));
 		assert.ok(user.collateral.eq(usdcAmount));
@@ -247,6 +268,15 @@ describe('clearing_house', () => {
 		const marketsAccount = clearingHouse.getMarketsAccount();
 
 		const market = marketsAccount.markets[0];
+
+		// userAccount = ClearingHouseUser.from(
+		// 	clearingHouse,
+		// 	provider.wallet.publicKey
+		// );
+		console.log(
+			'totalCollateral:',
+			convertToNumber(userAccount.getTotalCollateral(), QUOTE_PRECISION)
+		);
 
 		console.log(
 			convertToNumber(marketOld.amm.baseAssetReserve, AMM_RESERVE_PRECISION),
@@ -428,6 +458,10 @@ describe('clearing_house', () => {
 	it('Close position', async () => {
 		await clearingHouse.closePosition(new BN(0));
 
+		console.log(
+			'totalCollateral:',
+			convertToNumber(userAccount.getTotalCollateral(), QUOTE_PRECISION)
+		);
 		const user: any = await clearingHouse.program.account.user.fetch(
 			userAccountPublicKey
 		);
@@ -475,8 +509,8 @@ describe('clearing_house', () => {
 		const marketsOldAccount = clearingHouse.getMarketsAccount();
 		const marketOld: any = marketsOldAccount.markets[0];
 		await clearingHouse.openPosition(
-			PositionDirection.LONG,
-			incrementalUSDCNotionalAmount,
+			PositionDirection.SHORT,
+			incrementalUSDCNotionalAmount.mul(new BN(2)),
 			new BN(0)
 		);
 
@@ -550,11 +584,11 @@ describe('clearing_house', () => {
 	it('Partial Liquidation', async () => {
 		const marketIndex = new BN(0);
 
-		userAccount = ClearingHouseUser.from(
-			clearingHouse,
-			provider.wallet.publicKey
-		);
-		await userAccount.subscribe();
+		// userAccount = ClearingHouseUser.from(
+		// 	clearingHouse,
+		// 	provider.wallet.publicKey
+		// );
+		// await userAccount.subscribe();
 
 		const user0: any = await clearingHouse.program.account.user.fetch(
 			userAccountPublicKey

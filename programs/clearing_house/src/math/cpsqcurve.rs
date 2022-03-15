@@ -83,6 +83,8 @@ pub fn calculate_swap_output(
             .checked_div(
                 new_input_amount_u192
                     .checked_mul(new_input_amount_u192)
+                    .ok_or_else(math_error!())?
+                    .checked_div(U192::from(AMM_RESERVE_PRECISION))
                     .ok_or_else(math_error!())?,
             )
             .ok_or_else(math_error!())?
@@ -91,12 +93,10 @@ pub fn calculate_swap_output(
         AssetType::QUOTE => invariant
             .checked_div(new_input_amount_u192)
             .ok_or_else(math_error!())?
-            .checked_mul(U192::from(100_000_000)) // 1e8
+            .checked_mul(U192::from(AMM_RESERVE_PRECISION)) // 1e13
             .ok_or_else(math_error!())?
-            .integer_sqrt()
-            .try_to_u128()?
-            .checked_div(10_000) // 1e4
-            .ok_or_else(math_error!())?,
+            .integer_sqrt() // 1e26 -> 1e13
+            .try_to_u128()?,
     };
     msg!("hihi2");
 

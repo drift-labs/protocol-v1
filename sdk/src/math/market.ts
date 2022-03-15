@@ -14,6 +14,7 @@ import {
  */
 export function calculateMarkPrice(market: Market): BN {
 	return calculatePrice(
+		market.amm,
 		market.amm.baseAssetReserve,
 		market.amm.quoteAssetReserve,
 		market.amm.pegMultiplier

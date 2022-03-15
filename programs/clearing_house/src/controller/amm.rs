@@ -64,7 +64,6 @@ pub fn swap_base_asset(
 
     amm.base_asset_reserve = new_base_asset_reserve;
     amm.quote_asset_reserve = new_quote_asset_reserve;
-
     calculate_quote_asset_amount_swapped(
         initial_quote_asset_reserve,
         new_quote_asset_reserve,

@@ -1,4 +1,4 @@
-import { BN } from '../';
+import { BN, convertToNumber } from '../';
 import {
 	AMM_RESERVE_PRECISION,
 	AMM_TIMES_PEG_TO_QUOTE_PRECISION_RATIO,
@@ -36,6 +36,13 @@ export function calculateBaseAssetValue(
 		getSwapDirection('base', directionToClose)
 	);
 
+	console.log(
+		'change in quote reserves',
+		convertToNumber(market.amm.quoteAssetReserve),
+		'->',
+		convertToNumber(newQuoteAssetReserve)
+	);
+
 	switch (directionToClose) {
 		case PositionDirection.SHORT:
 			return market.amm.quoteAssetReserve
@@ -70,6 +77,10 @@ export function calculatePositionPNL(
 	}
 
 	const baseAssetValue = calculateBaseAssetValue(market, marketPosition);
+	console.log(
+		'baseAssetValue:',
+		convertToNumber(baseAssetValue, AMM_RESERVE_PRECISION)
+	);
 
 	let pnl;
 	if (marketPosition.baseAssetAmount.gt(ZERO)) {

@@ -5,8 +5,10 @@ if [ "$1" != "--skip-build" ]
 fi
 
 test_files=(order.ts orderReferrer.ts marketOrder.ts triggerOrders.ts stopLimits.ts userOrderId.ts roundInFavorBaseAsset.ts marketOrderBaseAssetAmount.ts clearingHouse.ts pyth.ts userAccount.ts admin.ts updateK.ts adminWithdraw.ts curve.ts whitelist.ts fees.ts idempotentCurve.ts maxDeposit.ts deleteUser.ts maxPositions.ts maxReserves.ts roundInFavor.ts minimumTradeSize.ts cappedSymFunding.ts)
-test_files=(squol.ts)
-test_files=(clearingHouse.ts)
+test_files=(sdkhelpers.ts squol.ts)
+# test_files=(squol.ts)
+
+# test_files=(clearingHouse.ts)
 for test_file in ${test_files[@]}; do
   export ANCHOR_TEST_FILE=${test_file} && anchor test --skip-build || exit 1;
 done

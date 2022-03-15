@@ -29,9 +29,11 @@ pub fn squarify(value: u128, precision: u128) -> ClearingHouseResult<u128> {
     let result: u128;
     // if half_pr ecision > value {
     // msg!("value: {:?}", value);
-    result = value.checked_mul(value).ok_or_else(math_error!())?;
-    // .checked_div(precision)
-    // .ok_or_else(math_error!())?;
+    result = value
+    .checked_mul(value)
+    .ok_or_else(math_error!())?
+    .checked_div(precision)
+    .ok_or_else(math_error!())?;
     // } else {
     //     let value_half_precision = value
     //     .checked_div(half_precision)
@@ -80,6 +82,11 @@ pub fn calculate_swap_output(
         AssetType::BASE => amm.base_asset_reserve,
         AssetType::QUOTE => amm.quote_asset_reserve,
     };
+
+    msg!(
+    "swap amount: {:?}",
+    swap_amount
+    );
 
     let (new_output_amount, new_input_amount) = match amm.oracle_source {
         OracleSource::PythSquared => cpsqcurve::calculate_swap_output(
@@ -130,6 +137,9 @@ pub fn calculate_quote_asset_amount_swapped(
     swap_direction: SwapDirection,
     peg_multiplier: u128,
 ) -> ClearingHouseResult<u128> {
+    msg!("calculate_quote_asset_amount_swapped: {:?}, {:?}", 
+    quote_asset_reserve_before, quote_asset_reserve_after);
+
     let quote_asset_reserve_change = match swap_direction {
         SwapDirection::Add => quote_asset_reserve_before
             .checked_sub(quote_asset_reserve_after)

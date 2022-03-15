@@ -1,4 +1,4 @@
-import { isVariant, Market, PositionDirection } from '../types';
+import { isVariant, Market, PositionDirection, OracleSource } from '../types';
 import { BN } from '@project-serum/anchor';
 import { assert } from '../assert/assert';
 import {
@@ -7,15 +7,18 @@ import {
 	AMM_TO_QUOTE_PRECISION_RATIO,
 	ZERO,
 	ONE,
+	AMM_RESERVE_PRECISION,
 } from '../constants/numericConstants';
 import { calculateMarkPrice } from './market';
+import { convertToNumber } from './conversion';
 import {
 	calculateAmmReservesAfterSwap,
 	calculatePrice,
 	getSwapDirection,
 	AssetType,
+	matchEnum,
 } from './amm';
-import { squareRootBN } from './utils';
+import { squareRootBN, cubicRootBN } from './utils';
 
 const MAXPCT = new BN(1000); //percentage units are [0,1000] => [0,1]
 
@@ -65,12 +68,14 @@ export function calculateTradeSlippage(
 	);
 
 	const entryPrice = calculatePrice(
+		market.amm,
 		acquiredBase,
 		acquiredQuote,
 		market.amm.pegMultiplier
 	).mul(new BN(-1));
 
 	const newPrice = calculatePrice(
+		market.amm,
 		market.amm.baseAssetReserve.sub(acquiredBase),
 		market.amm.quoteAssetReserve.sub(acquiredQuote),
 		market.amm.pegMultiplier
@@ -187,14 +192,40 @@ export function calculateTargetPriceTrade(
 
 	if (markPriceBefore.gt(targetPrice)) {
 		// overestimate y2
-		baseAssetReserveAfter = squareRootBN(
-			k.div(targetPrice).mul(peg).div(PEG_PRECISION).sub(biasModifier)
-		).sub(new BN(1));
-		quoteAssetReserveAfter = k
-			.div(MARK_PRICE_PRECISION)
-			.div(baseAssetReserveAfter);
+		if (matchEnum(market.amm.oracleSource, OracleSource.PYTHSQUARED)) {
+			baseAssetReserveAfter = cubicRootBN(
+				k
+					.div(targetPrice)
+					.mul(peg)
+					.div(PEG_PRECISION)
+					.mul(new BN(2))
+					.sub(biasModifier),
+				AMM_RESERVE_PRECISION
+			).sub(new BN(1));
+			quoteAssetReserveAfter = k
+				.div(MARK_PRICE_PRECISION)
+				.div(
+					baseAssetReserveAfter
+						.mul(baseAssetReserveAfter)
+						.div(AMM_RESERVE_PRECISION)
+				);
+		} else {
+			baseAssetReserveAfter = squareRootBN(
+				k
+					.div(targetPrice)
+					.mul(peg)
+					.div(PEG_PRECISION)
+					.mul(new BN(2))
+					.sub(biasModifier),
+				AMM_RESERVE_PRECISION
+			).sub(new BN(1));
+			quoteAssetReserveAfter = k
+				.div(MARK_PRICE_PRECISION)
+				.div(baseAssetReserveAfter);
+		}
 
 		markPriceAfter = calculatePrice(
+			market.amm,
 			baseAssetReserveAfter,
 			quoteAssetReserveAfter,
 			peg
@@ -208,14 +239,34 @@ export function calculateTargetPriceTrade(
 		baseSize = baseAssetReserveAfter.sub(baseAssetReserveBefore);
 	} else if (markPriceBefore.lt(targetPrice)) {
 		// underestimate y2
-		baseAssetReserveAfter = squareRootBN(
-			k.div(targetPrice).mul(peg).div(PEG_PRECISION).add(biasModifier)
-		).add(new BN(1));
-		quoteAssetReserveAfter = k
-			.div(MARK_PRICE_PRECISION)
-			.div(baseAssetReserveAfter);
+		if (matchEnum(market.amm.oracleSource, OracleSource.PYTHSQUARED)) {
+			baseAssetReserveAfter = cubicRootBN(
+				k.div(targetPrice).mul(peg).div(PEG_PRECISION).add(biasModifier),
+				AMM_RESERVE_PRECISION
+			).add(new BN(1));
+
+			quoteAssetReserveAfter = k
+				.div(MARK_PRICE_PRECISION)
+				.div(
+					baseAssetReserveAfter
+						.mul(baseAssetReserveAfter)
+						.div(AMM_RESERVE_PRECISION)
+				);
+		} else {
+			baseAssetReserveAfter = squareRootBN(
+				k.div(targetPrice).mul(peg).div(PEG_PRECISION).add(biasModifier),
+				AMM_RESERVE_PRECISION
+			).add(new BN(1));
+			quoteAssetReserveAfter = k
+				.div(MARK_PRICE_PRECISION)
+				.div(baseAssetReserveAfter);
+		}
+
+		console.log(baseAssetReserveAfter, quoteAssetReserveAfter);
+		console.log(baseAssetReserveBefore, quoteAssetReserveBefore);
 
 		markPriceAfter = calculatePrice(
+			market.amm,
 			baseAssetReserveAfter,
 			quoteAssetReserveAfter,
 			peg
@@ -250,6 +301,7 @@ export function calculateTargetPriceTrade(
 		.mul(MARK_PRICE_PRECISION)
 		.div(baseSize.abs());
 
+	console.log(convertToNumber(tp1), convertToNumber(tp2));
 	assert(tp1.sub(tp2).lte(originalDiff), 'Target Price Calculation incorrect');
 	assert(
 		tp2.lte(tp1) || tp2.sub(tp1).abs() < 100000,

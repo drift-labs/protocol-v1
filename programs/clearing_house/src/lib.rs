@@ -358,6 +358,8 @@ pub mod clearing_house {
         let sqrt_k = bn::U192::from(amm_base_asset_reserve)
             .checked_mul(bn::U192::from(amm_quote_asset_reserve))
             .ok_or_else(math_error!())?
+            .checked_div(bn::U192::from(AMM_RESERVE_PRECISION))
+            .ok_or_else(math_error!())?
             .checked_mul(bn::U192::from(amm_base_asset_reserve))
             .ok_or_else(math_error!())?
             .integer_sqrt()
