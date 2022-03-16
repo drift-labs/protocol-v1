@@ -40,7 +40,7 @@ export class PythClient {
 	}
 }
 
-function convertPythPrice(price: number, exponent: number): BN {
+export function convertPythPrice(price: number, exponent: number): BN {
 	exponent = Math.abs(exponent);
 	const pythPrecision = TEN.pow(new BN(exponent).abs());
 	return new BN(price * Math.pow(10, exponent))
