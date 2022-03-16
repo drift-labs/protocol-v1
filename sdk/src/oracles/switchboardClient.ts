@@ -10,6 +10,9 @@ import { OracleClient, OraclePriceData } from './types';
 
 type Program = ReturnType<typeof loadSwitchboardProgram>;
 
+// cache switchboard program for every client object since itll always be the same
+const programMap = new Map<string, Program>();
+
 export class SwitchboardClient implements OracleClient {
 	connection: Connection;
 	env: DriftEnv;
@@ -53,14 +56,14 @@ export class SwitchboardClient implements OracleClient {
 		};
 	}
 
-	private program: Program;
 	public async getProgram(): Promise<Program> {
-		if (this.program) {
-			return this.program;
+		if (programMap.has(this.env)) {
+			return programMap.get(this.env);
 		}
 
-		this.program = loadSwitchboardProgram(this.env, this.connection);
-		return this.program;
+		const program = loadSwitchboardProgram(this.env, this.connection);
+		programMap.set(this.env, program);
+		return program;
 	}
 }
 
