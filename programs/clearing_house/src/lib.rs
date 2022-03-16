@@ -19,6 +19,7 @@ use crate::state::{
 pub mod context;
 pub mod controller;
 pub mod error;
+mod margin_validation;
 pub mod math;
 pub mod optional_accounts;
 pub mod order_validation;
@@ -39,6 +40,7 @@ pub mod clearing_house {
     use crate::state::history::liquidation::LiquidationRecord;
 
     use super::*;
+    use crate::margin_validation::validate_margin;
     use crate::math::amm::{
         calculate_mark_twap_spread_pct, is_oracle_mark_too_divergent, normalise_oracle_price,
     };
@@ -240,6 +242,9 @@ pub mod clearing_house {
         amm_periodicity: i64,
         amm_peg_multiplier: u128,
         oracle_source: OracleSource,
+        margin_ratio_initial: u32,
+        margin_ratio_partial: u32,
+        margin_ratio_maintenance: u32,
     ) -> ProgramResult {
         let markets = &mut ctx.accounts.markets.load_mut()?;
         let market = &markets.markets[Markets::index_from_u64(market_index)];
@@ -286,12 +291,21 @@ pub mod clearing_house {
             None => oracle_price,
         };
 
+        validate_margin(
+            margin_ratio_initial,
+            margin_ratio_initial,
+            margin_ratio_maintenance,
+        )?;
+
         let market = Market {
             initialized: true,
             base_asset_amount_long: 0,
             base_asset_amount_short: 0,
             base_asset_amount: 0,
             open_interest: 0,
+            margin_ratio_initial, // unit is 20% (+2 decimal places)
+            margin_ratio_partial,
+            margin_ratio_maintenance,
             padding0: 0,
             padding1: 0,
             padding2: 0,
@@ -444,7 +458,7 @@ pub mod clearing_house {
             .checked_sub(cast(insurance_account_withdrawal)?)
             .ok_or_else(math_error!())?;
 
-        if !meets_initial_margin_requirement(&ctx.accounts.state, user, user_positions, markets)? {
+        if !meets_initial_margin_requirement(user, user_positions, markets)? {
             return Err(ErrorCode::InsufficientCollateral.into());
         }
 
@@ -601,12 +615,8 @@ pub mod clearing_house {
         }
 
         // Trade fails if it's risk increasing and it brings the user below the initial margin ratio level
-        let meets_initial_margin_requirement = meets_initial_margin_requirement(
-            &ctx.accounts.state,
-            user,
-            user_positions,
-            &ctx.accounts.markets.load()?,
-        )?;
+        let meets_initial_margin_requirement =
+            meets_initial_margin_requirement(user, user_positions, &ctx.accounts.markets.load()?)?;
         if !meets_initial_margin_requirement && potentially_risk_increasing {
             return Err(ErrorCode::InsufficientCollateral.into());
         }
@@ -1150,7 +1160,6 @@ pub mod clearing_house {
             mut margin_requirement,
             margin_ratio,
         } = calculate_liquidation_status(
-            state,
             user,
             user_positions,
             &ctx.accounts.markets.load()?,
@@ -2144,15 +2153,27 @@ pub mod clearing_house {
         Ok(())
     }
 
+    #[access_control(
+        market_initialized(&ctx.accounts.markets, market_index)
+    )]
     pub fn update_margin_ratio(
-        ctx: Context<AdminUpdateState>,
-        margin_ratio_initial: u128,
-        margin_ratio_partial: u128,
-        margin_ratio_maintenance: u128,
+        ctx: Context<AdminUpdateMarket>,
+        market_index: u64,
+        margin_ratio_initial: u32,
+        margin_ratio_partial: u32,
+        margin_ratio_maintenance: u32,
     ) -> ProgramResult {
-        ctx.accounts.state.margin_ratio_initial = margin_ratio_initial;
-        ctx.accounts.state.margin_ratio_partial = margin_ratio_partial;
-        ctx.accounts.state.margin_ratio_maintenance = margin_ratio_maintenance;
+        validate_margin(
+            margin_ratio_initial,
+            margin_ratio_partial,
+            margin_ratio_maintenance,
+        )?;
+
+        let market =
+            &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
+        market.margin_ratio_initial = margin_ratio_initial;
+        market.margin_ratio_partial = margin_ratio_partial;
+        market.margin_ratio_maintenance = margin_ratio_maintenance;
         Ok(())
     }
 

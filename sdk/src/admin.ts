@@ -217,7 +217,10 @@ export class Admin extends ClearingHouse {
 		quoteAssetReserve: BN,
 		periodicity: BN,
 		pegMultiplier: BN = PEG_PRECISION,
-		oracleSource: OracleSource = OracleSource.PYTH
+		oracleSource: OracleSource = OracleSource.PYTH,
+		marginRatioInitial = 2000,
+		marginRatioPartial = 625,
+		marginRatioMaintenance = 500
 	): Promise<TransactionSignature> {
 		if (this.getMarketsAccount().markets[marketIndex.toNumber()].initialized) {
 			throw Error(`MarketIndex ${marketIndex.toNumber()} already initialized`);
@@ -230,6 +233,9 @@ export class Admin extends ClearingHouse {
 			periodicity,
 			pegMultiplier,
 			oracleSource,
+			marginRatioInitial,
+			marginRatioPartial,
+			marginRatioMaintenance,
 			{
 				accounts: {
 					state: await this.getStatePublicKey(),
@@ -462,11 +468,13 @@ export class Admin extends ClearingHouse {
 	}
 
 	public async updateMarginRatio(
-		marginRatioInitial: BN,
-		marginRatioPartial: BN,
-		marginRatioMaintenance: BN
+		marketIndex: BN,
+		marginRatioInitial: number,
+		marginRatioPartial: number,
+		marginRatioMaintenance: number
 	): Promise<TransactionSignature> {
 		return await this.program.rpc.updateMarginRatio(
+			marketIndex,
 			marginRatioInitial,
 			marginRatioPartial,
 			marginRatioMaintenance,
@@ -474,6 +482,7 @@ export class Admin extends ClearingHouse {
 				accounts: {
 					admin: this.wallet.publicKey,
 					state: await this.getStatePublicKey(),
+					markets: this.getStateAccount().markets,
 				},
 			}
 		);
