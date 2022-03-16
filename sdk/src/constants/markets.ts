@@ -1,6 +1,6 @@
 import { BN, OracleSource } from '../';
 
-type Market = {
+export type MarketConfig = {
 	symbol: string;
 	baseAssetSymbol: string;
 	marketIndex: BN;
@@ -10,7 +10,7 @@ type Market = {
 	oracleSource: OracleSource;
 };
 
-export const Markets: Market[] = [
+export const Markets: MarketConfig[] = [
 	{
 		symbol: 'SOL-PERP',
 		baseAssetSymbol: 'SOL',
