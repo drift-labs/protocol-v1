@@ -13,6 +13,7 @@ use crate::math::constants::{
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math_error;
 use crate::state::market::{Market, OraclePriceData, AMM};
+use std::cmp::{max, min};
 
 use crate::state::state::OracleGuardRails;
 use anchor_lang::prelude::AccountInfo;
@@ -159,7 +160,7 @@ pub fn calculate_peg_from_target_price(
         .ok_or_else(math_error!())?
         .checked_mul(bn::U192::from(PRICE_TO_PEG_PRECISION_RATIO))
         .ok_or_else(math_error!())?
-        .try_to_u128();
+        .try_to_u128()?;
     Ok(new_peg)
 }
 
@@ -265,7 +266,9 @@ pub fn calculate_budgeted_peg(
     budget: u128,
     current_price: u128,
     target_price: u128,
-) -> ClearingHouseResult<u128> {
+) -> ClearingHouseResult<(u128, i128, &mut Market)> {
+    // calculates peg_multiplier that changing to would cost no more than budget
+
     let order_swap_direction = if market.base_asset_amount > 0 {
         SwapDirection::Add
     } else {
@@ -279,7 +282,13 @@ pub fn calculate_budgeted_peg(
         market.amm.sqrt_k,
     )?;
 
-    let new_peg: u128 = if new_quote_asset_amount != market.amm.quote_asset_reserve {
+    let optimal_peg = calculate_peg_from_target_price(
+        market.amm.quote_asset_reserve,
+        market.amm.base_asset_reserve,
+        target_price,
+    )?;
+
+    let full_budget_peg: u128 = if new_quote_asset_amount != market.amm.quote_asset_reserve {
         let delta_quote_asset_reserves = market
             .amm
             .quote_asset_reserve
@@ -312,14 +321,18 @@ pub fn calculate_budgeted_peg(
             .checked_sub(delta_peg_precision)
             .ok_or_else(math_error!())?
     } else {
-        calculate_peg_from_target_price(
-            market.amm.quote_asset_reserve,
-            market.amm.base_asset_reserve,
-            target_price,
-        )?
+        optimal_peg
     };
 
-    Ok(new_peg)
+    let candidate_peg: u128 = if current_price > target_price {
+        min(full_budget_peg, optimal_peg)
+    } else {
+        max(full_budget_peg, optimal_peg)
+    };
+
+    let (repegged_market, candidate_cost) = adjust_peg_cost(market, optimal_peg)?;
+
+    Ok((candidate_peg, candidate_cost, repegged_market))
 }
 
 pub fn adjust_peg_cost(

@@ -11,6 +11,7 @@ use std::cmp::min;
 
 use crate::context::*;
 use crate::math::{amm, fees, margin::*, orders::*};
+use crate::state::market::OraclePriceData;
 use crate::state::{
     history::order_history::{OrderHistory, OrderRecord},
     history::trade::{TradeHistory, TradeRecord},
@@ -354,24 +355,25 @@ pub fn fill_order(
     let oracle_mark_spread_pct_before: i128;
     let is_oracle_valid: bool;
     let oracle_price: i128;
+    let oracle_price_data: OraclePriceData;
     {
         let markets = &mut markets
             .load_mut()
             .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         let market = markets.get_market_mut(market_index);
         mark_price_before = market.amm.mark_price()?;
-        let oracle_price_data = &market.amm.get_oracle_price(oracle, clock_slot)?;
+        oracle_price_data = market.amm.get_oracle_price(oracle, clock_slot)?;
         oracle_mark_spread_pct_before = amm::calculate_oracle_mark_spread_pct(
             &market.amm,
-            oracle_price_data,
+            &oracle_price_data,
             0,
             Some(mark_price_before),
         )?;
         oracle_price = oracle_price_data.price;
         let normalised_price =
-            normalise_oracle_price(&market.amm, oracle_price_data, Some(mark_price_before))?;
+            normalise_oracle_price(&market.amm, &oracle_price_data, Some(mark_price_before))?;
         is_oracle_valid =
-            amm::is_oracle_valid(oracle_price_data, &state.oracle_guard_rails.validity)?;
+            amm::is_oracle_valid(&oracle_price_data, &state.oracle_guard_rails.validity)?;
         if is_oracle_valid {
             amm::update_oracle_price_twap(&mut market.amm, now, normalised_price)?;
         }
@@ -608,6 +610,17 @@ pub fn fill_order(
             state.funding_paused,
             Some(mark_price_before),
         )?;
+
+        if market_index == 12 {
+            // todo for soft launch
+            controller::repeg::formulaic_repeg(
+                market,
+                mark_price_after,
+                &oracle_price_data,
+                is_oracle_valid,
+                fee_to_market,
+            )?;
+        }
     }
 
     Ok(base_asset_amount)

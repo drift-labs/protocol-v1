@@ -177,6 +177,34 @@ pub fn update_funding_rate(
         let (funding_rate_long, funding_rate_short) =
             calculate_funding_rate_long_short(market, funding_rate)?;
 
+        // dynamic k
+        let funding_imbalance_cost = funding_rate
+            .checked_mul(market.base_asset_amount)
+            .ok_or_else(math_error!())?
+            .checked_div(
+                AMM_TO_QUOTE_PRECISION_RATIO_I128 * cast_to_i128(FUNDING_PAYMENT_PRECISION)?,
+            )
+            .ok_or_else(math_error!())?;
+
+        let budget = if funding_imbalance_cost < 0 {
+            funding_imbalance_cost
+                .checked_div(2)
+                .ok_or_else(math_error!())?
+        } else if market.amm.net_revenue_since_last_funding < (funding_imbalance_cost as i64) {
+            max(0, market.amm.net_revenue_since_last_funding)
+                .checked_sub(funding_imbalance_cost as i64)
+                .ok_or_else(math_error!())?
+                .checked_div(2)
+                .ok_or_else(math_error!())? as i128
+        } else {
+            0
+        };
+
+        if budget != 0 {
+            msg!("todo");
+            // controller::amm::budget_k_adjustment()
+        }
+
         market.amm.cumulative_funding_rate_long = market
             .amm
             .cumulative_funding_rate_long

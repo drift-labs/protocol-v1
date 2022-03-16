@@ -86,7 +86,8 @@ pub fn formulaic_repeg(
     market: &mut Market,
     precomputed_mark_price: u128,
     oracle_price_data: &OraclePriceData,
-    oracle_is_valid: bool,
+    is_oracle_valid: bool,
+    budget: u128,
 ) -> ClearingHouseResult<i128> {
     let OraclePriceData {
         price: oracle_price,
@@ -100,22 +101,16 @@ pub fn formulaic_repeg(
     let oracle_terminal_spread_before = oracle_price
         .checked_sub(cast_to_i128(terminal_price_before)?)
         .ok_or_else(math_error!())?;
-    // let oracle_terminal_divergence_pct_before = oracle_terminal_spread_before
-    //     .checked_shl(10)
-    //     .ok_or_else(math_error!())?
-    //     .checked_div(oracle_price)
-    //     .ok_or_else(math_error!())?;
 
-    let (new_peg_candidate, adjustment_cost, repegged_market) =
-        repeg::calculate_optimal_peg_and_cost(
-            market,
-            oracle_price,
-            precomputed_mark_price,
-            terminal_price_before,
-        )?;
+    let (new_peg_candidate, adjustment_cost, repegged_market) = repeg::calculate_budgeted_peg(
+        market,
+        budget,
+        precomputed_mark_price,
+        cast_to_u128(oracle_price)?,
+    )?;
 
     let (
-        oracle_is_valid,
+        oracle_valid,
         direction_valid,
         profitability_valid,
         price_impact_valid,
@@ -123,17 +118,16 @@ pub fn formulaic_repeg(
     ) = repeg::calculate_repeg_validity(
         repegged_market,
         oracle_price_data,
-        oracle_is_valid,
+        is_oracle_valid,
         terminal_price_before,
     )?;
 
-    if oracle_is_valid && direction_valid && profitability_valid && price_impact_valid {
+    if oracle_valid && direction_valid && profitability_valid && price_impact_valid {
         if adjustment_cost > 0 {
             let new_total_fee_minus_distributions = market
                 .amm
                 .total_fee_minus_distributions
                 .checked_sub(adjustment_cost.unsigned_abs())
-                .or(Some(0))
                 .ok_or_else(math_error!())?;
 
             if new_total_fee_minus_distributions >= repeg::total_fee_lower_bound(&market)? {
