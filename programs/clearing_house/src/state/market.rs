@@ -7,6 +7,7 @@ use crate::math::casting::{cast, cast_to_i128, cast_to_i64, cast_to_u128};
 use crate::math_error;
 use crate::MARK_PRICE_PRECISION;
 use solana_program::msg;
+use std::cmp::max;
 use switchboard_v2::decimal::SwitchboardDecimal;
 
 #[account(zero_copy)]
@@ -191,7 +192,11 @@ impl AMM {
         let confidence = if confidence < 0 {
             u128::MAX
         } else {
-            confidence.unsigned_abs()
+            let price_10bps = price
+                .unsigned_abs()
+                .checked_div(1000)
+                .ok_or_else(math_error!())?;
+            max(confidence.unsigned_abs(), price_10bps)
         };
 
         let delay: i64 = cast_to_i64(clock_slot)?
