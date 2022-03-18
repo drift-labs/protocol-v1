@@ -7,9 +7,8 @@ import {
 	ZERO,
 	AMM_TO_QUOTE_PRECISION_RATIO,
 	QUOTE_PRECISION,
-	AMM_RESERVE_PRECISION,
 } from '../constants/numericConstants';
-import { calculateBaseAssetValue } from './position';
+// import { calculateBaseAssetValue } from './position';
 import {
 	AMM,
 	PositionDirection,
@@ -19,9 +18,9 @@ import {
 } from '../types';
 import { assert } from '../assert/assert';
 import {
-	calculatePositionPNL,
-	calculateMarkPrice,
-	convertToNumber,
+	// calculatePositionPNL,
+	// calculateMarkPrice,
+	// convertToNumber,
 	squareRootBN,
 } from '..';
 

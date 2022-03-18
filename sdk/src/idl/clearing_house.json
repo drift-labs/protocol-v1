@@ -213,6 +213,12 @@
           "type": "u128"
         },
         {
+          "name": "oracleSource",
+          "type": {
+            "defined": "OracleSource"
+          }
+        },
+        {
           "name": "marginRatioInitial",
           "type": "u32"
         },

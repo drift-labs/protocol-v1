@@ -415,7 +415,6 @@ pub fn fill_order(
         oracle_mark_spread_pct_after = amm::calculate_oracle_mark_spread_pct(
             &market.amm,
             oracle_price_data,
-            0,
             Some(mark_price_after),
         )?;
         oracle_price_after = oracle_price_data.price;
