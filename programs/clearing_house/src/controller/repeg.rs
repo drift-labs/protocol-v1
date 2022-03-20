@@ -91,10 +91,9 @@ pub fn formulaic_repeg(
 ) -> ClearingHouseResult<i128> {
     let OraclePriceData {
         price: oracle_price,
-        twap: oracle_twap,
         confidence: oracle_conf,
-        twap_confidence: oracle_twap_conf,
         delay: oracle_delay,
+        has_sufficient_number_of_data_points: has_sufficient_number_of_data_points,
     } = *oracle_price_data;
 
     let terminal_price_before = amm::calculate_terminal_price(market)?;

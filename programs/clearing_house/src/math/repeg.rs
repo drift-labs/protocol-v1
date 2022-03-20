@@ -29,7 +29,11 @@ pub fn calculate_repeg_validity_full(
     let oracle_price_data = market
         .amm
         .get_oracle_price(oracle_account_info, clock_slot)?;
-    let oracle_is_valid = amm::is_oracle_valid(&oracle_price_data, &oracle_guard_rails.validity)?;
+    let oracle_is_valid = amm::is_oracle_valid(
+        &market.amm,
+        &oracle_price_data,
+        &oracle_guard_rails.validity,
+    )?;
 
     let (
         oracle_is_valid,
@@ -61,10 +65,9 @@ pub fn calculate_repeg_validity(
 ) -> ClearingHouseResult<(bool, bool, bool, bool, i128)> {
     let OraclePriceData {
         price: oracle_price,
-        twap: oracle_twap,
         confidence: oracle_conf,
-        twap_confidence: oracle_twap_conf,
-        delay: oracle_delay,
+        delay: _,
+        has_sufficient_number_of_data_points: _,
     } = *oracle_price_data;
 
     let oracle_price_u128 = cast_to_u128(oracle_price)?;

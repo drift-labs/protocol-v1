@@ -202,7 +202,7 @@ pub fn update_funding_rate(
 
         if budget != 0 {
             msg!("todo");
-            // controller::amm::budget_k_adjustment()
+            // let (p_numer, p_denom) = controller::amm::budget_k_adjustment(market, budget);
         }
 
         market.amm.cumulative_funding_rate_long = market

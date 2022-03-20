@@ -446,6 +446,45 @@ pub fn is_oracle_valid(
         || is_conf_too_large))
 }
 
+// pub fn budget_k_adjustment(market: &mut Market, budget: i128) -> ClearingHouseResult<(i128, i128)> {
+//     let y = market.amm.quote_asset_reserve;
+//     let x = market.amm.base_asset_reserve;
+//     let C = budget;
+//     let Q = market.amm.peg_multiplier;
+//     let d = market.base_asset_amount;
+
+//     let numer1 = y
+//         .mul(d)
+//         .mul(Q)
+//         .div(AMM_RESERVE_PRECISION)
+//         .div(PEG_PRECISION);
+//     let numer2 = C.mul(x.add(d)).div(QUOTE_PRECISION);
+//     let denom1 = C
+//         .mul(x)
+//         .mul(x.add(d))
+//         .div(AMM_RESERVE_PRECISION)
+//         .div(QUOTE_PRECISION);
+//     let denom2 = y
+//         .mul(d)
+//         .mul(d)
+//         .mul(Q)
+//         .div(AMM_RESERVE_PRECISION)
+//         .div(AMM_RESERVE_PRECISION)
+//         .div(PEG_PRECISION);
+
+//     let numerator = d
+//         .mul(numer1.add(numer2))
+//         .div(AMM_RESERVE_PRECISION)
+//         .div(AMM_RESERVE_PRECISION)
+//         .div(AMM_TO_QUOTE_PRECISION_RATIO);
+//     let denominator = denom1
+//         .add(denom2)
+//         .div(AMM_RESERVE_PRECISION)
+//         .div(AMM_TO_QUOTE_PRECISION_RATIO);
+
+//     Ok((numerator, denominator))
+// }
+
 /// To find the cost of adjusting k, compare the the net market value before and after adjusting k
 /// Increasing k costs the protocol money because it reduces slippage and improves the exit price for net market position
 /// Decreasing k costs the protocol money because it increases slippage and hurts the exit price for net market position
