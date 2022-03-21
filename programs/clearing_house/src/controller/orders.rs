@@ -24,7 +24,7 @@ use crate::state::{
 use crate::controller;
 use crate::math::amm::normalise_oracle_price;
 use crate::math::fees::calculate_order_fee_tier;
-use crate::order_validation::validate_order;
+use crate::order_validation::{validate_order, validate_order_can_be_canceled};
 use crate::state::history::funding_payment::FundingPaymentHistory;
 use crate::state::history::funding_rate::FundingRateHistory;
 use crate::state::history::order_history::OrderAction;
@@ -251,6 +251,8 @@ pub fn cancel_order(
     if order.status != OrderStatus::Open {
         return Err(ErrorCode::OrderNotOpen);
     }
+
+    validate_order_can_be_canceled(order, markets.get_market(order.market_index))?;
 
     // Add to the order history account
     let order_history_account = &mut order_history
