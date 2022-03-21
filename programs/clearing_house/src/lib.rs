@@ -851,7 +851,11 @@ pub mod clearing_house {
             .total_fee_minus_distributions
             .checked_add(fee_to_market)
             .ok_or_else(math_error!())?;
-
+        market.amm.net_revenue_since_last_funding = market
+            .amm
+            .net_revenue_since_last_funding
+            .checked_add(fee_to_market as i64)
+            .ok_or_else(math_error!())?;
         // Subtract the fee from user's collateral
         user.collateral = user.collateral.checked_sub(user_fee).or(Some(0)).unwrap();
 

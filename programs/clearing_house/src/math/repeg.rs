@@ -161,7 +161,7 @@ pub fn calculate_peg_from_target_price(
         .ok_or_else(math_error!())?
         .checked_div(bn::U192::from(quote_asset_reserve))
         .ok_or_else(math_error!())?
-        .checked_mul(bn::U192::from(PRICE_TO_PEG_PRECISION_RATIO))
+        .checked_div(bn::U192::from(PRICE_TO_PEG_PRECISION_RATIO))
         .ok_or_else(math_error!())?
         .try_to_u128()?;
     Ok(new_peg)
@@ -272,6 +272,8 @@ pub fn calculate_budgeted_peg(
 ) -> ClearingHouseResult<(u128, i128, &mut Market)> {
     // calculates peg_multiplier that changing to would cost no more than budget
 
+    let old_peg = market.amm.peg_multiplier;
+
     let order_swap_direction = if market.base_asset_amount > 0 {
         SwapDirection::Add
     } else {
@@ -292,11 +294,23 @@ pub fn calculate_budgeted_peg(
     )?;
 
     let full_budget_peg: u128 = if new_quote_asset_amount != market.amm.quote_asset_reserve {
-        let delta_quote_asset_reserves = market
-            .amm
-            .quote_asset_reserve
-            .checked_sub(new_quote_asset_amount)
-            .ok_or_else(math_error!())?;
+        let delta_peg_sign = if market.amm.quote_asset_reserve > new_quote_asset_amount {
+            1
+        } else {
+            -1
+        };
+
+        let delta_quote_asset_reserves = if delta_peg_sign > 0 {
+            market
+                .amm
+                .quote_asset_reserve
+                .checked_sub(new_quote_asset_amount)
+                .ok_or_else(math_error!())?
+        } else {
+            new_quote_asset_amount
+                .checked_sub(market.amm.quote_asset_reserve)
+                .ok_or_else(math_error!())?
+        };
 
         let delta_peg_multiplier = budget
             .checked_mul(MARK_PRICE_PRECISION)
@@ -318,22 +332,50 @@ pub fn calculate_budgeted_peg(
             .checked_div(MARK_PRICE_PRECISION)
             .ok_or_else(math_error!())?;
 
-        market
-            .amm
-            .peg_multiplier
-            .checked_sub(delta_peg_precision)
-            .ok_or_else(math_error!())?
+        let new_budget_peg = if delta_peg_sign > 0 {
+            market
+                .amm
+                .peg_multiplier
+                .checked_sub(delta_peg_precision)
+                .ok_or_else(math_error!())?
+        } else {
+            market
+                .amm
+                .peg_multiplier
+                .checked_add(delta_peg_precision)
+                .ok_or_else(math_error!())?
+        };
+
+        // considers free pegs that act againist net market
+        let new_budget_peg_or_free = if (delta_peg_sign > 0 && optimal_peg < new_budget_peg)
+            || (delta_peg_sign < 0 && optimal_peg > new_budget_peg)
+        {
+            optimal_peg
+        } else {
+            new_budget_peg
+        };
+
+        new_budget_peg_or_free
     } else {
         optimal_peg
     };
 
-    let candidate_peg: u128 = if current_price > target_price {
-        min(full_budget_peg, optimal_peg)
+    // msg!("PEG:: fullbudget: {:?}, optimal: {:?}",full_budget_peg, optimal_peg);
+    // assert_eq!(optimal_peg < 200000, true);
+
+    // avoid overshooting budget past target
+    let candidate_peg: u128 = if current_price > target_price && full_budget_peg < optimal_peg {
+        optimal_peg
+    } else if current_price < target_price && full_budget_peg > optimal_peg {
+        optimal_peg
     } else {
-        max(full_budget_peg, optimal_peg)
+        full_budget_peg
     };
 
-    let (repegged_market, candidate_cost) = adjust_peg_cost(market, optimal_peg)?;
+    let (repegged_market, candidate_cost) = adjust_peg_cost(market, candidate_peg)?;
+    // msg!("{:?} for {:?}", candidate_peg, candidate_cost);
+    // assert_eq!(candidate_cost <= 0 && candidate_peg != old_peg, true);
+    // assert_eq!(candidate_cost >= 0 && candidate_peg == old_peg, true);
 
     Ok((candidate_peg, candidate_cost, repegged_market))
 }
@@ -344,20 +386,25 @@ pub fn adjust_peg_cost(
 ) -> ClearingHouseResult<(&mut Market, i128)> {
     let market_deep_copy = market;
 
-    // Find the net market value before adjusting peg
-    let (current_net_market_value, _) = _calculate_base_asset_value_and_pnl(
-        market_deep_copy.base_asset_amount,
-        0,
-        &market_deep_copy.amm,
-    )?;
+    let cost = if new_peg_candidate != market_deep_copy.amm.peg_multiplier {
+        // Find the net market value before adjusting peg
+        let (current_net_market_value, _) = _calculate_base_asset_value_and_pnl(
+            market_deep_copy.base_asset_amount,
+            0,
+            &market_deep_copy.amm,
+        )?;
 
-    market_deep_copy.amm.peg_multiplier = new_peg_candidate;
+        market_deep_copy.amm.peg_multiplier = new_peg_candidate;
 
-    let (_new_net_market_value, cost) = _calculate_base_asset_value_and_pnl(
-        market_deep_copy.base_asset_amount,
-        current_net_market_value,
-        &market_deep_copy.amm,
-    )?;
+        let (_new_net_market_value, cost) = _calculate_base_asset_value_and_pnl(
+            market_deep_copy.base_asset_amount,
+            current_net_market_value,
+            &market_deep_copy.amm,
+        )?;
+        cost
+    } else {
+        0_i128
+    };
 
     Ok((market_deep_copy, cost))
 }
