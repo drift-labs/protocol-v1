@@ -33,6 +33,11 @@ pub fn calculate_funding_rate_long_short(
             .total_fee_minus_distributions
             .checked_add(uncapped_funding_pnl.unsigned_abs())
             .ok_or_else(math_error!())?;
+        market.amm.net_revenue_since_last_funding = market
+            .amm
+            .net_revenue_since_last_funding
+            .checked_add(uncapped_funding_pnl as i64)
+            .ok_or_else(math_error!())?;
         return Ok((funding_rate, funding_rate));
     }
 
@@ -56,6 +61,11 @@ pub fn calculate_funding_rate_long_short(
     }
 
     market.amm.total_fee_minus_distributions = new_total_fee_minus_distributions;
+    market.amm.net_revenue_since_last_funding = market
+        .amm
+        .net_revenue_since_last_funding
+        .checked_add(uncapped_funding_pnl as i64)
+        .ok_or_else(math_error!())?;
 
     let funding_rate_long = if funding_rate < 0 {
         capped_funding_rate

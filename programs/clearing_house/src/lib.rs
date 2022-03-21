@@ -2051,12 +2051,22 @@ pub mod clearing_house {
                     .total_fee_minus_distributions
                     .checked_sub(adjustment_cost.unsigned_abs())
                     .ok_or_else(math_error!())?;
+                market.amm.net_revenue_since_last_funding = market
+                    .amm
+                    .net_revenue_since_last_funding
+                    .checked_add(adjustment_cost as i64)
+                    .ok_or_else(math_error!())?;
             }
         } else {
             market.amm.total_fee_minus_distributions = market
                 .amm
                 .total_fee_minus_distributions
                 .checked_add(adjustment_cost.unsigned_abs())
+                .ok_or_else(math_error!())?;
+            market.amm.net_revenue_since_last_funding = market
+                .amm
+                .net_revenue_since_last_funding
+                .checked_add(adjustment_cost as i64)
                 .ok_or_else(math_error!())?;
         }
 

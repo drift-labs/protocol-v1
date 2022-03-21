@@ -3190,8 +3190,8 @@
             "type": "u128"
           },
           {
-            "name": "padding1",
-            "type": "u64"
+            "name": "netRevenueSinceLastFunding",
+            "type": "i64"
           },
           {
             "name": "padding2",
@@ -4088,97 +4088,97 @@
       "msg": "Casting Failure"
     },
     {
-      "code": 6039,
+      "code": 6040,
       "name": "InvalidOrder",
       "msg": "Invalid Order"
     },
     {
-      "code": 6040,
+      "code": 6041,
       "name": "UserHasNoOrder",
       "msg": "User has no order"
     },
     {
-      "code": 6041,
+      "code": 6042,
       "name": "OrderAmountTooSmall",
       "msg": "Order Amount Too Small"
     },
     {
-      "code": 6042,
+      "code": 6043,
       "name": "MaxNumberOfOrders",
       "msg": "Max number of orders taken"
     },
     {
-      "code": 6043,
+      "code": 6044,
       "name": "OrderDoesNotExist",
       "msg": "Order does not exist"
     },
     {
-      "code": 6044,
+      "code": 6045,
       "name": "OrderNotOpen",
       "msg": "Order not open"
     },
     {
-      "code": 6045,
+      "code": 6046,
       "name": "CouldNotFillOrder",
       "msg": "CouldNotFillOrder"
     },
     {
-      "code": 6046,
+      "code": 6047,
       "name": "ReduceOnlyOrderIncreasedRisk",
       "msg": "Reduce only order increased risk"
     },
     {
-      "code": 6047,
+      "code": 6048,
       "name": "OrderStateAlreadyInitialized",
       "msg": "Order state already initialized"
     },
     {
-      "code": 6048,
+      "code": 6049,
       "name": "UnableToLoadAccountLoader",
       "msg": "Unable to load AccountLoader"
     },
     {
-      "code": 6049,
+      "code": 6050,
       "name": "TradeSizeTooLarge",
       "msg": "Trade Size Too Large"
     },
     {
-      "code": 6050,
+      "code": 6051,
       "name": "UnableToWriteToRemainingAccount",
       "msg": "Unable to write to remaining account"
     },
     {
-      "code": 6051,
+      "code": 6052,
       "name": "UserCantReferThemselves",
       "msg": "User cant refer themselves"
     },
     {
-      "code": 6052,
+      "code": 6053,
       "name": "DidNotReceiveExpectedReferrer",
       "msg": "Did not receive expected referrer"
     },
     {
-      "code": 6053,
+      "code": 6054,
       "name": "CouldNotDeserializeReferrer",
       "msg": "Could not deserialize referrer"
     },
     {
-      "code": 6054,
+      "code": 6055,
       "name": "MarketOrderMustBeInPlaceAndFill",
       "msg": "Market order must be in place and fill"
     },
     {
-      "code": 6055,
+      "code": 6056,
       "name": "UserOrderIdAlreadyInUse",
       "msg": "User Order Id Already In Use"
     },
     {
-      "code": 6056,
+      "code": 6057,
       "name": "NoPositionsLiquidatable",
       "msg": "No positions liquidatable"
     },
     {
-      "code": 6057,
+      "code": 6058,
       "name": "InvalidMarginRatio",
       "msg": "Invalid Margin Ratio"
     }

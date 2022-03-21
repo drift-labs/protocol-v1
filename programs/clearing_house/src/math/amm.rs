@@ -9,8 +9,9 @@ use crate::math::bn;
 use crate::math::bn::U192;
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
 use crate::math::constants::{
-    MARK_PRICE_PRECISION, PEG_PRECISION, PRICE_SPREAD_PRECISION, PRICE_SPREAD_PRECISION_U128,
-    PRICE_TO_PEG_PRECISION_RATIO,
+    AMM_RESERVE_PRECISION, AMM_TO_QUOTE_PRECISION_RATIO, MARK_PRICE_PRECISION, PEG_PRECISION,
+    PRICE_SPREAD_PRECISION, PRICE_SPREAD_PRECISION_U128, PRICE_TO_PEG_PRECISION_RATIO,
+    QUOTE_PRECISION,
 };
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math::quote_asset::{asset_to_reserve_amount, reserve_to_asset_amount};
@@ -446,44 +447,69 @@ pub fn is_oracle_valid(
         || is_conf_too_large))
 }
 
-// pub fn budget_k_adjustment(market: &mut Market, budget: i128) -> ClearingHouseResult<(i128, i128)> {
-//     let y = market.amm.quote_asset_reserve;
-//     let x = market.amm.base_asset_reserve;
-//     let C = budget;
-//     let Q = market.amm.peg_multiplier;
-//     let d = market.base_asset_amount;
+pub fn budget_k_adjustment(market: &mut Market, budget: i128) -> ClearingHouseResult<(i128, i128)> {
+    let y = market.amm.quote_asset_reserve;
+    let x = market.amm.base_asset_reserve;
+    let c = budget;
+    let q = cast_to_i128(market.amm.peg_multiplier)?;
+    let d = market.base_asset_amount;
 
-//     let numer1 = y
-//         .mul(d)
-//         .mul(Q)
-//         .div(AMM_RESERVE_PRECISION)
-//         .div(PEG_PRECISION);
-//     let numer2 = C.mul(x.add(d)).div(QUOTE_PRECISION);
-//     let denom1 = C
-//         .mul(x)
-//         .mul(x.add(d))
-//         .div(AMM_RESERVE_PRECISION)
-//         .div(QUOTE_PRECISION);
-//     let denom2 = y
-//         .mul(d)
-//         .mul(d)
-//         .mul(Q)
-//         .div(AMM_RESERVE_PRECISION)
-//         .div(AMM_RESERVE_PRECISION)
-//         .div(PEG_PRECISION);
+    let AMM_RESERVE_PRECISIONi128 = cast_to_i128(AMM_RESERVE_PRECISION)?;
 
-//     let numerator = d
-//         .mul(numer1.add(numer2))
-//         .div(AMM_RESERVE_PRECISION)
-//         .div(AMM_RESERVE_PRECISION)
-//         .div(AMM_TO_QUOTE_PRECISION_RATIO);
-//     let denominator = denom1
-//         .add(denom2)
-//         .div(AMM_RESERVE_PRECISION)
-//         .div(AMM_TO_QUOTE_PRECISION_RATIO);
+    let x_d = cast_to_i128(x)?.checked_add(d).ok_or_else(math_error!())?;
 
-//     Ok((numerator, denominator))
-// }
+    let numer1 = cast_to_i128(y)?
+        .checked_mul(d)
+        .ok_or_else(math_error!())?
+        .checked_mul(q)
+        .ok_or_else(math_error!())?
+        .checked_div(cast_to_i128(AMM_RESERVE_PRECISION * PEG_PRECISION)?)
+        .ok_or_else(math_error!())?;
+    let numer2 = c
+        .checked_mul(x_d)
+        .ok_or_else(math_error!())?
+        .checked_div(cast_to_i128(QUOTE_PRECISION)?)
+        .ok_or_else(math_error!())?;
+    let denom1 = c
+        .checked_mul(cast_to_i128(x)?)
+        .ok_or_else(math_error!())?
+        .checked_mul(x_d)
+        .ok_or_else(math_error!())?
+        .checked_div(cast_to_i128(AMM_RESERVE_PRECISION * QUOTE_PRECISION)?)
+        .ok_or_else(math_error!())?;
+    let denom2 = cast_to_i128(y)?
+        .checked_mul(d)
+        .ok_or_else(math_error!())?
+        .checked_div(AMM_RESERVE_PRECISIONi128)
+        .ok_or_else(math_error!())?
+        .checked_mul(d)
+        .ok_or_else(math_error!())?
+        .checked_div(AMM_RESERVE_PRECISIONi128)
+        .ok_or_else(math_error!())?
+        .checked_mul(q)
+        .ok_or_else(math_error!())?
+        .checked_div(cast_to_i128(PEG_PRECISION)?)
+        .ok_or_else(math_error!())?;
+
+    let numerator = d
+        .checked_mul(numer1.checked_add(numer2).ok_or_else(math_error!())?)
+        .ok_or_else(math_error!())?
+        .checked_div(AMM_RESERVE_PRECISIONi128)
+        .ok_or_else(math_error!())?
+        .checked_div(AMM_RESERVE_PRECISIONi128)
+        .ok_or_else(math_error!())?
+        .checked_div(cast_to_i128(AMM_TO_QUOTE_PRECISION_RATIO)?)
+        .ok_or_else(math_error!())?;
+    let denominator = denom1
+        .checked_add(denom2)
+        .ok_or_else(math_error!())?
+        .checked_div(AMM_RESERVE_PRECISIONi128)
+        .ok_or_else(math_error!())?
+        .checked_div(AMM_RESERVE_PRECISIONi128)
+        .ok_or_else(math_error!())?;
+
+    Ok((numerator, denominator))
+}
 
 /// To find the cost of adjusting k, compare the the net market value before and after adjusting k
 /// Increasing k costs the protocol money because it reduces slippage and improves the exit price for net market position
