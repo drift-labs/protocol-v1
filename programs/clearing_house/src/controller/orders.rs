@@ -455,15 +455,26 @@ pub fn fill_order(
         return Err(ErrorCode::OracleMarkSpreadLimit);
     }
 
-    // Order fails if it's risk increasing and it brings the user collateral below the initial margin requirement
-    let meets_initial_maintenance_requirement = meets_initial_margin_requirement(
-        user,
-        user_positions,
-        &markets
-            .load()
-            .or(Err(ErrorCode::UnableToLoadAccountLoader))?,
-    )?;
-    if !meets_initial_maintenance_requirement && potentially_risk_increasing {
+    // Order fails if it's risk increasing and it brings the user collateral below the margin requirement
+    let meets_maintenance_requirement = if order.post_only {
+        // for post only orders allow user to fill up to partial margin requirement
+        meets_partial_margin_requirement(
+            user,
+            user_positions,
+            &markets
+                .load()
+                .or(Err(ErrorCode::UnableToLoadAccountLoader))?,
+        )?
+    } else {
+        meets_initial_margin_requirement(
+            user,
+            user_positions,
+            &markets
+                .load()
+                .or(Err(ErrorCode::UnableToLoadAccountLoader))?,
+        )?
+    };
+    if !meets_maintenance_requirement && potentially_risk_increasing {
         return Err(ErrorCode::InsufficientCollateral);
     }
 
