@@ -678,6 +678,52 @@
       ]
     },
     {
+      "name": "expireOrders",
+      "accounts": [
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orderState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "filler",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userOrders",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "orderHistory",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "fillOrder",
       "accounts": [
         {
@@ -3800,6 +3846,9 @@
           },
           {
             "name": "Fill"
+          },
+          {
+            "name": "Expire"
           }
         ]
       }
@@ -4180,6 +4229,11 @@
       "code": 6057,
       "name": "InvalidMarginRatio",
       "msg": "Invalid Margin Ratio"
+    },
+    {
+      "code": 6058,
+      "name": "CantExpireOrders",
+      "msg": "CantExpireOrders"
     }
   ]
 }

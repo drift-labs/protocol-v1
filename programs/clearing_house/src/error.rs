@@ -120,6 +120,8 @@ pub enum ErrorCode {
     NoPositionsLiquidatable,
     #[msg("Invalid Margin Ratio")]
     InvalidMarginRatio,
+    #[msg("CantExpireOrders")]
+    CantExpireOrders,
 }
 
 #[macro_export]
