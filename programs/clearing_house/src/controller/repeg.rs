@@ -40,6 +40,11 @@ pub fn repeg(
         oracle_guard_rails,
     )?;
 
+    // cannot repeg if oracle is invalid
+    if !oracle_is_valid {
+        return Err(ErrorCode::InvalidOracle.into());
+    }
+
     // only push terminal in direction of oracle
     if !direction_valid {
         return Err(ErrorCode::InvalidRepegDirection.into());
@@ -96,6 +101,10 @@ pub fn formulaic_repeg(
     is_oracle_valid: bool,
     budget: u128,
 ) -> ClearingHouseResult<i128> {
+    if !is_oracle_valid {
+        return Ok(0);
+    }
+
     let OraclePriceData {
         price: oracle_price,
         confidence: oracle_conf,
@@ -112,16 +121,17 @@ pub fn formulaic_repeg(
     let fee_pool = repeg::calculate_fee_pool(market)?;
     let expected_funding_excess =
         repeg::calculate_expected_funding_excess(market, oracle_price, precomputed_mark_price)?;
-
+    // let max_budget = budget;
     let max_budget = max(
         budget,
         min(
             cast_to_u128(max(0, expected_funding_excess))?
                 .checked_div(2)
                 .ok_or_else(math_error!())?,
-            fee_pool.checked_div(2).ok_or_else(math_error!())?,
+            fee_pool.checked_div(100).ok_or_else(math_error!())?,
         ),
     );
+    // msg!("{:?}, {:?}", expected_funding_excess, fee_pool);
 
     let (new_peg_candidate, adjustment_cost, repegged_market) = repeg::calculate_budgeted_peg(
         market,

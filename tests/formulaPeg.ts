@@ -1,6 +1,6 @@
 import * as anchor from '@project-serum/anchor';
 import { assert } from 'chai';
-import { Keypair } from '@solana/web3.js';
+import { Connection, Keypair } from '@solana/web3.js';
 import { Program } from '@project-serum/anchor';
 import {
 	BN,
@@ -41,6 +41,126 @@ import {
 
 const ZERO = new BN(0);
 
+export const matchEnum = (enum1: any, enum2) => {
+	return JSON.stringify(enum1) === JSON.stringify(enum2);
+};
+async function formRepegHelper(
+	connection: Connection,
+	clearingHouse: Admin,
+	userAccount: ClearingHouseUser,
+	marketIndex: BN,
+	oraclePrice: Number,
+	amt: Number,
+	direction: PositionDirection
+) {
+	const markets = await clearingHouse.getMarketsAccount();
+	const market = markets.markets[marketIndex.toNumber()];
+	const amm = market.amm;
+	await setFeedPrice(anchor.workspace.Pyth, oraclePrice, amm.oracle);
+	const oraclePx = await getFeedData(anchor.workspace.Pyth, amm.oracle);
+
+	// const direction = PositionDirection.LONG;
+	const baseAssetAmount = new BN(AMM_RESERVE_PRECISION.toNumber() * amt);
+	let price = new BN(calculateMarkPrice(market).toNumber() * 1.02);
+	if (matchEnum(direction, PositionDirection.SHORT)) {
+		price = new BN(calculateMarkPrice(market).toNumber() * 0.988);
+	}
+
+	const prePosition = userAccount.getUserPosition(marketIndex);
+	// console.log(prePosition);
+	// assert(prePosition == undefined); // no existing position
+
+	// const fillerUserAccount0 = userAccount.getUserAccount();
+
+	const orderParams = getLimitOrderParams(
+		marketIndex,
+		direction,
+		baseAssetAmount,
+		price,
+		false,
+		false
+	);
+	const txSig = await clearingHouse.placeAndFillOrder(
+		orderParams
+		// discountTokenAccount.address
+	);
+
+	await clearingHouse.fetchAccounts();
+	await userAccount.fetchAccounts();
+
+	const postPosition = userAccount.getUserPosition(marketIndex);
+
+	console.log(
+		'User position: ',
+		convertToNumber(
+			prePosition?.baseAssetAmount ?? ZERO,
+			AMM_RESERVE_PRECISION
+		),
+		'->',
+		convertToNumber(postPosition.baseAssetAmount, AMM_RESERVE_PRECISION)
+	);
+
+	// assert(postPosition.baseAssetAmount.abs().gt(new BN(0)));
+	// assert(postPosition.baseAssetAmount.eq(baseAssetAmount)); // 100% filled
+
+	const marketsAfter = await clearingHouse.getMarketsAccount();
+	const marketAfter = marketsAfter.markets[marketIndex.toNumber()];
+	const ammAfter = marketAfter.amm;
+
+	// const newPeg = calculateBudgetedPeg(marketAfter, new BN(15000000));
+	console.log(
+		'Expected Peg Change:',
+		market.amm.pegMultiplier.toNumber(),
+		'->',
+		marketAfter.amm.pegMultiplier.toNumber()
+		// ' vs ->',
+		// newPeg.toNumber()
+	);
+
+	console.log(
+		'Oracle:',
+		oraclePx.price,
+		'Mark:',
+		convertToNumber(calculateMarkPrice(market)),
+		'->',
+		convertToNumber(calculateMarkPrice(marketAfter))
+	);
+
+	const netRevenue = convertToNumber(
+		ammAfter.totalFeeMinusDistributions.sub(amm.totalFeeMinusDistributions),
+		QUOTE_PRECISION
+	);
+
+	console.log(
+		'Peg:',
+		convertToNumber(amm.pegMultiplier, PEG_PRECISION),
+		'->',
+		convertToNumber(ammAfter.pegMultiplier, PEG_PRECISION),
+		'(net rev=',
+		netRevenue,
+		' | ',
+		convertToNumber(amm.totalFeeMinusDistributions, QUOTE_PRECISION),
+		'->',
+		convertToNumber(ammAfter.totalFeeMinusDistributions, QUOTE_PRECISION),
+
+		')'
+	);
+
+	try {
+		const computeUnits = await findComputeUnitConsumption(
+			clearingHouse.program.programId,
+			connection,
+			txSig
+		);
+
+		console.log('placeAndFill compute units', computeUnits[0]);
+	} catch (e) {
+		console.log('err calc in compute units');
+	}
+
+	return netRevenue;
+}
+
 describe('formulaic curve (repeg / k)', () => {
 	const provider = anchor.Provider.local();
 	const connection = provider.connection;
@@ -67,6 +187,7 @@ describe('formulaic curve (repeg / k)', () => {
 
 	let userAccount: ClearingHouseUser;
 	let solUsdOracle;
+	let dogUsdOracle;
 
 	before(async () => {
 		usdcMint = await mockUSDCMint(provider);
@@ -87,6 +208,11 @@ describe('formulaic curve (repeg / k)', () => {
 			initPrice: initialSOLPrice,
 		});
 
+		dogUsdOracle = await createPriceFeed({
+			oracleProgram: anchor.workspace.Pyth,
+			initPrice: 0.11,
+		});
+
 		await clearingHouse.initializeMarket(
 			marketIndex,
 			solUsdOracle,
@@ -94,6 +220,15 @@ describe('formulaic curve (repeg / k)', () => {
 			ammInitialQuoteAssetReserve,
 			periodicity,
 			new BN(initialSOLPrice * PEG_PRECISION.toNumber())
+		);
+
+		await clearingHouse.initializeMarket(
+			marketIndex.add(new BN(1)),
+			dogUsdOracle,
+			ammInitialBaseAssetReserve,
+			ammInitialQuoteAssetReserve,
+			periodicity,
+			new BN(110)
 		);
 
 		await clearingHouse.initializeUserAccount();
@@ -196,173 +331,154 @@ describe('formulaic curve (repeg / k)', () => {
 		);
 	});
 
-	it('cause repeg?', async () => {
-		const markets = await clearingHouse.getMarketsAccount();
-		const market = markets.markets[marketIndex.toNumber()];
-		const amm = market.amm;
-		const oraclePx = await getFeedData(anchor.workspace.Pyth, amm.oracle);
-
-		const direction = PositionDirection.LONG;
-		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
-		const price = MARK_PRICE_PRECISION.mul(new BN(oraclePx.price + 1));
-
-		// const prePosition = userAccount.getUserPosition(marketIndex);
-		// console.log(prePosition);
-		// assert(prePosition == undefined); // no existing position
-
-		// const fillerUserAccount0 = userAccount.getUserAccount();
-
-		const orderParams = getLimitOrderParams(
-			marketIndex,
-			direction,
-			baseAssetAmount,
-			price,
-			false,
-			false
-		);
-		const txSig = await clearingHouse.placeAndFillOrder(
-			orderParams
-			// discountTokenAccount.address
-		);
-
-		await clearingHouse.fetchAccounts();
-		await userAccount.fetchAccounts();
-
-		const postPosition = userAccount.getUserPosition(marketIndex);
-		console.log(
-			'User position: ',
-			convertToNumber(new BN(0), AMM_RESERVE_PRECISION),
-			'->',
-			convertToNumber(postPosition.baseAssetAmount, AMM_RESERVE_PRECISION)
-		);
-
-		assert(postPosition.baseAssetAmount.abs().gt(new BN(0)));
-		assert(postPosition.baseAssetAmount.eq(baseAssetAmount)); // 100% filled
-
-		const marketsAfter = await clearingHouse.getMarketsAccount();
-		const marketAfter = marketsAfter.markets[marketIndex.toNumber()];
-		const ammAfter = marketAfter.amm;
-
-		// const newPeg = calculateBudgetedPeg(marketAfter, new BN(15000000));
-		console.log(
-			'Expected Peg Change:',
-			market.amm.pegMultiplier.toNumber(),
-			'->',
-			marketAfter.amm.pegMultiplier.toNumber()
-			// ' vs ->',
-			// newPeg.toNumber()
-		);
-
-		console.log(
-			'Oracle:',
-			oraclePx.price,
-			'Mark:',
-			convertToNumber(calculateMarkPrice(market)),
-			'->',
-			convertToNumber(calculateMarkPrice(marketAfter))
-		);
-
-		console.log(
-			'Peg:',
-			convertToNumber(amm.pegMultiplier, PEG_PRECISION),
-			'->',
-			convertToNumber(ammAfter.pegMultiplier, PEG_PRECISION),
-			'(net rev=',
-			convertToNumber(
-				ammAfter.totalFeeMinusDistributions.sub(amm.totalFeeMinusDistributions),
-				QUOTE_PRECISION
-			),
-			' | ',
-			convertToNumber(amm.totalFeeMinusDistributions, QUOTE_PRECISION),
-			'->',
-			convertToNumber(ammAfter.totalFeeMinusDistributions, QUOTE_PRECISION),
-
-			')'
-		);
-
-		const computeUnits = await findComputeUnitConsumption(
-			clearingHouse.program.programId,
+	it('cause repeg? oracle > mark', async () => {
+		await formRepegHelper(
 			connection,
-			txSig
+			clearingHouse,
+			userAccount,
+			marketIndex,
+			155,
+			1,
+			PositionDirection.LONG
+		);
+	});
+	it('cause repeg? oracle > mark close', async () => {
+		await formRepegHelper(
+			connection,
+			clearingHouse,
+			userAccount,
+			marketIndex,
+			155,
+			1,
+			PositionDirection.SHORT
+		);
+	});
+	it('cause repeg? oracle < mark open/close', async () => {
+		await formRepegHelper(
+			connection,
+			clearingHouse,
+			userAccount,
+			marketIndex,
+			149,
+			1,
+			PositionDirection.SHORT
+		);
+		await formRepegHelper(
+			connection,
+			clearingHouse,
+			userAccount,
+			marketIndex,
+			149,
+			1,
+			PositionDirection.LONG
+		);
+	});
+
+	it('cause repeg? PROFIT. oracle < mark open/close', async () => {
+		await formRepegHelper(
+			connection,
+			clearingHouse,
+			userAccount,
+			marketIndex,
+			149,
+			2,
+			PositionDirection.SHORT
 		);
 
-		console.log('placeAndFill compute units', computeUnits[0]);
+		const newOracle = 151;
+		const base = 1;
+
+		const profit = await formRepegHelper(
+			connection,
+			clearingHouse,
+			userAccount,
+			marketIndex,
+			newOracle,
+			base,
+			PositionDirection.LONG
+		);
+
+		// net revenue above fee collected
+		const feeCollected = newOracle * base * 0.001;
+		assert(profit > feeCollected);
+
+		const netRev2 = await formRepegHelper(
+			connection,
+			clearingHouse,
+			userAccount,
+			marketIndex,
+			newOracle,
+			base,
+			PositionDirection.LONG
+		);
+
+		assert(netRev2 > 0);
 	});
-	it('cause repeg? close', async () => {
+
+	it('cause repeg? ignore invalid oracle', async () => {
 		const markets = await clearingHouse.getMarketsAccount();
 		const market = markets.markets[marketIndex.toNumber()];
 		const amm = market.amm;
-		const oraclePx = await getFeedData(anchor.workspace.Pyth, amm.oracle);
-
-		const direction = PositionDirection.SHORT;
-		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
-		const price = MARK_PRICE_PRECISION.mul(new BN(oraclePx.price - 10));
-
-		const prePosition = userAccount.getUserPosition(marketIndex);
-		// console.log(prePosition);
-		// assert(prePosition == undefined); // no existing position
-
-		// const fillerUserAccount0 = userAccount.getUserAccount();
-
-		const orderParams = getLimitOrderParams(
-			marketIndex,
-			direction,
-			baseAssetAmount,
-			price,
-			false,
-			false
-		);
-		const txSig = await clearingHouse.placeAndFillOrder(
-			orderParams
-			// discountTokenAccount.address
-		);
-
-		await clearingHouse.fetchAccounts();
-		await userAccount.fetchAccounts();
-
-		const postPosition = userAccount.getUserPosition(marketIndex);
-		console.log(
-			'User position: ',
-			convertToNumber(prePosition.baseAssetAmount, AMM_RESERVE_PRECISION),
-			'->',
-			convertToNumber(postPosition.baseAssetAmount, AMM_RESERVE_PRECISION)
-		);
-
-		const marketsAfter = await clearingHouse.getMarketsAccount();
-		const marketAfter = marketsAfter.markets[marketIndex.toNumber()];
-		const ammAfter = marketAfter.amm;
-
-		console.log(
-			'Oracle:',
-			oraclePx.price,
-			'Mark:',
-			convertToNumber(calculateMarkPrice(market)),
-			'->',
-			convertToNumber(calculateMarkPrice(marketAfter))
-		);
-
-		console.log(
-			'Peg:',
-			convertToNumber(amm.pegMultiplier, PEG_PRECISION),
-			'->',
-			convertToNumber(ammAfter.pegMultiplier, PEG_PRECISION),
-			'(net rev=',
-			convertToNumber(
-				ammAfter.totalFeeMinusDistributions.sub(amm.totalFeeMinusDistributions),
-				QUOTE_PRECISION
-			),
-			')'
-		);
+		await setFeedPrice(anchor.workspace.Pyth, 0.14, amm.oracle);
 		try {
-			const computeUnits = await findComputeUnitConsumption(
-				clearingHouse.program.programId,
-				connection,
-				txSig
-			);
-
-			console.log('placeAndFill compute units', computeUnits[0]);
+			await clearingHouse.repegAmmCurve(new BN(200), marketIndex);
+			assert(false);
 		} catch (e) {
-			console.log('err calc in compute units');
+			console.log('oracle invalid');
 		}
+
+		await formRepegHelper(
+			connection,
+			clearingHouse,
+			userAccount,
+			marketIndex,
+			0.14,
+			2,
+			PositionDirection.SHORT
+		);
+
+		const newOracle = 0.16;
+		const base = 2;
+
+		const profit = await formRepegHelper(
+			connection,
+			clearingHouse,
+			userAccount,
+			marketIndex,
+			newOracle,
+			base,
+			PositionDirection.LONG
+		);
+	});
+
+	it('cause repeg? tiny prices', async () => {
+		const dogIndex = marketIndex.add(new BN(1));
+		const markets = await clearingHouse.getMarketsAccount();
+		const market = markets.markets[dogIndex.toNumber()];
+		const amm = market.amm;
+		await setFeedPrice(anchor.workspace.Pyth, 0.14, amm.oracle);
+
+		await formRepegHelper(
+			connection,
+			clearingHouse,
+			userAccount,
+			dogIndex,
+			0.111,
+			100,
+			PositionDirection.SHORT
+		);
+
+		const newOracle = 0.1699;
+		const base = 100;
+
+		const profit = await formRepegHelper(
+			connection,
+			clearingHouse,
+			userAccount,
+			dogIndex,
+			newOracle,
+			base,
+			PositionDirection.LONG
+		);
 	});
 });

@@ -3,10 +3,10 @@ use crate::error::*;
 use crate::math::amm;
 use crate::math::amm::calculate_swap_output;
 use crate::math::bn;
-use crate::math::casting::{cast_to_i128, cast_to_u128};
+use crate::math::casting::{cast_to_i128, cast_to_i64, cast_to_u128};
 use crate::math::constants::{
-    AMM_RESERVE_PRECISION, AMM_TO_QUOTE_PRECISION_RATIO, MARK_PRICE_PRECISION, PEG_PRECISION,
-    PRICE_TO_PEG_PRECISION_RATIO, QUOTE_PRECISION,
+    AMM_RESERVE_PRECISION, AMM_TO_QUOTE_PRECISION_RATIO, MARK_PRICE_PRECISION, ONE_HOUR,
+    PEG_PRECISION, PRICE_TO_PEG_PRECISION_RATIO, QUOTE_PRECISION,
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR,
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR,
 };
@@ -105,6 +105,12 @@ pub fn calculate_repeg_validity(
         if oracle_price_u128 > terminal_price_after {
             // only allow terminal up when oracle is higher
             if terminal_price_after < terminal_price_before {
+                msg!(
+                    "oracle: {:?}, termb: {:?}, terma: {:?},",
+                    oracle_price_u128,
+                    terminal_price_before,
+                    terminal_price_after
+                );
                 direction_valid = false;
             }
 
@@ -120,6 +126,12 @@ pub fn calculate_repeg_validity(
         } else if oracle_price_u128 < terminal_price_after {
             // only allow terminal down when oracle is lower
             if terminal_price_after > terminal_price_before {
+                msg!(
+                    "oracle: {:?}, termb: {:?}, terma: {:?},",
+                    oracle_price_u128,
+                    terminal_price_before,
+                    terminal_price_after
+                );
                 direction_valid = false;
             }
 
@@ -321,10 +333,10 @@ pub fn calculate_budgeted_peg(
                     .ok_or_else(math_error!())?,
             )
             .ok_or_else(math_error!())?;
-            // .checked_mul(PEG_PRECISION)
-            // .ok_or_else(math_error!())?
-            // .checked_div(QUOTE_PRECISION)
-            // .ok_or_else(math_error!())?;
+        // .checked_mul(PEG_PRECISION)
+        // .ok_or_else(math_error!())?
+        // .checked_div(QUOTE_PRECISION)
+        // .ok_or_else(math_error!())?;
 
         let delta_peg_precision = delta_peg_multiplier
             .checked_mul(PEG_PRECISION)
@@ -414,17 +426,22 @@ pub fn calculate_expected_funding_excess(
     oracle_price: i128,
     precomputed_mark_price: u128,
 ) -> ClearingHouseResult<i128> {
-    let oracle_mark_spread = oracle_price
-        .checked_sub(cast_to_i128(precomputed_mark_price)?)
+    let oracle_mark_spread = cast_to_i128(precomputed_mark_price)?
+        .checked_sub(oracle_price)
         .ok_or_else(math_error!())?;
 
-    let oracle_mark_twap_spread = market
-        .amm
-        .last_oracle_price_twap
-        .checked_sub(cast_to_i128(market.amm.last_mark_price_twap)?)
+    let oracle_mark_twap_spread = cast_to_i128(market.amm.last_mark_price_twap)?
+        .checked_sub(market.amm.last_oracle_price_twap)
         .ok_or_else(math_error!())?;
 
-    let funding_ev = market
+    let one_hour_i64 = cast_to_i64(ONE_HOUR)?;
+    let period_adjustment = (24_i64)
+        .checked_mul(one_hour_i64)
+        .ok_or_else(math_error!())?
+        .checked_div(max(one_hour_i64, market.amm.funding_period))
+        .ok_or_else(math_error!())?;
+
+    let funding_excess_ev = market
         .base_asset_amount
         .checked_mul(
             oracle_mark_spread
@@ -432,12 +449,14 @@ pub fn calculate_expected_funding_excess(
                 .ok_or_else(math_error!())?,
         )
         .ok_or_else(math_error!())?
+        .checked_div(cast_to_i128(period_adjustment)?)
+        .ok_or_else(math_error!())?
         .checked_div(cast_to_i128(
             MARK_PRICE_PRECISION * AMM_RESERVE_PRECISION / QUOTE_PRECISION,
         )?)
         .ok_or_else(math_error!())?;
 
-    Ok(funding_ev)
+    Ok(funding_excess_ev)
 }
 
 pub fn calculate_fee_pool(market: &Market) -> ClearingHouseResult<u128> {
