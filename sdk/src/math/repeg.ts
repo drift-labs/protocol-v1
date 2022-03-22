@@ -237,10 +237,11 @@ export function calculateBudgetedPeg(market: Market, cost: BN): BN {
 	const C = cost.mul(new BN(-1));
 
 	const deltaQuoteAssetReserves = y.sub(k.div(x.add(d)));
-	const deltaPegMultiplier = C.mul(MARK_PRICE_PRECISION)
-		.div(deltaQuoteAssetReserves.div(AMM_TO_QUOTE_PRECISION_RATIO))
-		.mul(PEG_PRECISION)
-		.div(QUOTE_PRECISION);
+	const deltaPegMultiplier = C.mul(MARK_PRICE_PRECISION).div(
+		deltaQuoteAssetReserves.div(AMM_TO_QUOTE_PRECISION_RATIO)
+	);
+	// .mul(PEG_PRECISION)
+	// .div(QUOTE_PRECISION);
 	console.log(
 		Q.toNumber(),
 		'change by',

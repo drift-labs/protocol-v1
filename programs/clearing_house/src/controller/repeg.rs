@@ -6,7 +6,9 @@ use crate::math::amm;
 use crate::math_error;
 use crate::state::market::{Market, OraclePriceData, AMM};
 use crate::state::state::OracleGuardRails;
+use std::cmp::{max, min};
 
+use crate::math::constants::{AMM_RESERVE_PRECISION, MARK_PRICE_PRECISION, QUOTE_PRECISION};
 use anchor_lang::prelude::AccountInfo;
 use solana_program::msg;
 
@@ -106,9 +108,24 @@ pub fn formulaic_repeg(
         .checked_sub(cast_to_i128(terminal_price_before)?)
         .ok_or_else(math_error!())?;
 
+    // max budget for single repeg is half of fee pool for repegs
+    let fee_pool = repeg::calculate_fee_pool(market)?;
+    let expected_funding_excess =
+        repeg::calculate_expected_funding_excess(market, oracle_price, precomputed_mark_price)?;
+
+    let max_budget = max(
+        budget,
+        min(
+            cast_to_u128(max(0, expected_funding_excess))?
+                .checked_div(2)
+                .ok_or_else(math_error!())?,
+            fee_pool.checked_div(2).ok_or_else(math_error!())?,
+        ),
+    );
+
     let (new_peg_candidate, adjustment_cost, repegged_market) = repeg::calculate_budgeted_peg(
         market,
-        budget,
+        max_budget,
         precomputed_mark_price,
         cast_to_u128(oracle_price)?,
     )?;

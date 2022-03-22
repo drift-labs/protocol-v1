@@ -11,6 +11,8 @@ import {
 	ClearingHouseUser,
 	PEG_PRECISION,
 	PositionDirection,
+	calculateBudgetedPeg,
+	calculateBudgetedK,
 	// OrderStatus,
 	// OrderDiscountTier,
 	// OrderRecord,
@@ -233,12 +235,23 @@ describe('formulaic curve (repeg / k)', () => {
 			'->',
 			convertToNumber(postPosition.baseAssetAmount, AMM_RESERVE_PRECISION)
 		);
+
 		assert(postPosition.baseAssetAmount.abs().gt(new BN(0)));
 		assert(postPosition.baseAssetAmount.eq(baseAssetAmount)); // 100% filled
 
 		const marketsAfter = await clearingHouse.getMarketsAccount();
 		const marketAfter = marketsAfter.markets[marketIndex.toNumber()];
 		const ammAfter = marketAfter.amm;
+
+		// const newPeg = calculateBudgetedPeg(marketAfter, new BN(15000000));
+		console.log(
+			'Expected Peg Change:',
+			market.amm.pegMultiplier.toNumber(),
+			'->',
+			marketAfter.amm.pegMultiplier.toNumber()
+			// ' vs ->',
+			// newPeg.toNumber()
+		);
 
 		console.log(
 			'Oracle:',
@@ -259,6 +272,11 @@ describe('formulaic curve (repeg / k)', () => {
 				ammAfter.totalFeeMinusDistributions.sub(amm.totalFeeMinusDistributions),
 				QUOTE_PRECISION
 			),
+			' | ',
+			convertToNumber(amm.totalFeeMinusDistributions, QUOTE_PRECISION),
+			'->',
+			convertToNumber(ammAfter.totalFeeMinusDistributions, QUOTE_PRECISION),
+
 			')'
 		);
 
@@ -335,13 +353,16 @@ describe('formulaic curve (repeg / k)', () => {
 			),
 			')'
 		);
+		try {
+			const computeUnits = await findComputeUnitConsumption(
+				clearingHouse.program.programId,
+				connection,
+				txSig
+			);
 
-		const computeUnits = await findComputeUnitConsumption(
-			clearingHouse.program.programId,
-			connection,
-			txSig
-		);
-
-		console.log('placeAndFill compute units', computeUnits[0]);
+			console.log('placeAndFill compute units', computeUnits[0]);
+		} catch (e) {
+			console.log('err calc in compute units');
+		}
 	});
 });
