@@ -19,7 +19,7 @@ use crate::state::state::OracleGuardRails;
 use anchor_lang::prelude::AccountInfo;
 use solana_program::msg;
 
-pub fn calculate_repeg_validity_full(
+pub fn calculate_repeg_validity_from_oracle_account(
     market: &mut Market,
     oracle_account_info: &AccountInfo,
     terminal_price_before: u128,
@@ -165,9 +165,6 @@ pub fn calculate_peg_from_target_price(
     base_asset_reserve: u128,
     target_price: u128,
 ) -> ClearingHouseResult<u128> {
-    // m = y*C*PTPPR/x
-    // C = m*x/y*PTPPR
-
     let new_peg = bn::U192::from(target_price)
         .checked_mul(bn::U192::from(base_asset_reserve))
         .ok_or_else(math_error!())?
@@ -179,103 +176,6 @@ pub fn calculate_peg_from_target_price(
     Ok(new_peg)
 }
 
-pub fn calculate_optimal_peg_and_cost(
-    market: &mut Market,
-    oracle_price: i128,
-    mark_price: u128,
-    terminal_price: u128,
-) -> ClearingHouseResult<(u128, i128, &mut Market)> {
-    // does minimum valid repeg allowable iff satisfies the budget
-
-    // let fspr = (oracle - mark) - (oracle_twap - mark_twap)
-
-    let oracle_mark_spread = oracle_price
-        .checked_sub(cast_to_i128(mark_price)?)
-        .ok_or_else(math_error!())?;
-    let oracle_mark_spread_pct = oracle_mark_spread
-        .checked_shl(10)
-        .ok_or_else(math_error!())?
-        .checked_div(oracle_price)
-        .ok_or_else(math_error!())?;
-
-    let oracle_terminal_spread = oracle_price
-        .checked_sub(cast_to_i128(terminal_price)?)
-        .ok_or_else(math_error!())?;
-    let oracle_terminal_spread_pct = oracle_terminal_spread
-        .checked_shl(10)
-        .ok_or_else(math_error!())?
-        .checked_div(oracle_price)
-        .ok_or_else(math_error!())?;
-
-    let ten_pct = 1_u128
-        .checked_shl(10)
-        .ok_or_else(math_error!())?
-        .checked_div(10)
-        .ok_or_else(math_error!())?;
-
-    if (oracle_terminal_spread_pct.unsigned_abs() < ten_pct
-        || oracle_terminal_spread.unsigned_abs() < PEG_PRECISION)
-        && (oracle_mark_spread_pct.unsigned_abs() < ten_pct
-            || oracle_mark_spread.unsigned_abs() < PEG_PRECISION)
-    {
-        // terminate early, no repeg needed
-        return Ok((market.amm.peg_multiplier, 0, market));
-    }
-
-    // find optimal peg
-    let optimal_peg: u128;
-    let current_peg = market.amm.peg_multiplier;
-
-    // max budget for single repeg is half of fee pool for repegs
-    let budget = calculate_fee_pool(market)?
-        .checked_div(2)
-        .ok_or_else(math_error!())?;
-
-    // let max_peg_delta = cast_to_u128(oracle_mark_spread)?
-    //     .checked_mul(PEG_PRECISION)
-    //     .ok_or_else(math_error!())?
-    //     .checked_div(MARK_PRICE_PRECISION)
-    //     .ok_or_else(math_error!())?
-    //     .checked_div(2)
-    //     .ok_or_else(math_error!())?;
-    // let min_peg_delta = 1_u128;
-
-    // repeg is profitable when:
-    // 1) oracle above both mark and terminal AND terminal at/above mark
-    // 2) oracle below both mark and terminal AND terminal at/below mark
-    if (oracle_mark_spread > 0 && oracle_terminal_spread > 0 && terminal_price >= mark_price)
-        || (oracle_mark_spread < 0 && oracle_terminal_spread < 0 && terminal_price >= mark_price)
-    {
-        optimal_peg = calculate_peg_from_target_price(
-            market.amm.quote_asset_reserve,
-            market.amm.base_asset_reserve,
-            cast_to_u128(oracle_price)?,
-        )?;
-    } else if oracle_terminal_spread > 0 && oracle_mark_spread > 0 {
-        // oracle is above terminal price
-        optimal_peg = current_peg.checked_add(1).ok_or_else(math_error!())?;
-    } else if oracle_terminal_spread < 0 && oracle_mark_spread < 0 {
-        // oracle is below terminal price
-        optimal_peg = current_peg.checked_sub(1).ok_or_else(math_error!())?;
-    } else {
-        optimal_peg = current_peg;
-    }
-
-    let (repegged_market, marginal_adjustment_cost) = adjust_peg_cost(market, optimal_peg)?;
-
-    let candidate_peg: u128;
-    let candidate_cost: i128;
-    if marginal_adjustment_cost > 0 && marginal_adjustment_cost.unsigned_abs() > budget {
-        candidate_peg = current_peg;
-        candidate_cost = 0;
-    } else {
-        candidate_peg = optimal_peg;
-        candidate_cost = marginal_adjustment_cost;
-    }
-
-    Ok((candidate_peg, candidate_cost, repegged_market))
-}
-
 pub fn calculate_budgeted_peg(
     market: &mut Market,
     budget: u128,
@@ -283,8 +183,6 @@ pub fn calculate_budgeted_peg(
     target_price: u128,
 ) -> ClearingHouseResult<(u128, i128, &mut Market)> {
     // calculates peg_multiplier that changing to would cost no more than budget
-
-    let old_peg = market.amm.peg_multiplier;
 
     let order_swap_direction = if market.base_asset_amount > 0 {
         SwapDirection::Add
@@ -333,10 +231,6 @@ pub fn calculate_budgeted_peg(
                     .ok_or_else(math_error!())?,
             )
             .ok_or_else(math_error!())?;
-        // .checked_mul(PEG_PRECISION)
-        // .ok_or_else(math_error!())?
-        // .checked_div(QUOTE_PRECISION)
-        // .ok_or_else(math_error!())?;
 
         let delta_peg_precision = delta_peg_multiplier
             .checked_mul(PEG_PRECISION)
@@ -358,7 +252,7 @@ pub fn calculate_budgeted_peg(
                 .ok_or_else(math_error!())?
         };
 
-        // considers free pegs that act againist net market
+        // considers pegs that act againist net market
         let new_budget_peg_or_free = if (delta_peg_sign > 0 && optimal_peg < new_budget_peg)
             || (delta_peg_sign < 0 && optimal_peg > new_budget_peg)
         {
@@ -372,9 +266,6 @@ pub fn calculate_budgeted_peg(
         optimal_peg
     };
 
-    // msg!("PEG:: fullbudget: {:?}, optimal: {:?}",full_budget_peg, optimal_peg);
-    // assert_eq!(optimal_peg < 200000, true);
-
     // avoid overshooting budget past target
     let candidate_peg: u128 = if current_price > target_price && full_budget_peg < optimal_peg {
         optimal_peg
@@ -385,9 +276,6 @@ pub fn calculate_budgeted_peg(
     };
 
     let (repegged_market, candidate_cost) = adjust_peg_cost(market, candidate_peg)?;
-    // msg!("{:?} for {:?}", candidate_peg, candidate_cost);
-    // assert_eq!(candidate_cost <= 0 && candidate_peg != old_peg, true);
-    // assert_eq!(candidate_cost >= 0 && candidate_peg == old_peg, true);
 
     Ok((candidate_peg, candidate_cost, repegged_market))
 }
@@ -419,6 +307,34 @@ pub fn adjust_peg_cost(
     };
 
     Ok((market_deep_copy, cost))
+}
+
+pub fn calculate_pool_budget(
+    market: &Market,
+    precomputed_mark_price: u128,
+    oracle_price_data: &OraclePriceData,
+) -> ClearingHouseResult<u128> {
+    let fee_pool = calculate_fee_pool(market)?;
+    let expected_funding_excess =
+        calculate_expected_funding_excess(market, oracle_price_data.price, precomputed_mark_price)?;
+
+    // for a single repeg, utilize the lesser of:
+    // 1) 1 QUOTE (for soft launch)
+    // 2) 1/10th the excess instantaneous funding vs extropolated funding
+    // 3) 1/100th of the fee pool for funding/repeg
+
+    let max_budget_quote = QUOTE_PRECISION;
+    let pool_budget = min(
+        max_budget_quote,
+        min(
+            cast_to_u128(max(0, expected_funding_excess))?
+                .checked_div(10)
+                .ok_or_else(math_error!())?,
+            fee_pool.checked_div(100).ok_or_else(math_error!())?,
+        ),
+    );
+
+    Ok(pool_budget)
 }
 
 pub fn calculate_expected_funding_excess(
@@ -462,11 +378,16 @@ pub fn calculate_expected_funding_excess(
 pub fn calculate_fee_pool(market: &Market) -> ClearingHouseResult<u128> {
     let total_fee_minus_distributions_lower_bound = total_fee_lower_bound(&market)?;
 
-    let fee_pool = market
-        .amm
-        .total_fee_minus_distributions
-        .checked_sub(total_fee_minus_distributions_lower_bound)
-        .ok_or_else(math_error!())?;
+    let fee_pool =
+        if market.amm.total_fee_minus_distributions > total_fee_minus_distributions_lower_bound {
+            market
+                .amm
+                .total_fee_minus_distributions
+                .checked_sub(total_fee_minus_distributions_lower_bound)
+                .ok_or_else(math_error!())?
+        } else {
+            0
+        };
 
     Ok(fee_pool)
 }
