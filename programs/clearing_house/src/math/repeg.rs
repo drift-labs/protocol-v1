@@ -267,9 +267,9 @@ pub fn calculate_budgeted_peg(
     };
 
     // avoid overshooting budget past target
-    let candidate_peg: u128 = if current_price > target_price && full_budget_peg < optimal_peg {
-        optimal_peg
-    } else if current_price < target_price && full_budget_peg > optimal_peg {
+    let candidate_peg: u128 = if (current_price > target_price && full_budget_peg < optimal_peg)
+        || (current_price < target_price && full_budget_peg > optimal_peg)
+    {
         optimal_peg
     } else {
         full_budget_peg
