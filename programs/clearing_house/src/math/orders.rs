@@ -59,7 +59,6 @@ pub fn calculate_base_asset_amount_to_trade_for_limit(
         .ok_or_else(math_error!())?;
 
     let limit_price = order.get_limit_price(valid_oracle_price)?;
-    msg!("limit price {}", limit_price);
 
     let (max_trade_base_asset_amount, max_trade_direction) =
         math::amm::calculate_max_base_asset_amount_to_trade(&market.amm, limit_price)?;
