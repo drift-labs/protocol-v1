@@ -3262,11 +3262,15 @@
             "type": "u128"
           },
           {
+            "name": "quoteAssetAmountSurplus",
+            "type": "u128"
+          },
+          {
             "name": "padding",
             "type": {
               "array": [
                 "u64",
-                10
+                8
               ]
             }
           }
@@ -4181,6 +4185,11 @@
       "code": 6058,
       "name": "InvalidMarginRatio",
       "msg": "Invalid Margin Ratio"
+    },
+    {
+      "code": 6059,
+      "name": "CantCancelPostOnlyOrder",
+      "msg": "Cant Cancel Post Only Order"
     }
   ]
 }

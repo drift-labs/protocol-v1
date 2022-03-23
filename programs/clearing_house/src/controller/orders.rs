@@ -25,7 +25,7 @@ use crate::state::{
 use crate::controller;
 use crate::math::amm::normalise_oracle_price;
 use crate::math::fees::calculate_order_fee_tier;
-use crate::order_validation::validate_order;
+use crate::order_validation::{validate_order, validate_order_can_be_canceled};
 use crate::state::history::funding_payment::FundingPaymentHistory;
 use crate::state::history::funding_rate::FundingRateHistory;
 use crate::state::history::order_history::OrderAction;
@@ -123,9 +123,9 @@ pub fn place_order(
             Some(referrer) => referrer.key(),
             None => Pubkey::default(),
         },
+        post_only: params.post_only,
 
         // always false until we add support
-        post_only: false,
         immediate_or_cancel: false,
         oracle_price_offset: 0,
         padding: [0; 3],
@@ -150,7 +150,8 @@ pub fn place_order(
         quote_asset_amount_filled: 0,
         filler_reward: 0,
         fee: 0,
-        padding: [0; 10],
+        quote_asset_amount_surplus: 0,
+        padding: [0; 8],
     });
 
     Ok(())
@@ -252,6 +253,8 @@ pub fn cancel_order(
         return Err(ErrorCode::OrderNotOpen);
     }
 
+    validate_order_can_be_canceled(order, markets.get_market(order.market_index))?;
+
     // Add to the order history account
     let order_history_account = &mut order_history
         .load_mut()
@@ -270,7 +273,8 @@ pub fn cancel_order(
         quote_asset_amount_filled: 0,
         filler_reward: 0,
         fee: 0,
-        padding: [0; 10],
+        quote_asset_amount_surplus: 0,
+        padding: [0; 8],
     });
 
     // Decrement open orders for existing position
@@ -387,7 +391,12 @@ pub fn fill_order(
         None
     };
 
-    let (base_asset_amount, quote_asset_amount, potentially_risk_increasing) = execute_order(
+    let (
+        base_asset_amount,
+        quote_asset_amount,
+        potentially_risk_increasing,
+        quote_asset_amount_surplus,
+    ) = execute_order(
         user,
         user_positions,
         order,
@@ -448,21 +457,32 @@ pub fn fill_order(
         return Err(ErrorCode::OracleMarkSpreadLimit);
     }
 
-    // Order fails if it's risk increasing and it brings the user collateral below the initial margin requirement
-    let meets_initial_maintenance_requirement = meets_initial_margin_requirement(
-        user,
-        user_positions,
-        &markets
-            .load()
-            .or(Err(ErrorCode::UnableToLoadAccountLoader))?,
-    )?;
-    if !meets_initial_maintenance_requirement && potentially_risk_increasing {
+    // Order fails if it's risk increasing and it brings the user collateral below the margin requirement
+    let meets_maintenance_requirement = if order.post_only {
+        // for post only orders allow user to fill up to partial margin requirement
+        meets_partial_margin_requirement(
+            user,
+            user_positions,
+            &markets
+                .load()
+                .or(Err(ErrorCode::UnableToLoadAccountLoader))?,
+        )?
+    } else {
+        meets_initial_margin_requirement(
+            user,
+            user_positions,
+            &markets
+                .load()
+                .or(Err(ErrorCode::UnableToLoadAccountLoader))?,
+        )?
+    };
+    if !meets_maintenance_requirement && potentially_risk_increasing {
         return Err(ErrorCode::InsufficientCollateral);
     }
 
     let discount_tier = order.discount_tier;
     let (user_fee, fee_to_market, token_discount, filler_reward, referrer_reward, referee_discount) =
-        fees::calculate_fee_for_limit_order(
+        fees::calculate_fee_for_order(
             quote_asset_amount,
             &state.fee_structure,
             &order_state.order_filler_reward_structure,
@@ -471,6 +491,7 @@ pub fn fill_order(
             now,
             &referrer,
             filler.key() == user.key(),
+            quote_asset_amount_surplus,
         )?;
 
     // Increment the clearing house's total fee variables
@@ -583,7 +604,8 @@ pub fn fill_order(
         quote_asset_amount_filled: quote_asset_amount,
         filler_reward,
         fee: user_fee,
-        padding: [0; 10],
+        quote_asset_amount_surplus,
+        padding: [0; 8],
     });
 
     // Cant reset order until after its been logged in order history
@@ -641,7 +663,7 @@ pub fn execute_order(
     mark_price_before: u128,
     now: i64,
     value_oracle_price: Option<i128>,
-) -> ClearingHouseResult<(u128, u128, bool)> {
+) -> ClearingHouseResult<(u128, u128, bool, u128)> {
     match order.order_type {
         OrderType::Market => execute_market_order(
             user,
@@ -673,12 +695,12 @@ pub fn execute_market_order(
     market_index: u64,
     mark_price_before: u128,
     now: i64,
-) -> ClearingHouseResult<(u128, u128, bool)> {
+) -> ClearingHouseResult<(u128, u128, bool, u128)> {
     let position_index = get_position_index(user_positions, market_index)?;
     let market_position = &mut user_positions.positions[position_index];
     let market = markets.get_market_mut(market_index);
 
-    let (potentially_risk_increasing, reduce_only, base_asset_amount, quote_asset_amount) =
+    let (potentially_risk_increasing, reduce_only, base_asset_amount, quote_asset_amount, _) =
         if order.base_asset_amount > 0 {
             controller::position::update_position_with_base_asset_amount(
                 order.base_asset_amount,
@@ -687,6 +709,7 @@ pub fn execute_market_order(
                 user,
                 market_position,
                 now,
+                None,
             )?
         } else {
             controller::position::update_position_with_quote_asset_amount(
@@ -724,6 +747,7 @@ pub fn execute_market_order(
         base_asset_amount,
         quote_asset_amount,
         potentially_risk_increasing,
+        0_u128,
     ))
 }
 
@@ -736,7 +760,7 @@ pub fn execute_non_market_order(
     mark_price_before: u128,
     now: i64,
     valid_oracle_price: Option<i128>,
-) -> ClearingHouseResult<(u128, u128, bool)> {
+) -> ClearingHouseResult<(u128, u128, bool, u128)> {
     // Determine the base asset amount the user can fill
     let base_asset_amount_user_can_execute = calculate_base_asset_amount_user_can_execute(
         user,
@@ -748,7 +772,7 @@ pub fn execute_non_market_order(
 
     if base_asset_amount_user_can_execute == 0 {
         msg!("User cant execute order");
-        return Ok((0, 0, false));
+        return Ok((0, 0, false, 0));
     }
 
     // Determine the base asset amount the market can fill
@@ -762,7 +786,7 @@ pub fn execute_non_market_order(
 
     if base_asset_amount_market_can_execute == 0 {
         msg!("Market cant execute order");
-        return Ok((0, 0, false));
+        return Ok((0, 0, false, 0));
     }
 
     let mut base_asset_amount = min(
@@ -772,7 +796,7 @@ pub fn execute_non_market_order(
 
     if base_asset_amount < market.amm.minimum_base_asset_trade_size {
         msg!("base asset amount too small {}", base_asset_amount);
-        return Ok((0, 0, false));
+        return Ok((0, 0, false, 0));
     }
 
     let minimum_base_asset_trade_size = market.amm.minimum_base_asset_trade_size;
@@ -795,21 +819,32 @@ pub fn execute_non_market_order(
     }
 
     if base_asset_amount == 0 {
-        return Ok((0, 0, false));
+        return Ok((0, 0, false, 0));
     }
 
     let position_index = get_position_index(user_positions, market_index)?;
     let market_position = &mut user_positions.positions[position_index];
 
-    let (potentially_risk_increasing, reduce_only, _, quote_asset_amount) =
-        controller::position::update_position_with_base_asset_amount(
-            base_asset_amount,
-            order.direction,
-            market,
-            user,
-            market_position,
-            now,
-        )?;
+    let maker_limit_price = if order.post_only {
+        Some(order.price)
+    } else {
+        None
+    };
+    let (
+        potentially_risk_increasing,
+        reduce_only,
+        _,
+        quote_asset_amount,
+        quote_asset_amount_surplus,
+    ) = controller::position::update_position_with_base_asset_amount(
+        base_asset_amount,
+        order.direction,
+        market,
+        user,
+        market_position,
+        now,
+        maker_limit_price,
+    )?;
 
     if !reduce_only && order.reduce_only {
         return Err(ErrorCode::ReduceOnlyOrderIncreasedRisk);
@@ -819,6 +854,7 @@ pub fn execute_non_market_order(
         base_asset_amount,
         quote_asset_amount,
         potentially_risk_increasing,
+        quote_asset_amount_surplus,
     ))
 }
 

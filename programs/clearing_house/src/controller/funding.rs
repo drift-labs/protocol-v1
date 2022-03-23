@@ -5,7 +5,7 @@ use anchor_lang::prelude::*;
 
 use crate::error::*;
 use crate::math::amm;
-use crate::math::amm::normalise_oracle_price;
+use crate::math::amm::{budget_k_adjustment, normalise_oracle_price};
 use crate::math::casting::{cast, cast_to_i128, cast_to_i64};
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math::constants::{
@@ -201,8 +201,8 @@ pub fn update_funding_rate(
         };
 
         if budget != 0 {
-            msg!("todo");
-            // let (p_numer, p_denom) = controller::amm::budget_k_adjustment(market, budget);
+            let (p_numer, p_denom) = budget_k_adjustment(market, budget)?;
+            msg!("update k by {:?}/{:?}", p_numer, p_denom);
         }
 
         market.amm.cumulative_funding_rate_long = market

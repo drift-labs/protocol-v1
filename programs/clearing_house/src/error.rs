@@ -122,6 +122,8 @@ pub enum ErrorCode {
     NoPositionsLiquidatable,
     #[msg("Invalid Margin Ratio")]
     InvalidMarginRatio,
+    #[msg("Cant Cancel Post Only Order")]
+    CantCancelPostOnlyOrder,
 }
 
 #[macro_export]
