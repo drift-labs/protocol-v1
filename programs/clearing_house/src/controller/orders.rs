@@ -13,6 +13,7 @@ use crate::context::*;
 use crate::math::{amm, fees, margin::*, orders::*};
 use crate::state::market::OraclePriceData;
 use crate::state::{
+    history::curve::{ExtendedCurveHistory, ExtendedCurveRecord},
     history::order_history::{OrderHistory, OrderRecord},
     history::trade::{TradeHistory, TradeRecord},
     market::Markets,
@@ -300,6 +301,7 @@ pub fn fill_order(
     trade_history: &AccountLoader<TradeHistory>,
     order_history: &AccountLoader<OrderHistory>,
     funding_rate_history: &AccountLoader<FundingRateHistory>,
+    extended_curve_history: &AccountLoader<ExtendedCurveHistory>,
     referrer: Option<Account<User>>,
     clock: &Clock,
 ) -> ClearingHouseResult<u128> {
@@ -641,12 +643,20 @@ pub fn fill_order(
 
         if market_index >= 12 {
             // todo for soft launch
+            let extended_curve_history = &mut extended_curve_history
+                .load_mut()
+                .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
+
             controller::repeg::formulaic_repeg(
                 market,
                 mark_price_after,
                 &oracle_price_data,
                 is_oracle_valid,
                 fee_to_market,
+                extended_curve_history,
+                now,
+                market_index,
+                trade_record_id,
             )?;
         }
     }

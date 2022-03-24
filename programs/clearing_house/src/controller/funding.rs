@@ -6,11 +6,9 @@ use anchor_lang::prelude::*;
 use crate::error::*;
 use crate::math::amm;
 use crate::math::amm::normalise_oracle_price;
-use crate::math::casting::{cast, cast_to_i128, cast_to_i64};
+use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
-use crate::math::constants::{
-    AMM_TO_QUOTE_PRECISION_RATIO_I128, FUNDING_PAYMENT_PRECISION, ONE_HOUR,
-};
+use crate::math::constants::{AMM_TO_QUOTE_PRECISION_RATIO_I128, FUNDING_PAYMENT_PRECISION, ONE_HOUR};
 use crate::math::funding::{calculate_funding_payment, calculate_funding_rate_long_short};
 use crate::math::oracle;
 use crate::math_error;
@@ -150,11 +148,10 @@ pub fn update_funding_rate(
             amm::update_oracle_price_twap(&mut market.amm, now, normalised_oracle_price)?;
         let mark_price_twap = amm::update_mark_twap(&mut market.amm, now, None)?;
 
-        let one_hour_i64 = cast_to_i64(ONE_HOUR)?;
         let period_adjustment = (24_i64)
-            .checked_mul(one_hour_i64)
+            .checked_mul(ONE_HOUR)
             .ok_or_else(math_error!())?
-            .checked_div(max(one_hour_i64, market.amm.funding_period))
+            .checked_div(max(ONE_HOUR, market.amm.funding_period))
             .ok_or_else(math_error!())?;
         // funding period = 1 hour, window = 1 day
         // low periodicity => quickly updating/settled funding rates => lower funding rate payment per interval

@@ -1,5 +1,7 @@
 use crate::error::*;
 use crate::math::casting::{cast_to_i128, cast_to_u128};
+use std::cell::{Ref, RefMut};
+
 use crate::math::repeg;
 
 use crate::math::amm;
@@ -9,6 +11,7 @@ use crate::state::state::OracleGuardRails;
 use std::cmp::{max, min};
 
 use crate::math::constants::{AMM_RESERVE_PRECISION, MARK_PRICE_PRECISION, QUOTE_PRECISION};
+use crate::state::history::curve::{ExtendedCurveHistory, ExtendedCurveRecord};
 use anchor_lang::prelude::AccountInfo;
 use solana_program::msg;
 
@@ -79,12 +82,21 @@ pub fn formulaic_repeg(
     oracle_price_data: &OraclePriceData,
     is_oracle_valid: bool,
     fee_budget: u128,
+    curve_history: &mut RefMut<ExtendedCurveHistory>,
+    now: i64,
+    market_index: u64,
+    trade_record: u128,
 ) -> ClearingHouseResult<i128> {
     // backrun market swaps to do automatic on-chain repeg
 
     if !is_oracle_valid {
         return Ok(0);
     }
+
+    let peg_multiplier_before = market.amm.peg_multiplier;
+    let base_asset_reserve_before = market.amm.base_asset_reserve;
+    let quote_asset_reserve_before = market.amm.quote_asset_reserve;
+    let sqrt_k_before = market.amm.sqrt_k;
 
     let terminal_price_before = amm::calculate_terminal_price(market)?;
     // let oracle_terminal_spread_before = oracle_price
@@ -120,6 +132,36 @@ pub fn formulaic_repeg(
         let cost_applied = apply_cost_to_market(market, adjustment_cost)?;
         if cost_applied {
             market.amm.peg_multiplier = new_peg_candidate;
+
+            let peg_multiplier_after = market.amm.peg_multiplier;
+            let base_asset_reserve_after = market.amm.base_asset_reserve;
+            let quote_asset_reserve_after = market.amm.quote_asset_reserve;
+            let sqrt_k_after = market.amm.sqrt_k;
+
+            let record_id = curve_history.next_record_id();
+            curve_history.append(ExtendedCurveRecord {
+                ts: now,
+                record_id,
+                market_index,
+                peg_multiplier_before,
+                base_asset_reserve_before,
+                quote_asset_reserve_before,
+                sqrt_k_before,
+                peg_multiplier_after,
+                base_asset_reserve_after,
+                quote_asset_reserve_after,
+                sqrt_k_after,
+                base_asset_amount_long: market.base_asset_amount_long.unsigned_abs(),
+                base_asset_amount_short: market.base_asset_amount_short.unsigned_abs(),
+                base_asset_amount: market.base_asset_amount,
+                open_interest: market.open_interest,
+                total_fee: market.amm.total_fee,
+                total_fee_minus_distributions: market.amm.total_fee_minus_distributions,
+                adjustment_cost,
+                oracle_price: oracle_price_data.price,
+                trade_record,
+                padding: [0; 5],
+            });
         }
     }
 
