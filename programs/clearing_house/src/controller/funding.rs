@@ -186,25 +186,6 @@ pub fn update_funding_rate(
             )
             .ok_or_else(math_error!())?;
 
-        let budget = if funding_imbalance_cost < 0 {
-            funding_imbalance_cost
-                .checked_div(2)
-                .ok_or_else(math_error!())?
-        } else if market.amm.net_revenue_since_last_funding < (funding_imbalance_cost as i64) {
-            max(0, market.amm.net_revenue_since_last_funding)
-                .checked_sub(funding_imbalance_cost as i64)
-                .ok_or_else(math_error!())?
-                .checked_div(2)
-                .ok_or_else(math_error!())? as i128
-        } else {
-            0
-        };
-
-        if budget != 0 {
-            let (p_numer, p_denom) = budget_k_adjustment(market, budget)?;
-            msg!("update k by {:?}/{:?}", p_numer, p_denom);
-        }
-
         market.amm.cumulative_funding_rate_long = market
             .amm
             .cumulative_funding_rate_long

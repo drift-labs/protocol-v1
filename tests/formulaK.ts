@@ -27,7 +27,7 @@ import { QUOTE_PRECISION } from '../sdk/lib';
 
 const ZERO = new BN(0);
 
-describe('formulaic curve (repeg / k)', () => {
+describe('formulaic curve (k)', () => {
 	const provider = anchor.Provider.local();
 	const connection = provider.connection;
 	anchor.setProvider(provider);
