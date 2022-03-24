@@ -80,6 +80,7 @@ pub fn increase(
     market: &mut Market,
     market_position: &mut MarketPosition,
     now: i64,
+    precomputed_mark_price: Option<u128>,
 ) -> ClearingHouseResult<i128> {
     if quote_asset_amount == 0 {
         return Ok(0);
@@ -113,7 +114,7 @@ pub fn increase(
         quote_asset_amount,
         swap_direction,
         now,
-        None,
+        precomputed_mark_price,
     )?;
 
     // update the position size on market and user
@@ -147,6 +148,7 @@ pub fn increase_with_base_asset_amount(
     market: &mut Market,
     market_position: &mut MarketPosition,
     now: i64,
+    precomputed_mark_price: Option<u128>,
 ) -> ClearingHouseResult<u128> {
     if base_asset_amount == 0 {
         return Ok(0);
@@ -175,7 +177,7 @@ pub fn increase_with_base_asset_amount(
         base_asset_amount,
         swap_direction,
         now,
-        None,
+        precomputed_mark_price,
     )?;
 
     market_position.quote_asset_amount = market_position
@@ -300,6 +302,7 @@ pub fn reduce_with_base_asset_amount(
     market: &mut Market,
     market_position: &mut MarketPosition,
     now: i64,
+    precomputed_mark_price: Option<u128>,
 ) -> ClearingHouseResult<u128> {
     let swap_direction = match direction {
         PositionDirection::Long => SwapDirection::Remove,
@@ -311,7 +314,7 @@ pub fn reduce_with_base_asset_amount(
         base_asset_amount,
         swap_direction,
         now,
-        None,
+        precomputed_mark_price,
     )?;
 
     let base_asset_amount = match direction {
@@ -449,6 +452,7 @@ pub fn update_position_with_base_asset_amount(
     market: &mut Market,
     user: &mut User,
     market_position: &mut MarketPosition,
+    mark_price_before: u128,
     now: i64,
 ) -> ClearingHouseResult<(bool, bool, u128, u128)> {
     // A trade is risk increasing if it increases the users leverage
@@ -473,6 +477,7 @@ pub fn update_position_with_base_asset_amount(
             market,
             market_position,
             now,
+            Some(mark_price_before),
         )?;
     } else if market_position.base_asset_amount.unsigned_abs() > base_asset_amount {
         quote_asset_amount = reduce_with_base_asset_amount(
@@ -482,6 +487,7 @@ pub fn update_position_with_base_asset_amount(
             market,
             market_position,
             now,
+            Some(mark_price_before),
         )?;
 
         reduce_only = true;
@@ -497,7 +503,8 @@ pub fn update_position_with_base_asset_amount(
             potentially_risk_increasing = false;
         }
 
-        let (quote_asset_amount_closed, _) = close(user, market, market_position, now, None)?;
+        let (quote_asset_amount_closed, _) =
+            close(user, market, market_position, now, Some(mark_price_before))?;
 
         let quote_asset_amount_opened = increase_with_base_asset_amount(
             direction,
@@ -505,6 +512,7 @@ pub fn update_position_with_base_asset_amount(
             market,
             market_position,
             now,
+            Some(mark_price_before),
         )?;
 
         // means position was closed and it was reduce only
@@ -557,6 +565,7 @@ pub fn update_position_with_quote_asset_amount(
             market,
             market_position,
             now,
+            Some(mark_price_before),
         )?
         .unsigned_abs();
     } else {
@@ -596,8 +605,13 @@ pub fn update_position_with_quote_asset_amount(
                 potentially_risk_increasing = false;
             }
 
-            let (_, base_asset_amount_closed) =
-                controller::position::close(user, market, market_position, now, None)?;
+            let (_, base_asset_amount_closed) = controller::position::close(
+                user,
+                market,
+                market_position,
+                now,
+                Some(mark_price_before),
+            )?;
             let base_asset_amount_closed = base_asset_amount_closed.unsigned_abs();
 
             let base_asset_amount_opened = controller::position::increase(
@@ -606,6 +620,7 @@ pub fn update_position_with_quote_asset_amount(
                 market,
                 market_position,
                 now,
+                Some(mark_price_before),
             )?
             .unsigned_abs();
 
