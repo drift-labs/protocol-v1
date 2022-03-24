@@ -27,7 +27,8 @@ pub fn repeg(
     if new_peg_candidate == market.amm.peg_multiplier {
         return Err(ErrorCode::InvalidRepegRedundant);
     }
-    let terminal_price_before = amm::calculate_terminal_price(market)?;
+    let (terminal_price_before, _terminal_quote_reserves, _terminal_base_reserves) =
+        amm::calculate_terminal_price_and_reserves(market)?;
 
     let (repegged_market, adjustment_cost) = repeg::adjust_peg_cost(market, new_peg_candidate)?;
 
@@ -78,7 +79,7 @@ pub fn repeg(
 
 pub fn formulaic_repeg(
     market: &mut Market,
-    precomputed_mark_price: u128,
+    mark_price: u128,
     oracle_price_data: &OraclePriceData,
     is_oracle_valid: bool,
     fee_budget: u128,
@@ -98,20 +99,21 @@ pub fn formulaic_repeg(
     let quote_asset_reserve_before = market.amm.quote_asset_reserve;
     let sqrt_k_before = market.amm.sqrt_k;
 
-    let terminal_price_before = amm::calculate_terminal_price(market)?;
+    let (terminal_price_before, terminal_quote_reserves, _terminal_base_reserves) =
+        amm::calculate_terminal_price_and_reserves(market)?;
     // let oracle_terminal_spread_before = oracle_price
     //     .checked_sub(cast_to_i128(terminal_price_before)?)
     //     .ok_or_else(math_error!())?;
 
     // max budget for single repeg what larger of pool budget and user fee budget
-    let pool_budget =
-        repeg::calculate_pool_budget(market, precomputed_mark_price, oracle_price_data)?;
+    let pool_budget = repeg::calculate_pool_budget(market, mark_price, oracle_price_data)?;
     let budget = min(fee_budget, pool_budget);
 
     let (new_peg_candidate, adjustment_cost, repegged_market) = repeg::calculate_budgeted_peg(
         market,
+        terminal_quote_reserves,
         budget,
-        precomputed_mark_price,
+        mark_price,
         cast_to_u128(oracle_price_data.price)?,
     )?;
 

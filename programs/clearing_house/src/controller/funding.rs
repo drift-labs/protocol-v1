@@ -8,7 +8,9 @@ use crate::math::amm;
 use crate::math::amm::normalise_oracle_price;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
-use crate::math::constants::{AMM_TO_QUOTE_PRECISION_RATIO_I128, FUNDING_PAYMENT_PRECISION, ONE_HOUR};
+use crate::math::constants::{
+    AMM_TO_QUOTE_PRECISION_RATIO_I128, FUNDING_PAYMENT_PRECISION, ONE_HOUR,
+};
 use crate::math::funding::{calculate_funding_payment, calculate_funding_rate_long_short};
 use crate::math::oracle;
 use crate::math_error;
