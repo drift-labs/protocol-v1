@@ -5,7 +5,7 @@ use anchor_lang::prelude::*;
 
 use crate::error::*;
 use crate::math::amm;
-use crate::math::amm::{normalise_oracle_price};
+use crate::math::amm::normalise_oracle_price;
 use crate::math::casting::{cast, cast_to_i128, cast_to_i64};
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math::constants::{
@@ -176,15 +176,6 @@ pub fn update_funding_rate(
 
         let (funding_rate_long, funding_rate_short) =
             calculate_funding_rate_long_short(market, funding_rate)?;
-
-        // dynamic k
-        let funding_imbalance_cost = funding_rate
-            .checked_mul(market.base_asset_amount)
-            .ok_or_else(math_error!())?
-            .checked_div(
-                AMM_TO_QUOTE_PRECISION_RATIO_I128 * cast_to_i128(FUNDING_PAYMENT_PRECISION)?,
-            )
-            .ok_or_else(math_error!())?;
 
         market.amm.cumulative_funding_rate_long = market
             .amm
