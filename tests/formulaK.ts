@@ -202,7 +202,7 @@ describe('formulaic curve (repeg / k)', () => {
 			'markPrice:',
 			convertToNumber(calculateMarkPrice(market)),
 			'oraclePrice:',
-			oraclePx.p
+			oraclePx.price
 		);
 		console.log(
 			'USER getTotalCollateral',
