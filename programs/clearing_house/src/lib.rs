@@ -1060,6 +1060,7 @@ pub mod clearing_house {
             &ctx.accounts.trade_history,
             &ctx.accounts.order_history,
             &ctx.accounts.funding_rate_history,
+            &ctx.accounts.extended_curve_history,
             referrer,
             &Clock::get()?,
         )?;
@@ -1131,6 +1132,7 @@ pub mod clearing_house {
             &ctx.accounts.trade_history,
             &ctx.accounts.order_history,
             &ctx.accounts.funding_rate_history,
+            &ctx.accounts.extended_curve_history,
             referrer,
             &Clock::get()?,
         )?;

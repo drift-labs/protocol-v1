@@ -5,8 +5,8 @@ use anchor_lang::prelude::*;
 
 use crate::error::*;
 use crate::math::amm;
-use crate::math::amm::{budget_k_adjustment, normalise_oracle_price};
-use crate::math::casting::{cast, cast_to_i128, cast_to_i64};
+use crate::math::amm::normalise_oracle_price;
+use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math::constants::{
     AMM_TO_QUOTE_PRECISION_RATIO_I128, FUNDING_PAYMENT_PRECISION, ONE_HOUR,
@@ -150,11 +150,10 @@ pub fn update_funding_rate(
             amm::update_oracle_price_twap(&mut market.amm, now, normalised_oracle_price)?;
         let mark_price_twap = amm::update_mark_twap(&mut market.amm, now, None)?;
 
-        let one_hour_i64 = cast_to_i64(ONE_HOUR)?;
         let period_adjustment = (24_i64)
-            .checked_mul(one_hour_i64)
+            .checked_mul(ONE_HOUR)
             .ok_or_else(math_error!())?
-            .checked_div(max(one_hour_i64, market.amm.funding_period))
+            .checked_div(max(ONE_HOUR, market.amm.funding_period))
             .ok_or_else(math_error!())?;
         // funding period = 1 hour, window = 1 day
         // low periodicity => quickly updating/settled funding rates => lower funding rate payment per interval
@@ -176,34 +175,6 @@ pub fn update_funding_rate(
 
         let (funding_rate_long, funding_rate_short) =
             calculate_funding_rate_long_short(market, funding_rate)?;
-
-        // dynamic k
-        let funding_imbalance_cost = funding_rate
-            .checked_mul(market.base_asset_amount)
-            .ok_or_else(math_error!())?
-            .checked_div(
-                AMM_TO_QUOTE_PRECISION_RATIO_I128 * cast_to_i128(FUNDING_PAYMENT_PRECISION)?,
-            )
-            .ok_or_else(math_error!())?;
-
-        let budget = if funding_imbalance_cost < 0 {
-            funding_imbalance_cost
-                .checked_div(2)
-                .ok_or_else(math_error!())?
-        } else if market.amm.net_revenue_since_last_funding < (funding_imbalance_cost as i64) {
-            max(0, market.amm.net_revenue_since_last_funding)
-                .checked_sub(funding_imbalance_cost as i64)
-                .ok_or_else(math_error!())?
-                .checked_div(2)
-                .ok_or_else(math_error!())? as i128
-        } else {
-            0
-        };
-
-        if budget != 0 {
-            let (p_numer, p_denom) = budget_k_adjustment(market, budget)?;
-            msg!("update k by {:?}/{:?}", p_numer, p_denom);
-        }
 
         market.amm.cumulative_funding_rate_long = market
             .amm

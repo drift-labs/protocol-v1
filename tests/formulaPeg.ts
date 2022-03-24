@@ -161,7 +161,7 @@ async function formRepegHelper(
 	return netRevenue;
 }
 
-describe('formulaic curve (repeg / k)', () => {
+describe('formulaic curve (repeg)', () => {
 	const provider = anchor.Provider.local();
 	const connection = provider.connection;
 	anchor.setProvider(provider);

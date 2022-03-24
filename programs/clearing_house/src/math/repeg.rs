@@ -3,10 +3,11 @@ use crate::error::*;
 use crate::math::amm;
 use crate::math::amm::calculate_swap_output;
 use crate::math::bn;
-use crate::math::casting::{cast_to_i128, cast_to_i64, cast_to_u128};
+use crate::math::casting::{cast_to_i128, cast_to_u128};
 use crate::math::constants::{
-    AMM_RESERVE_PRECISION, AMM_TO_QUOTE_PRECISION_RATIO, MARK_PRICE_PRECISION, ONE_HOUR,
-    PEG_PRECISION, PRICE_TO_PEG_PRECISION_RATIO, QUOTE_PRECISION,
+    AMM_RESERVE_PRECISION, AMM_TO_QUOTE_PRECISION_RATIO, FUNDING_EXCESS_TO_QUOTE_RATIO,
+    MARK_PRICE_PRECISION, ONE_HOUR, PEG_PRECISION, PRICE_SPREAD_PRECISION,
+    PRICE_TO_PEG_PRECISION_RATIO, QUOTE_PRECISION,
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR,
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR,
 };
@@ -72,12 +73,13 @@ pub fn calculate_repeg_validity(
 
     let oracle_price_u128 = cast_to_u128(oracle_price)?;
 
-    let terminal_price_after = amm::calculate_terminal_price(market)?;
+    let (terminal_price_after, terminal_quote_reserves, terminal_base_reserves) =
+        amm::calculate_terminal_price_and_reserves(market)?;
     let oracle_terminal_spread_after = oracle_price
         .checked_sub(cast_to_i128(terminal_price_after)?)
         .ok_or_else(math_error!())?;
     let oracle_terminal_divergence_pct_after = oracle_terminal_spread_after
-        .checked_shl(10)
+        .checked_mul(PRICE_SPREAD_PRECISION)
         .ok_or_else(math_error!())?
         .checked_div(oracle_price)
         .ok_or_else(math_error!())?;
@@ -178,6 +180,7 @@ pub fn calculate_peg_from_target_price(
 
 pub fn calculate_budgeted_peg(
     market: &mut Market,
+    terminal_quote_reserves: u128,
     budget: u128,
     current_price: u128,
     target_price: u128,
@@ -190,21 +193,14 @@ pub fn calculate_budgeted_peg(
         SwapDirection::Remove
     };
 
-    let (new_quote_asset_amount, _new_base_asset_amount) = calculate_swap_output(
-        market.base_asset_amount.unsigned_abs(),
-        market.amm.base_asset_reserve,
-        order_swap_direction,
-        market.amm.sqrt_k,
-    )?;
-
     let optimal_peg = calculate_peg_from_target_price(
         market.amm.quote_asset_reserve,
         market.amm.base_asset_reserve,
         target_price,
     )?;
 
-    let full_budget_peg: u128 = if new_quote_asset_amount != market.amm.quote_asset_reserve {
-        let delta_peg_sign = if market.amm.quote_asset_reserve > new_quote_asset_amount {
+    let full_budget_peg: u128 = if terminal_quote_reserves != market.amm.quote_asset_reserve {
+        let delta_peg_sign = if market.amm.quote_asset_reserve > terminal_quote_reserves {
             1
         } else {
             -1
@@ -214,10 +210,10 @@ pub fn calculate_budgeted_peg(
             market
                 .amm
                 .quote_asset_reserve
-                .checked_sub(new_quote_asset_amount)
+                .checked_sub(terminal_quote_reserves)
                 .ok_or_else(math_error!())?
         } else {
-            new_quote_asset_amount
+            terminal_quote_reserves
                 .checked_sub(market.amm.quote_asset_reserve)
                 .ok_or_else(math_error!())?
         };
@@ -233,9 +229,7 @@ pub fn calculate_budgeted_peg(
             .ok_or_else(math_error!())?;
 
         let delta_peg_precision = delta_peg_multiplier
-            .checked_mul(PEG_PRECISION)
-            .ok_or_else(math_error!())?
-            .checked_div(MARK_PRICE_PRECISION)
+            .checked_div(MARK_PRICE_PRECISION / PEG_PRECISION)
             .ok_or_else(math_error!())?;
 
         let new_budget_peg = if delta_peg_sign > 0 {
@@ -252,7 +246,7 @@ pub fn calculate_budgeted_peg(
                 .ok_or_else(math_error!())?
         };
 
-        // considers pegs that act againist net market
+        // considers pegs that act against net market
         let new_budget_peg_or_free = if (delta_peg_sign > 0 && optimal_peg < new_budget_peg)
             || (delta_peg_sign < 0 && optimal_peg > new_budget_peg)
         {
@@ -311,16 +305,16 @@ pub fn adjust_peg_cost(
 
 pub fn calculate_pool_budget(
     market: &Market,
-    precomputed_mark_price: u128,
+    mark_price: u128,
     oracle_price_data: &OraclePriceData,
 ) -> ClearingHouseResult<u128> {
     let fee_pool = calculate_fee_pool(market)?;
     let expected_funding_excess =
-        calculate_expected_funding_excess(market, oracle_price_data.price, precomputed_mark_price)?;
+        calculate_expected_funding_excess(market, oracle_price_data.price, mark_price)?;
 
     // for a single repeg, utilize the lesser of:
     // 1) 1 QUOTE (for soft launch)
-    // 2) 1/10th the excess instantaneous funding vs extropolated funding
+    // 2) 1/10th the excess instantaneous funding vs extrapolated funding
     // 3) 1/100th of the fee pool for funding/repeg
 
     let max_budget_quote = QUOTE_PRECISION;
@@ -340,9 +334,9 @@ pub fn calculate_pool_budget(
 pub fn calculate_expected_funding_excess(
     market: &Market,
     oracle_price: i128,
-    precomputed_mark_price: u128,
+    mark_price: u128,
 ) -> ClearingHouseResult<i128> {
-    let oracle_mark_spread = cast_to_i128(precomputed_mark_price)?
+    let oracle_mark_spread = cast_to_i128(mark_price)?
         .checked_sub(oracle_price)
         .ok_or_else(math_error!())?;
 
@@ -350,33 +344,32 @@ pub fn calculate_expected_funding_excess(
         .checked_sub(market.amm.last_oracle_price_twap)
         .ok_or_else(math_error!())?;
 
-    let one_hour_i64 = cast_to_i64(ONE_HOUR)?;
-    let period_adjustment = (24_i64)
-        .checked_mul(one_hour_i64)
-        .ok_or_else(math_error!())?
-        .checked_div(max(one_hour_i64, market.amm.funding_period))
+    let current_twap_spread = oracle_mark_spread
+        .checked_sub(oracle_mark_twap_spread)
         .ok_or_else(math_error!())?;
 
-    let funding_excess_ev = market
+    let period_adjustment = cast_to_i128(
+        (24_i64)
+            .checked_mul(ONE_HOUR)
+            .ok_or_else(math_error!())?
+            .checked_div(max(ONE_HOUR, market.amm.funding_period))
+            .ok_or_else(math_error!())?,
+    )?;
+
+    let expected_funding_excess = market
         .base_asset_amount
-        .checked_mul(
-            oracle_mark_spread
-                .checked_sub(oracle_mark_twap_spread)
-                .ok_or_else(math_error!())?,
-        )
+        .checked_mul(current_twap_spread)
         .ok_or_else(math_error!())?
-        .checked_div(cast_to_i128(period_adjustment)?)
+        .checked_div(period_adjustment)
         .ok_or_else(math_error!())?
-        .checked_div(cast_to_i128(
-            MARK_PRICE_PRECISION * AMM_RESERVE_PRECISION / QUOTE_PRECISION,
-        )?)
+        .checked_div(FUNDING_EXCESS_TO_QUOTE_RATIO)
         .ok_or_else(math_error!())?;
 
-    Ok(funding_excess_ev)
+    Ok(expected_funding_excess)
 }
 
 pub fn calculate_fee_pool(market: &Market) -> ClearingHouseResult<u128> {
-    let total_fee_minus_distributions_lower_bound = total_fee_lower_bound(&market)?;
+    let total_fee_minus_distributions_lower_bound = total_fee_lower_bound(market)?;
 
     let fee_pool =
         if market.amm.total_fee_minus_distributions > total_fee_minus_distributions_lower_bound {
