@@ -10,7 +10,6 @@ import {
 } from '../sdk/src';
 
 import { assert } from '../sdk/src/assert/assert';
-// import { getTokenAccount } from '@project-serum/common';
 import { mockOracle } from './mockAccounts';
 import { getFeedData, setFeedPrice } from './mockPythUtils';
 import {
@@ -213,7 +212,7 @@ export async function stress_test(
 		console.log([user_i, market_i, rand_e, rand_amt]);
 		const user_e = user_keys[user_i];
 		const userUSDCAccount = userUSDCAccounts[user_i];
-		const user_act_info_e = userAccountInfos[user_i];
+		// const user_act_info_e = userAccountInfos[user_i];
 
 		let clearingHouse_e = clearingHouses[user_i];
 		if (['move'].includes(rand_e)) {

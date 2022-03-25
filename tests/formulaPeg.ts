@@ -4,21 +4,12 @@ import { Connection, Keypair } from '@solana/web3.js';
 import { Program } from '@project-serum/anchor';
 import {
 	BN,
-	FUNDING_PAYMENT_PRECISION,
 	Admin,
 	MARK_PRICE_PRECISION,
 	calculateMarkPrice,
 	ClearingHouseUser,
 	PEG_PRECISION,
 	PositionDirection,
-	calculateBudgetedPeg,
-	calculateBudgetedK,
-	// OrderStatus,
-	// OrderDiscountTier,
-	// OrderRecord,
-	// OrderAction,
-	// OrderTriggerCondition,
-	// calculateTargetPriceTrade,
 	convertToNumber,
 	AMM_RESERVE_PRECISION,
 	// Wallet,
@@ -28,8 +19,6 @@ import {
 	findComputeUnitConsumption,
 	QUOTE_PRECISION,
 } from '../sdk/src';
-
-import { Markets } from '../sdk/src/constants/markets';
 
 import {
 	createPriceFeed,
@@ -49,8 +38,8 @@ async function formRepegHelper(
 	clearingHouse: Admin,
 	userAccount: ClearingHouseUser,
 	marketIndex: BN,
-	oraclePrice: Number,
-	amt: Number,
+	oraclePrice: number,
+	amt: number,
 	direction: PositionDirection
 ) {
 	const markets = await clearingHouse.getMarketsAccount();
@@ -440,7 +429,7 @@ describe('formulaic curve (repeg)', () => {
 		const newOracle = 0.16;
 		const base = 2;
 
-		const profit = await formRepegHelper(
+		await formRepegHelper(
 			connection,
 			clearingHouse,
 			userAccount,
@@ -471,7 +460,7 @@ describe('formulaic curve (repeg)', () => {
 		const newOracle = 0.1699;
 		const base = 100;
 
-		const profit = await formRepegHelper(
+		await formRepegHelper(
 			connection,
 			clearingHouse,
 			userAccount,
