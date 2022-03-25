@@ -21,7 +21,7 @@ use anchor_lang::prelude::AccountInfo;
 use solana_program::msg;
 
 pub fn calculate_repeg_validity_from_oracle_account(
-    market: &mut Market,
+    market: &Market,
     oracle_account_info: &AccountInfo,
     terminal_price_before: u128,
     clock_slot: u64,
@@ -59,7 +59,7 @@ pub fn calculate_repeg_validity_from_oracle_account(
 }
 
 pub fn calculate_repeg_validity(
-    market: &mut Market,
+    market: &Market,
     oracle_price_data: &OraclePriceData,
     oracle_is_valid: bool,
     terminal_price_before: u128,
@@ -184,7 +184,7 @@ pub fn calculate_budgeted_peg(
     budget: u128,
     current_price: u128,
     target_price: u128,
-) -> ClearingHouseResult<(u128, i128, &mut Market)> {
+) -> ClearingHouseResult<(u128, i128, Market)> {
     // calculates peg_multiplier that changing to would cost no more than budget
 
     let order_swap_direction = if market.base_asset_amount > 0 {
@@ -275,32 +275,32 @@ pub fn calculate_budgeted_peg(
 }
 
 pub fn adjust_peg_cost(
-    market: &mut Market,
+    market: &Market,
     new_peg_candidate: u128,
-) -> ClearingHouseResult<(&mut Market, i128)> {
-    let market_deep_copy = market;
+) -> ClearingHouseResult<(Market, i128)> {
+    let mut market_clone = *market;
 
-    let cost = if new_peg_candidate != market_deep_copy.amm.peg_multiplier {
+    let cost = if new_peg_candidate != market_clone.amm.peg_multiplier {
         // Find the net market value before adjusting peg
         let (current_net_market_value, _) = _calculate_base_asset_value_and_pnl(
-            market_deep_copy.base_asset_amount,
+            market_clone.base_asset_amount,
             0,
-            &market_deep_copy.amm,
+            &market_clone.amm,
         )?;
 
-        market_deep_copy.amm.peg_multiplier = new_peg_candidate;
+        market_clone.amm.peg_multiplier = new_peg_candidate;
 
         let (_new_net_market_value, cost) = _calculate_base_asset_value_and_pnl(
-            market_deep_copy.base_asset_amount,
+            market_clone.base_asset_amount,
             current_net_market_value,
-            &market_deep_copy.amm,
+            &market_clone.amm,
         )?;
         cost
     } else {
         0_i128
     };
 
-    Ok((market_deep_copy, cost))
+    Ok((market_clone, cost))
 }
 
 pub fn calculate_pool_budget(

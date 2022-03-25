@@ -37,7 +37,7 @@ pub fn calculate_price(
 }
 
 pub fn calculate_terminal_price_and_reserves(
-    market: &mut Market,
+    market: &Market,
 ) -> ClearingHouseResult<(u128, u128, u128)> {
     let swap_direction = if market.base_asset_amount > 0 {
         SwapDirection::Add

@@ -39,7 +39,7 @@ pub fn repeg(
         price_impact_valid,
         _oracle_terminal_divergence,
     ) = repeg::calculate_repeg_validity_from_oracle_account(
-        repegged_market,
+        &repegged_market,
         price_oracle,
         terminal_price_before,
         clock_slot,
@@ -124,7 +124,7 @@ pub fn formulaic_repeg(
         price_impact_valid,
         _oracle_terminal_divergence_pct_after,
     ) = repeg::calculate_repeg_validity(
-        repegged_market,
+        &repegged_market,
         oracle_price_data,
         is_oracle_valid,
         terminal_price_before,
