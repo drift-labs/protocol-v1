@@ -1,16 +1,16 @@
 use crate::error::*;
-use crate::math::casting::{cast_to_i128, cast_to_u128};
-use std::cell::{Ref, RefMut};
+use crate::math::casting::{cast_to_u128};
+use std::cell::{RefMut};
 
 use crate::math::repeg;
 
 use crate::math::amm;
 use crate::math_error;
-use crate::state::market::{Market, OraclePriceData, AMM};
+use crate::state::market::{Market, OraclePriceData};
 use crate::state::state::OracleGuardRails;
 use std::cmp::{max, min};
 
-use crate::math::constants::{AMM_RESERVE_PRECISION, MARK_PRICE_PRECISION, QUOTE_PRECISION};
+// use crate::math::constants::{AMM_RESERVE_PRECISION, MARK_PRICE_PRECISION, QUOTE_PRECISION};
 use crate::state::history::curve::{ExtendedCurveHistory, ExtendedCurveRecord};
 use anchor_lang::prelude::AccountInfo;
 use solana_program::msg;
@@ -101,18 +101,15 @@ pub fn formulaic_repeg(
 
     let (terminal_price_before, terminal_quote_reserves, _terminal_base_reserves) =
         amm::calculate_terminal_price_and_reserves(market)?;
-    // let oracle_terminal_spread_before = oracle_price
-    //     .checked_sub(cast_to_i128(terminal_price_before)?)
-    //     .ok_or_else(math_error!())?;
 
     // max budget for single repeg what larger of pool budget and user fee budget
-    let pool_budget = repeg::calculate_pool_budget(market, mark_price, oracle_price_data)?;
-    let budget = min(fee_budget, pool_budget);
+    let repeg_pool_budget = repeg::calculate_repeg_pool_budget(market, mark_price, oracle_price_data)?;
+    let repeg_budget = min(fee_budget, repeg_pool_budget);
 
     let (new_peg_candidate, adjustment_cost, repegged_market) = repeg::calculate_budgeted_peg(
         market,
         terminal_quote_reserves,
-        budget,
+        repeg_budget,
         mark_price,
         cast_to_u128(oracle_price_data.price)?,
     )?;

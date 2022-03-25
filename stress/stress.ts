@@ -6,7 +6,7 @@ import {
 	PEG_PRECISION,
 	convertToNumber,
 	calculateMarkPrice,
-	calculateTargetPriceTrade
+	calculateTargetPriceTrade,
 } from '../sdk/src';
 
 import { assert } from '../sdk/src/assert/assert';
@@ -50,13 +50,9 @@ export async function stress_test(
 	// todo: should be equal at init, with xeq for scale as oracle px
 	const periodicity = new BN(1); // 1 SECOND
 	const PAIR_AMT = sqrtk;
-	console.log('sqrtK:', sqrtk)
-	const ammInitialQuoteAssetAmount = (new BN(PAIR_AMT)).mul(
-		MARK_PRICE_PRECISION
-	);
-	const ammInitialBaseAssetAmount = (new BN(PAIR_AMT)).mul(
-		MARK_PRICE_PRECISION
-	);
+	console.log('sqrtK:', sqrtk);
+	const ammInitialQuoteAssetAmount = new BN(PAIR_AMT).mul(MARK_PRICE_PRECISION);
+	const ammInitialBaseAssetAmount = new BN(PAIR_AMT).mul(MARK_PRICE_PRECISION);
 
 	for (let i = 0; i < oracles.length; i++) {
 		const amtScale = pegs[i].div(PEG_PRECISION); // same slippage pct for regardless of peg levels
@@ -141,11 +137,10 @@ export async function stress_test(
 				).mul(MARK_PRICE_PRECISION.div(PEG_PRECISION));
 				const markPriceMantissa = calculateMarkPrice(marketData);
 
-				[randEType, rand_amt, _entry_px] =
-					calculateTargetPriceTrade(
-						marketData,
-						oraclePriceMantissa
-					);
+				[randEType, rand_amt, _entry_px] = calculateTargetPriceTrade(
+					marketData,
+					oraclePriceMantissa
+				);
 
 				rand_amt = BN.min(
 					rand_amt.abs(),
@@ -317,7 +312,7 @@ export async function stress_test(
 
 		const stateI2 = Object.assign(
 			{},
-			state_i,
+			state_i
 			// userSummary2,
 			// userSummary3
 			// userSummary

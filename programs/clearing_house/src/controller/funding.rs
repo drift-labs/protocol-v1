@@ -9,7 +9,7 @@ use crate::math::amm::normalise_oracle_price;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math::constants::{
-    AMM_TO_QUOTE_PRECISION_RATIO_I128, FUNDING_PAYMENT_PRECISION, ONE_HOUR,
+    AMM_TO_QUOTE_PRECISION_RATIO_I128, FUNDING_PAYMENT_PRECISION, ONE_HOUR, TWENTYFOUR_HOUR,
 };
 use crate::math::funding::{calculate_funding_payment, calculate_funding_rate_long_short};
 use crate::math::oracle;
@@ -150,9 +150,7 @@ pub fn update_funding_rate(
             amm::update_oracle_price_twap(&mut market.amm, now, normalised_oracle_price)?;
         let mark_price_twap = amm::update_mark_twap(&mut market.amm, now, None)?;
 
-        let period_adjustment = (24_i64)
-            .checked_mul(ONE_HOUR)
-            .ok_or_else(math_error!())?
+        let period_adjustment = TWENTYFOUR_HOUR
             .checked_div(max(ONE_HOUR, market.amm.funding_period))
             .ok_or_else(math_error!())?;
         // funding period = 1 hour, window = 1 day

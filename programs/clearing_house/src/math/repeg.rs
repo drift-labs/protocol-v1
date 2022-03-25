@@ -1,15 +1,16 @@
 use crate::controller::amm::SwapDirection;
 use crate::error::*;
 use crate::math::amm;
-use crate::math::amm::calculate_swap_output;
+// use crate::math::amm::calculate_swap_output;
 use crate::math::bn;
 use crate::math::casting::{cast_to_i128, cast_to_u128};
 use crate::math::constants::{
-    AMM_RESERVE_PRECISION, AMM_TO_QUOTE_PRECISION_RATIO, FUNDING_EXCESS_TO_QUOTE_RATIO,
+    // AMM_RESERVE_PRECISION, 
+    AMM_TO_QUOTE_PRECISION_RATIO, FUNDING_EXCESS_TO_QUOTE_RATIO,
     MARK_PRICE_PRECISION, ONE_HOUR, PEG_PRECISION, PRICE_SPREAD_PRECISION,
     PRICE_TO_PEG_PRECISION_RATIO, QUOTE_PRECISION,
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR,
-    SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR,
+    SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR, TWENTYFOUR_HOUR,
 };
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math_error;
@@ -73,7 +74,7 @@ pub fn calculate_repeg_validity(
 
     let oracle_price_u128 = cast_to_u128(oracle_price)?;
 
-    let (terminal_price_after, terminal_quote_reserves, terminal_base_reserves) =
+    let (terminal_price_after, _terminal_quote_reserves, _terminal_base_reserves) =
         amm::calculate_terminal_price_and_reserves(market)?;
     let oracle_terminal_spread_after = oracle_price
         .checked_sub(cast_to_i128(terminal_price_after)?)
@@ -116,7 +117,7 @@ pub fn calculate_repeg_validity(
                 direction_valid = false;
             }
 
-            // only push terminal up to top of oracle confidence band
+            // only push terminal up to bottom of oracle confidence band
             if oracle_conf_band_bottom < terminal_price_after {
                 profitability_valid = false;
             }
@@ -303,25 +304,25 @@ pub fn adjust_peg_cost(
     Ok((market_clone, cost))
 }
 
-pub fn calculate_pool_budget(
+pub fn calculate_repeg_pool_budget(
     market: &Market,
     mark_price: u128,
     oracle_price_data: &OraclePriceData,
 ) -> ClearingHouseResult<u128> {
     let fee_pool = calculate_fee_pool(market)?;
-    let expected_funding_excess =
-        calculate_expected_funding_excess(market, oracle_price_data.price, mark_price)?;
+    let expected_excess_funding_payment =
+        calculate_expected_excess_funding_payment(market, oracle_price_data.price, mark_price)?;
 
     // for a single repeg, utilize the lesser of:
     // 1) 1 QUOTE (for soft launch)
-    // 2) 1/10th the excess instantaneous funding vs extrapolated funding
-    // 3) 1/100th of the fee pool for funding/repeg
+    // 2) 1/10th the expected_excess_funding_payment
+    // 3) 1/100th of the fee pool (for funding/repeg)
 
     let max_budget_quote = QUOTE_PRECISION;
     let pool_budget = min(
         max_budget_quote,
         min(
-            cast_to_u128(max(0, expected_funding_excess))?
+            cast_to_u128(max(0, expected_excess_funding_payment))?
                 .checked_div(10)
                 .ok_or_else(math_error!())?,
             fee_pool.checked_div(100).ok_or_else(math_error!())?,
@@ -331,7 +332,7 @@ pub fn calculate_pool_budget(
     Ok(pool_budget)
 }
 
-pub fn calculate_expected_funding_excess(
+pub fn calculate_expected_excess_funding_payment(
     market: &Market,
     oracle_price: i128,
     mark_price: u128,
@@ -344,28 +345,26 @@ pub fn calculate_expected_funding_excess(
         .checked_sub(market.amm.last_oracle_price_twap)
         .ok_or_else(math_error!())?;
 
-    let current_twap_spread = oracle_mark_spread
+    let expected_excess_funding = oracle_mark_spread
         .checked_sub(oracle_mark_twap_spread)
         .ok_or_else(math_error!())?;
 
     let period_adjustment = cast_to_i128(
-        (24_i64)
-            .checked_mul(ONE_HOUR)
-            .ok_or_else(math_error!())?
+        TWENTYFOUR_HOUR
             .checked_div(max(ONE_HOUR, market.amm.funding_period))
             .ok_or_else(math_error!())?,
     )?;
 
-    let expected_funding_excess = market
+    let expected_excess_funding_payment = market
         .base_asset_amount
-        .checked_mul(current_twap_spread)
+        .checked_mul(expected_excess_funding)
         .ok_or_else(math_error!())?
         .checked_div(period_adjustment)
         .ok_or_else(math_error!())?
         .checked_div(FUNDING_EXCESS_TO_QUOTE_RATIO)
         .ok_or_else(math_error!())?;
 
-    Ok(expected_funding_excess)
+    Ok(expected_excess_funding_payment)
 }
 
 pub fn calculate_fee_pool(market: &Market) -> ClearingHouseResult<u128> {
