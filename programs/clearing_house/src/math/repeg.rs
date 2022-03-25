@@ -1,4 +1,3 @@
-use crate::controller::amm::SwapDirection;
 use crate::error::*;
 use crate::math::amm;
 // use crate::math::amm::calculate_swap_output;
@@ -14,7 +13,7 @@ use crate::math::constants::{
 };
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math_error;
-use crate::state::market::{Market, OraclePriceData, AMM};
+use crate::state::market::{Market, OraclePriceData};
 use std::cmp::{max, min};
 
 use crate::state::state::OracleGuardRails;
@@ -187,12 +186,6 @@ pub fn calculate_budgeted_peg(
     target_price: u128,
 ) -> ClearingHouseResult<(u128, i128, Market)> {
     // calculates peg_multiplier that changing to would cost no more than budget
-
-    let order_swap_direction = if market.base_asset_amount > 0 {
-        SwapDirection::Add
-    } else {
-        SwapDirection::Remove
-    };
 
     let optimal_peg = calculate_peg_from_target_price(
         market.amm.quote_asset_reserve,

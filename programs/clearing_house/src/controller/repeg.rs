@@ -8,7 +8,7 @@ use crate::math::amm;
 use crate::math_error;
 use crate::state::market::{Market, OraclePriceData};
 use crate::state::state::OracleGuardRails;
-use std::cmp::{max, min};
+use std::cmp::{min};
 
 // use crate::math::constants::{AMM_RESERVE_PRECISION, MARK_PRICE_PRECISION, QUOTE_PRECISION};
 use crate::state::history::curve::{ExtendedCurveHistory, ExtendedCurveRecord};

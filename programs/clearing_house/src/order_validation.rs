@@ -1,13 +1,12 @@
-use crate::controller::position::{get_position_index, PositionDirection};
+use crate::controller::position::{ PositionDirection};
 use crate::error::*;
 use crate::math::constants::*;
 use crate::math::quote_asset::asset_to_reserve_amount;
-use crate::state::market::{Market, Markets};
+use crate::state::market::{Market};
 use crate::state::order_state::OrderState;
 use crate::state::user_orders::{Order, OrderTriggerCondition, OrderType};
 
 use crate::math::orders::{
-    calculate_available_quote_asset_user_can_execute,
     calculate_base_asset_amount_to_trade_for_limit,
 };
 // use crate::state::user::{User, UserPositions};
