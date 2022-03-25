@@ -4,12 +4,18 @@ use crate::math::amm;
 use crate::math::bn;
 use crate::math::casting::{cast_to_i128, cast_to_u128};
 use crate::math::constants::{
-    // AMM_RESERVE_PRECISION, 
-    AMM_TO_QUOTE_PRECISION_RATIO, FUNDING_EXCESS_TO_QUOTE_RATIO,
-    MARK_PRICE_PRECISION, ONE_HOUR, PEG_PRECISION, PRICE_SPREAD_PRECISION,
-    PRICE_TO_PEG_PRECISION_RATIO, QUOTE_PRECISION,
+    // AMM_RESERVE_PRECISION,
+    AMM_TO_QUOTE_PRECISION_RATIO,
+    FUNDING_EXCESS_TO_QUOTE_RATIO,
+    MARK_PRICE_PRECISION,
+    ONE_HOUR,
+    PEG_PRECISION,
+    PRICE_SPREAD_PRECISION,
+    PRICE_TO_PEG_PRECISION_RATIO,
+    QUOTE_PRECISION,
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR,
-    SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR, TWENTYFOUR_HOUR,
+    SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR,
+    TWENTYFOUR_HOUR,
 };
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math_error;
@@ -104,6 +110,7 @@ pub fn calculate_repeg_validity(
             .checked_sub(oracle_conf)
             .ok_or_else(math_error!())?;
 
+        #[allow(clippy::comparison_chain)]
         if oracle_price_u128 > terminal_price_after {
             // only allow terminal up when oracle is higher
             if terminal_price_after < terminal_price_before {
@@ -241,15 +248,13 @@ pub fn calculate_budgeted_peg(
         };
 
         // considers pegs that act against net market
-        let new_budget_peg_or_free = if (delta_peg_sign > 0 && optimal_peg < new_budget_peg)
+        if (delta_peg_sign > 0 && optimal_peg < new_budget_peg)
             || (delta_peg_sign < 0 && optimal_peg > new_budget_peg)
         {
             optimal_peg
         } else {
             new_budget_peg
-        };
-
-        new_budget_peg_or_free
+        }
     } else {
         optimal_peg
     };

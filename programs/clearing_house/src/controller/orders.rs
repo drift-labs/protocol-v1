@@ -13,7 +13,7 @@ use crate::context::*;
 use crate::math::{amm, fees, margin::*, orders::*};
 use crate::state::market::OraclePriceData;
 use crate::state::{
-    history::curve::{ExtendedCurveHistory},
+    history::curve::ExtendedCurveHistory,
     history::order_history::{OrderHistory, OrderRecord},
     history::trade::{TradeHistory, TradeRecord},
     market::Markets,
