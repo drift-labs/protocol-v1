@@ -9,12 +9,8 @@ use crate::math::bn;
 use crate::math::bn::U192;
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
 use crate::math::constants::{
-    MARK_PRICE_PRECISION,
-    PEG_PRECISION,
-    PRICE_SPREAD_PRECISION,
-    PRICE_SPREAD_PRECISION_U128,
+    MARK_PRICE_PRECISION, PEG_PRECISION, PRICE_SPREAD_PRECISION, PRICE_SPREAD_PRECISION_U128,
     PRICE_TO_PEG_PRECISION_RATIO,
-    // AMM_RESERVE_PRECISION, AMM_TO_QUOTE_PRECISION_RATIO, QUOTE_PRECISION,
 };
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math::quote_asset::{asset_to_reserve_amount, reserve_to_asset_amount};

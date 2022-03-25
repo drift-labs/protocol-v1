@@ -7,9 +7,7 @@ use crate::state::order_state::OrderState;
 use crate::state::user_orders::{Order, OrderTriggerCondition, OrderType};
 
 use crate::math::orders::calculate_base_asset_amount_to_trade_for_limit;
-// use crate::state::user::{User, UserPositions};
 use solana_program::msg;
-// use std::cell::RefMut;
 use std::ops::Div;
 
 pub fn validate_order(

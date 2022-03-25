@@ -1,6 +1,5 @@
 import { BN } from '@project-serum/anchor';
 import {
-	// AMM_TIMES_PEG_TO_QUOTE_PRECISION_RATIO,
 	MARK_PRICE_PRECISION,
 	AMM_RESERVE_PRECISION,
 	PEG_PRECISION,
@@ -12,7 +11,6 @@ import { calculateBaseAssetValue } from './position';
 import { calculateTerminalPrice } from './amm';
 
 import { Market } from '../types';
-// import { assert } from '../assert/assert';
 import { calculatePositionPNL, calculateMarkPrice, convertToNumber } from '..';
 
 /**

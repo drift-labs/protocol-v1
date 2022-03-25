@@ -1,21 +1,12 @@
 use crate::error::*;
 use crate::math::amm;
-// use crate::math::amm::calculate_swap_output;
 use crate::math::bn;
 use crate::math::casting::{cast_to_i128, cast_to_u128};
 use crate::math::constants::{
-    // AMM_RESERVE_PRECISION,
-    AMM_TO_QUOTE_PRECISION_RATIO,
-    FUNDING_EXCESS_TO_QUOTE_RATIO,
-    MARK_PRICE_PRECISION,
-    ONE_HOUR,
-    PEG_PRECISION,
-    PRICE_SPREAD_PRECISION,
-    PRICE_TO_PEG_PRECISION_RATIO,
-    QUOTE_PRECISION,
+    AMM_TO_QUOTE_PRECISION_RATIO, FUNDING_EXCESS_TO_QUOTE_RATIO, MARK_PRICE_PRECISION, ONE_HOUR,
+    PEG_PRECISION, PRICE_SPREAD_PRECISION, PRICE_TO_PEG_PRECISION_RATIO, QUOTE_PRECISION,
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR,
-    SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR,
-    TWENTYFOUR_HOUR,
+    SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR, TWENTYFOUR_HOUR,
 };
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math_error;
