@@ -57,6 +57,7 @@ import {
 	getClearingHouse,
 	getWebSocketClearingHouseConfig,
 } from './factory/clearingHouse';
+import { ZERO } from './constants/numericConstants';
 
 /**
  * # ClearingHouse
@@ -760,6 +761,14 @@ export class ClearingHouse {
 			});
 		}
 
+		if (!orderParams.oraclePriceOffset.eq(ZERO)) {
+			remainingAccounts.push({
+				pubkey: priceOracle,
+				isWritable: false,
+				isSigner: false,
+			});
+		}
+
 		const state = this.getStateAccount();
 		const orderState = this.getOrderStateAccount();
 		return await this.program.instruction.placeOrder(orderParams, {
@@ -774,7 +783,6 @@ export class ClearingHouse {
 				fundingRateHistory: state.fundingRateHistory,
 				orderState: await this.getOrderStatePublicKey(),
 				orderHistory: orderState.orderHistory,
-				oracle: priceOracle,
 			},
 			remainingAccounts,
 		});
@@ -820,20 +828,36 @@ export class ClearingHouse {
 		});
 	}
 
-	public async cancelOrder(orderId: BN): Promise<TransactionSignature> {
+	public async cancelOrder(
+		orderId: BN,
+		oracle?: PublicKey
+	): Promise<TransactionSignature> {
 		return await this.txSender.send(
-			wrapInTx(await this.getCancelOrderIx(orderId)),
+			wrapInTx(await this.getCancelOrderIx(orderId, oracle)),
 			[],
 			this.opts
 		);
 	}
 
-	public async getCancelOrderIx(orderId: BN): Promise<TransactionInstruction> {
+	public async getCancelOrderIx(
+		orderId: BN,
+		oracle?: PublicKey
+	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
 		const userAccount = await this.getUserAccount();
 
 		const state = this.getStateAccount();
 		const orderState = this.getOrderStateAccount();
+
+		const remainingAccounts = [];
+		if (oracle) {
+			remainingAccounts.push({
+				pubkey: oracle,
+				isWritable: false,
+				isSigner: false,
+			});
+		}
+
 		return await this.program.instruction.cancelOrder(orderId, {
 			accounts: {
 				state: await this.getStatePublicKey(),
@@ -847,27 +871,40 @@ export class ClearingHouse {
 				orderState: await this.getOrderStatePublicKey(),
 				orderHistory: orderState.orderHistory,
 			},
+			remainingAccounts,
 		});
 	}
 
 	public async cancelOrderByUserId(
-		userOrderId: number
+		userOrderId: number,
+		oracle?: PublicKey
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
-			wrapInTx(await this.getCancelOrderByUserIdIx(userOrderId)),
+			wrapInTx(await this.getCancelOrderByUserIdIx(userOrderId, oracle)),
 			[],
 			this.opts
 		);
 	}
 
 	public async getCancelOrderByUserIdIx(
-		userOrderId: number
+		userOrderId: number,
+		oracle?: PublicKey
 	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
 		const userAccount = await this.getUserAccount();
 
 		const state = this.getStateAccount();
 		const orderState = this.getOrderStateAccount();
+
+		const remainingAccounts = [];
+		if (oracle) {
+			remainingAccounts.push({
+				pubkey: oracle,
+				isWritable: false,
+				isSigner: false,
+			});
+		}
+
 		return await this.program.instruction.cancelOrderByUserId(userOrderId, {
 			accounts: {
 				state: await this.getStatePublicKey(),
@@ -881,6 +918,7 @@ export class ClearingHouse {
 				orderState: await this.getOrderStatePublicKey(),
 				orderHistory: orderState.orderHistory,
 			},
+			remainingAccounts,
 		});
 	}
 
