@@ -205,6 +205,12 @@ pub struct DeleteUser<'info> {
         close = authority
     )]
     pub user_positions: AccountLoader<'info, UserPositions>,
+    #[account(
+        mut,
+        has_one = user,
+        close = authority
+    )]
+    pub user_orders: AccountLoader<'info, UserOrders>,
     pub authority: Signer<'info>,
 }
 
@@ -559,7 +565,7 @@ pub struct OrderParams {
     pub trigger_condition: OrderTriggerCondition,
     pub optional_accounts: OrderParamsOptionalAccounts,
     pub position_limit: u128,
-    pub oracle_price_offset: u128,
+    pub oracle_price_offset: i128,
     pub padding0: bool,
     pub padding1: bool,
 }
@@ -666,6 +672,41 @@ pub struct CancelOrder<'info> {
         constraint = &state.funding_payment_history.eq(&funding_payment_history.key())
     )]
     pub funding_payment_history: AccountLoader<'info, FundingPaymentHistory>,
+    #[account(
+        mut,
+        constraint = &order_state.order_history.eq(&order_history.key())
+    )]
+    pub order_history: AccountLoader<'info, OrderHistory>,
+}
+
+#[derive(Accounts)]
+pub struct ExpireOrder<'info> {
+    pub state: Box<Account<'info, State>>,
+    #[account(
+        constraint = &state.order_state.eq(&order_state.key())
+    )]
+    pub order_state: Box<Account<'info, OrderState>>,
+    pub authority: Signer<'info>,
+    #[account(
+        mut,
+        has_one = authority
+    )]
+    pub filler: Box<Account<'info, User>>,
+    #[account(
+        mut,
+        constraint = &user.positions.eq(&user_positions.key())
+    )]
+    pub user: Box<Account<'info, User>>,
+    #[account(
+        mut,
+        has_one = user
+    )]
+    pub user_positions: AccountLoader<'info, UserPositions>,
+    #[account(
+        mut,
+        has_one = user
+    )]
+    pub user_orders: AccountLoader<'info, UserOrders>,
     #[account(
         mut,
         constraint = &order_state.order_history.eq(&order_history.key())
