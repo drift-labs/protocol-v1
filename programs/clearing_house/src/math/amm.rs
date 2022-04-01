@@ -481,10 +481,14 @@ pub fn adjust_k_cost(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouse
         .ok_or_else(math_error!())?
         .try_to_u128()
         .unwrap();
-    market.amm.quote_asset_reserve = bn::U256::from(market.amm.quote_asset_reserve)
-        .checked_mul(sqrt_k_ratio)
-        .ok_or_else(math_error!())?
-        .checked_div(ratio_scalar)
+
+    let invariant_sqrt_u192 = U192::from(market.amm.sqrt_k);
+    let invariant = invariant_sqrt_u192
+        .checked_mul(invariant_sqrt_u192)
+        .ok_or_else(math_error!())?;
+
+    market.amm.quote_asset_reserve = invariant
+        .checked_div(U192::from(market.amm.base_asset_reserve))
         .ok_or_else(math_error!())?
         .try_to_u128()
         .unwrap();
