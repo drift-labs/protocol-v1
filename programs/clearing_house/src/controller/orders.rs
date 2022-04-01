@@ -758,24 +758,24 @@ pub fn fill_order(
             Some(mark_price_before),
         )?;
 
-        if market_index >= 12 {
-            // todo for soft launch
-            let extended_curve_history = &mut extended_curve_history
-                .load_mut()
-                .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
+        // if market_index >= 12 {
+        // todo for soft launch
+        let extended_curve_history = &mut extended_curve_history
+            .load_mut()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
 
-            controller::repeg::formulaic_repeg(
-                market,
-                mark_price_after,
-                &oracle_price_data,
-                is_oracle_valid,
-                fee_to_market,
-                extended_curve_history,
-                now,
-                market_index,
-                trade_record_id,
-            )?;
-        }
+        controller::repeg::formulaic_repeg(
+            market,
+            mark_price_after,
+            &oracle_price_data,
+            is_oracle_valid,
+            fee_to_market,
+            extended_curve_history,
+            now,
+            market_index,
+            trade_record_id,
+        )?;
+        // }
     }
 
     Ok(base_asset_amount)

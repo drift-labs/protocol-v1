@@ -208,7 +208,7 @@ pub fn calculate_budgeted_peg(
     };
 
     // use optimal peg when cost <=0
-    let use_optimal_peg =  market.amm.quote_asset_reserve == terminal_quote_reserves
+    let use_optimal_peg = market.amm.quote_asset_reserve == terminal_quote_reserves
         || delta_peg_sign != optimal_peg_sign;
 
     let full_budget_peg: u128 = if use_optimal_peg {
@@ -256,7 +256,7 @@ pub fn calculate_budgeted_peg(
         new_budget_peg
     };
 
-    // avoid overshooting past target price w/ budget 
+    // avoid overshooting past target price w/ budget
     let candidate_peg: u128 = if (current_price > target_price && full_budget_peg < optimal_peg)
         || (current_price < target_price && full_budget_peg > optimal_peg)
     {
