@@ -13,6 +13,7 @@ use crate::state::order_state::OrderState;
 use crate::state::state::State;
 use crate::state::user::{User, UserPositions};
 use crate::state::user_orders::{OrderTriggerCondition, OrderType, UserOrders};
+use crate::state::user_registry::UserRegistry;
 
 #[derive(Accounts)]
 #[instruction(
@@ -144,6 +145,26 @@ pub struct InitializeUserWithExplicitPayer<'info> {
     pub authority: Signer<'info>,
     #[account(mut)]
     pub payer: Signer<'info>,
+    pub rent: Sysvar<'info, Rent>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(user_registry_nonce: u8)]
+pub struct InitializeUserRegistry<'info> {
+    #[account(
+        init,
+        seeds = [b"user_registry", authority.key.as_ref()],
+        bump = user_registry_nonce,
+        payer = authority
+    )]
+    pub user_registry: Box<Account<'info, UserRegistry>>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    #[account(
+        has_one = authority,
+    )]
+    pub user: Box<Account<'info, User>>,
     pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
 }

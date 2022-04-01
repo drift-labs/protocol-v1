@@ -45,6 +45,8 @@ import {
 	getUserAccountPublicKeyAndNonce,
 	getUserOrdersAccountPublicKey,
 	getUserOrdersAccountPublicKeyAndNonce,
+	getUserRegistryAccountPublicKey,
+	getUserRegistryPublicKeyAndNonce,
 } from './addresses';
 import {
 	ClearingHouseAccountSubscriber,
@@ -371,6 +373,40 @@ export class ClearingHouse {
 		);
 	}
 
+	public async initializeUserRegistryAccount(
+		firstUserName: number[]
+	): Promise<TransactionSignature> {
+		return this.txSender.send(
+			wrapInTx(await this.initializeUserRegistryAccountIx(firstUserName)),
+			[],
+			this.opts
+		);
+	}
+
+	public async initializeUserRegistryAccountIx(
+		firstUserName: number[]
+	): Promise<TransactionInstruction> {
+		const [userRegistryAccountPublicKey, userRegistryAccountNonce] =
+			await getUserRegistryPublicKeyAndNonce(
+				this.program.programId,
+				this.wallet.publicKey
+			);
+
+		return await this.program.instruction.initializeUserRegistry(
+			userRegistryAccountNonce,
+			firstUserName,
+			{
+				accounts: {
+					userRegistry: userRegistryAccountPublicKey,
+					user: await this.getUserAccountPublicKey(),
+					authority: this.wallet.publicKey,
+					rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+					systemProgram: anchor.web3.SystemProgram.programId,
+				},
+			}
+		);
+	}
+
 	userAccountPublicKey?: PublicKey;
 	/**
 	 * Get the address for the Clearing House User's account. NOT the user's wallet address.
@@ -429,6 +465,23 @@ export class ClearingHouse {
 
 		this.userOrdersExist = userOrdersAccountRPCResponse.value !== null;
 		return this.userOrdersExist;
+	}
+
+	userRegistryAccountPublicKey?: PublicKey;
+	/**
+	 * Get the address for the Clearing House User's account. NOT the user's wallet address.
+	 * @returns
+	 */
+	public async getUserRegistryAccountPublicKey(): Promise<PublicKey> {
+		if (this.userRegistryAccountPublicKey) {
+			return this.userRegistryAccountPublicKey;
+		}
+
+		this.userRegistryAccountPublicKey = await getUserRegistryAccountPublicKey(
+			this.program.programId,
+			this.wallet.publicKey
+		);
+		return this.userRegistryAccountPublicKey;
 	}
 
 	public async depositCollateral(

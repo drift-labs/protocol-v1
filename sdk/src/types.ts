@@ -336,6 +336,11 @@ export type UserAccount = {
 	totalRefereeDiscount: BN;
 };
 
+export type UserRegistryAccount = {
+	authority: PublicKey;
+	names: Array<Array<number>>;
+};
+
 export type UserOrdersAccount = {
 	orders: Order[];
 	user: PublicKey;

@@ -1345,6 +1345,51 @@
       ]
     },
     {
+      "name": "initializeUserRegistry",
+      "accounts": [
+        {
+          "name": "userRegistry",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "userRegistryNonce",
+          "type": "u8"
+        },
+        {
+          "name": "firstName",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "initializeUserOrders",
       "accounts": [
         {
@@ -2560,6 +2605,32 @@
                   "defined": "Order"
                 },
                 32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserRegistry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "publicKey"
+          },
+          {
+            "name": "names",
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    "u8",
+                    32
+                  ]
+                },
+                16
               ]
             }
           }
@@ -4249,6 +4320,11 @@
       "code": 6060,
       "name": "CantExpireOrders",
       "msg": "CantExpireOrders"
+    },
+    {
+      "code": 6061,
+      "name": "InvalidUserName",
+      "msg": "InvalidUserName"
     }
   ]
 }

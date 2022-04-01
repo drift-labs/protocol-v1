@@ -69,3 +69,23 @@ export async function getUserOrdersAccountPublicKey(
 		await getUserOrdersAccountPublicKeyAndNonce(programId, userAccount)
 	)[0];
 }
+
+export async function getUserRegistryAccountPublicKey(
+	programId: PublicKey,
+	authority: PublicKey
+): Promise<PublicKey> {
+	return (await getUserRegistryPublicKeyAndNonce(programId, authority))[0];
+}
+
+export async function getUserRegistryPublicKeyAndNonce(
+	programId: PublicKey,
+	authority: PublicKey
+): Promise<[PublicKey, number]> {
+	return anchor.web3.PublicKey.findProgramAddress(
+		[
+			Buffer.from(anchor.utils.bytes.utf8.encode('user_registry')),
+			authority.toBuffer(),
+		],
+		programId
+	);
+}

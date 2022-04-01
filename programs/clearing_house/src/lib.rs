@@ -52,6 +52,7 @@ pub mod clearing_house {
     use crate::math::slippage::{calculate_slippage, calculate_slippage_pct};
     use crate::state::market::OraclePriceData;
     use crate::state::order_state::{OrderFillerRewardStructure, OrderState};
+    use crate::state::user_registry::is_valid_name;
     use std::ops::Div;
 
     pub fn initialize(
@@ -1965,6 +1966,22 @@ pub mod clearing_house {
             ctx.remaining_accounts,
             optional_accounts,
         )
+    }
+
+    pub fn initialize_user_registry(
+        ctx: Context<InitializeUserRegistry>,
+        _user_registry_nonce: u8,
+        first_name: [u8; 32],
+    ) -> ProgramResult {
+        let user_registry = &mut ctx.accounts.user_registry;
+
+        if !is_valid_name(first_name) {
+            return Err(print_error!(ErrorCode::InvalidUserName)().into());
+        }
+
+        user_registry.names[0] = first_name;
+        user_registry.authority = ctx.accounts.authority.key();
+        Ok(())
     }
 
     pub fn initialize_user_orders(

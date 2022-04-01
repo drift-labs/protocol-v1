@@ -126,6 +126,8 @@ pub enum ErrorCode {
     InvalidOracleOffset,
     #[msg("CantExpireOrders")]
     CantExpireOrders,
+    #[msg("InvalidUserName")]
+    InvalidUserName,
 }
 
 #[macro_export]
