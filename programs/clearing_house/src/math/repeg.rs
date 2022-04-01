@@ -188,16 +188,32 @@ pub fn calculate_budgeted_peg(
     let optimal_peg = calculate_peg_from_target_price(
         market.amm.quote_asset_reserve,
         market.amm.base_asset_reserve,
-        target_price,
+        target_price
+            .checked_add(current_price)
+            .ok_or_else(math_error!())?
+            .checked_div(2)
+            .ok_or_else(math_error!())?,
     )?;
 
-    let full_budget_peg: u128 = if terminal_quote_reserves != market.amm.quote_asset_reserve {
-        let delta_peg_sign = if market.amm.quote_asset_reserve > terminal_quote_reserves {
-            1
-        } else {
-            -1
-        };
+    let delta_peg_sign = if market.amm.quote_asset_reserve > terminal_quote_reserves {
+        1
+    } else {
+        -1
+    };
 
+    let optimal_peg_sign = if optimal_peg > market.amm.peg_multiplier {
+        1
+    } else {
+        -1
+    };
+
+    // use optimal peg when cost <=0
+    let use_optimal_peg =  market.amm.quote_asset_reserve == terminal_quote_reserves
+        || delta_peg_sign != optimal_peg_sign;
+
+    let full_budget_peg: u128 = if use_optimal_peg {
+        optimal_peg
+    } else {
         let delta_quote_asset_reserves = if delta_peg_sign > 0 {
             market
                 .amm
@@ -237,20 +253,10 @@ pub fn calculate_budgeted_peg(
                 .checked_sub(delta_peg_precision)
                 .ok_or_else(math_error!())?
         };
-
-        // considers pegs that act against net market
-        if (delta_peg_sign > 0 && optimal_peg < new_budget_peg)
-            || (delta_peg_sign < 0 && optimal_peg > new_budget_peg)
-        {
-            optimal_peg
-        } else {
-            new_budget_peg
-        }
-    } else {
-        optimal_peg
+        new_budget_peg
     };
 
-    // avoid overshooting budget past target
+    // avoid overshooting past target price w/ budget 
     let candidate_peg: u128 = if (current_price > target_price && full_budget_peg < optimal_peg)
         || (current_price < target_price && full_budget_peg > optimal_peg)
     {
