@@ -334,6 +334,7 @@ export type UserAccount = {
 	totalTokenDiscount: BN;
 	totalReferralReward: BN;
 	totalRefereeDiscount: BN;
+	seed: number;
 };
 
 export type UserRegistryAccount = {

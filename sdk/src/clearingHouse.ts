@@ -407,6 +407,74 @@ export class ClearingHouse {
 		);
 	}
 
+	public async addUser(
+		seed: number,
+		name: number[]
+	): Promise<TransactionSignature> {
+		const [addUserIx, userAccountPublicKey, userPositionsKeyPair] =
+			await this.addUserIx(seed, name);
+		const initializeUserOrderIx = await this.getInitializeUserOrdersInstruction(
+			userAccountPublicKey
+		);
+		const tx = new Transaction().add(addUserIx).add(initializeUserOrderIx);
+
+		return this.txSender.send(tx, [userPositionsKeyPair], this.opts);
+	}
+
+	public async addUserIx(
+		seed: number,
+		name: number[]
+	): Promise<[TransactionInstruction, PublicKey, Keypair]> {
+		const [userAccountPublicKey, userAccountNonce] =
+			await getUserAccountPublicKeyAndNonce(
+				this.program.programId,
+				this.wallet.publicKey,
+				seed
+			);
+
+		const userPositions = new Keypair();
+		const ix = await this.program.instruction.addUser(
+			seed,
+			userAccountNonce,
+			name,
+			{
+				accounts: {
+					userRegistry: await this.getUserRegistryAccountPublicKey(),
+					user: userAccountPublicKey,
+					authority: this.wallet.publicKey,
+					rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+					systemProgram: anchor.web3.SystemProgram.programId,
+					userPositions: userPositions.publicKey,
+					state: await this.getStatePublicKey(),
+				},
+			}
+		);
+		return [ix, userAccountPublicKey, userPositions];
+	}
+
+	public async updateUserName(
+		seed: number,
+		name: number[]
+	): Promise<TransactionSignature> {
+		return this.txSender.send(
+			wrapInTx(await this.updateUserNameIx(seed, name)),
+			[],
+			this.opts
+		);
+	}
+
+	public async updateUserNameIx(
+		seed: number,
+		name: number[]
+	): Promise<TransactionInstruction> {
+		return await this.program.instruction.updateUserName(seed, name, {
+			accounts: {
+				userRegistry: await this.getUserRegistryAccountPublicKey(),
+				authority: this.wallet.publicKey,
+			},
+		});
+	}
+
 	userAccountPublicKey?: PublicKey;
 	/**
 	 * Get the address for the Clearing House User's account. NOT the user's wallet address.

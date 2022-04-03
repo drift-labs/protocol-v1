@@ -128,6 +128,10 @@ pub enum ErrorCode {
     CantExpireOrders,
     #[msg("InvalidUserName")]
     InvalidUserName,
+    #[msg("UserSeedAlreadyUsed")]
+    UserSeedAlreadyUsed,
+    #[msg("UserSeedNotUsed")]
+    UserSeedNotUsed,
 }
 
 #[macro_export]

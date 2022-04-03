@@ -52,7 +52,7 @@ pub mod clearing_house {
     use crate::math::slippage::{calculate_slippage, calculate_slippage_pct};
     use crate::state::market::OraclePriceData;
     use crate::state::order_state::{OrderFillerRewardStructure, OrderState};
-    use crate::state::user_registry::is_valid_name;
+    use crate::state::user_registry::{is_valid_name, UNINITIALIZED_NAME};
     use std::ops::Div;
 
     pub fn initialize(
@@ -1950,6 +1950,7 @@ pub mod clearing_house {
             &ctx.accounts.authority,
             ctx.remaining_accounts,
             optional_accounts,
+            0,
         )
     }
 
@@ -1965,6 +1966,7 @@ pub mod clearing_house {
             &ctx.accounts.authority,
             ctx.remaining_accounts,
             optional_accounts,
+            0,
         )
     }
 
@@ -1979,8 +1981,58 @@ pub mod clearing_house {
             return Err(print_error!(ErrorCode::InvalidUserName)().into());
         }
 
+        user_registry.names = [UNINITIALIZED_NAME; 16];
         user_registry.names[0] = first_name;
         user_registry.authority = ctx.accounts.authority.key();
+        Ok(())
+    }
+
+    pub fn add_user(
+        ctx: Context<AddUser>,
+        user_seed: u8,
+        _user_nonce: u8,
+        name: [u8; 32],
+    ) -> ProgramResult {
+        let user_registry = &mut ctx.accounts.user_registry;
+        if user_registry.is_seed_taken(user_seed) {
+            return Err(print_error!(ErrorCode::UserSeedAlreadyUsed)().into());
+        }
+
+        if !is_valid_name(name) {
+            return Err(print_error!(ErrorCode::InvalidUserName)().into());
+        }
+
+        user_registry.names[user_seed as usize] = name;
+
+        user_initialization::initialize(
+            &ctx.accounts.state,
+            &mut ctx.accounts.user,
+            &ctx.accounts.user_positions,
+            &ctx.accounts.authority,
+            ctx.remaining_accounts,
+            InitializeUserOptionalAccounts {
+                whitelist_token: false,
+            },
+            user_seed,
+        )
+    }
+
+    pub fn update_user_name(
+        ctx: Context<UpdateUserName>,
+        user_seed: u8,
+        name: [u8; 32],
+    ) -> ProgramResult {
+        let user_registry = &mut ctx.accounts.user_registry;
+        if !user_registry.is_seed_taken(user_seed) {
+            return Err(print_error!(ErrorCode::UserSeedNotUsed)().into());
+        }
+
+        if !is_valid_name(name) {
+            return Err(print_error!(ErrorCode::InvalidUserName)().into());
+        }
+
+        user_registry.names[user_seed as usize] = name;
+
         Ok(())
     }
 

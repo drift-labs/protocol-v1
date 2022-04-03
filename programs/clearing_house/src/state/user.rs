@@ -11,9 +11,10 @@ pub struct User {
     pub total_referral_reward: u128,
     pub total_referee_discount: u128,
     pub positions: Pubkey,
+    pub seed: u8,
 
     // upgrade-ability
-    pub padding0: u128,
+    pub padding0: [u8; 15],
     pub padding1: u128,
     pub padding2: u128,
     pub padding3: u128,

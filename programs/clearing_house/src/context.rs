@@ -170,6 +170,48 @@ pub struct InitializeUserRegistry<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(user_seed: u8, user_nonce: u8)]
+pub struct AddUser<'info> {
+    #[account(
+        mut,
+        has_one = authority
+    )]
+    pub user_registry: Box<Account<'info, UserRegistry>>,
+    #[account(
+        init,
+        seeds = [
+            b"user",
+            user_seed.to_le_bytes().as_ref(),
+            authority.key.as_ref()
+        ],
+        bump = user_nonce,
+        payer = authority
+    )]
+    pub user: Box<Account<'info, User>>,
+    pub state: Box<Account<'info, State>>,
+    #[account(
+        init,
+        payer = authority,
+    )]
+    pub user_positions: AccountLoader<'info, UserPositions>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    pub rent: Sysvar<'info, Rent>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateUserName<'info> {
+    #[account(
+        mut,
+        has_one = authority
+    )]
+    pub user_registry: Box<Account<'info, UserRegistry>>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
 #[instruction(user_orders_nonce: u8)]
 pub struct InitializeUserOrders<'info> {
     #[account(

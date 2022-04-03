@@ -1390,6 +1390,95 @@
       ]
     },
     {
+      "name": "addUser",
+      "accounts": [
+        {
+          "name": "userRegistry",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "userPositions",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "userSeed",
+          "type": "u8"
+        },
+        {
+          "name": "userNonce",
+          "type": "u8"
+        },
+        {
+          "name": "name",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "updateUserName",
+      "accounts": [
+        {
+          "name": "userRegistry",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "userSeed",
+          "type": "u8"
+        },
+        {
+          "name": "name",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "initializeUserOrders",
       "accounts": [
         {
@@ -2547,8 +2636,17 @@
             "type": "publicKey"
           },
           {
+            "name": "seed",
+            "type": "u8"
+          },
+          {
             "name": "padding0",
-            "type": "u128"
+            "type": {
+              "array": [
+                "u8",
+                15
+              ]
+            }
           },
           {
             "name": "padding1",
@@ -4325,6 +4423,16 @@
       "code": 6061,
       "name": "InvalidUserName",
       "msg": "InvalidUserName"
+    },
+    {
+      "code": 6062,
+      "name": "UserSeedAlreadyUsed",
+      "msg": "UserSeedAlreadyUsed"
+    },
+    {
+      "code": 6063,
+      "name": "UserSeedNotUsed",
+      "msg": "UserSeedNotUsed"
     }
   ]
 }

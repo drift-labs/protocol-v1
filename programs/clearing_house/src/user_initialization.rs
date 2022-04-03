@@ -12,6 +12,7 @@ pub fn initialize(
     authority: &Signer,
     remaining_accounts: &[AccountInfo],
     optional_accounts: InitializeUserOptionalAccounts,
+    seed: u8,
 ) -> ProgramResult {
     if !state.whitelist_mint.eq(&Pubkey::default()) {
         let whitelist_token =
@@ -35,8 +36,9 @@ pub fn initialize(
     user.collateral = 0;
     user.cumulative_deposits = 0;
     user.positions = *user_positions.to_account_info().key;
+    user.seed = seed;
 
-    user.padding0 = 0;
+    user.padding0 = [0; 15];
     user.padding1 = 0;
     user.padding2 = 0;
     user.padding3 = 0;

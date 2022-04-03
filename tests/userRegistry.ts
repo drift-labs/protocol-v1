@@ -1,16 +1,25 @@
 import * as anchor from '@project-serum/anchor';
-import { BN } from '../sdk';
 import { assert } from 'chai';
 
 import { Program } from '@project-serum/anchor';
 
-import { Admin, UserRegistryAccount } from '../sdk/src';
+import {
+	Admin,
+	BN,
+	UserRegistryAccount,
+	getUserAccountPublicKey,
+	UserAccount,
+} from '../sdk/src';
 
 import { mockUSDCMint, mockUserUSDCAccount } from './testHelpers';
 import { decodeName, encodeName } from '../sdk/src/userName';
+import { getUserOrdersAccountPublicKey, UserOrdersAccount } from '../sdk';
 
-describe('delete user', () => {
-	const provider = anchor.Provider.local();
+describe('user registry', () => {
+	const provider = anchor.Provider.local(undefined, {
+		commitment: 'confirmed',
+		preflightCommitment: 'confirmed',
+	});
 	const connection = provider.connection;
 	anchor.setProvider(provider);
 	const chProgram = anchor.workspace.ClearingHouse as Program;
@@ -29,7 +38,10 @@ describe('delete user', () => {
 		clearingHouse = Admin.from(
 			connection,
 			provider.wallet,
-			chProgram.programId
+			chProgram.programId,
+			{
+				commitment: 'confirmed',
+			}
 		);
 		await clearingHouse.initialize(usdcMint.publicKey, true);
 		await clearingHouse.subscribe();
@@ -65,6 +77,71 @@ describe('delete user', () => {
 
 		assert(registry.authority.equals(provider.wallet.publicKey));
 		const decodedName = decodeName(registry.names[0]);
+		assert(name === decodedName);
+	});
+
+	it('add user', async () => {
+		const name = 'crisp1';
+		const encodedName = encodeName(name);
+		const seed = 1;
+		await clearingHouse.addUser(seed, encodedName);
+
+		const registry = (await clearingHouse.program.account.userRegistry.fetch(
+			await clearingHouse.getUserRegistryAccountPublicKey()
+		)) as UserRegistryAccount;
+
+		assert(registry.authority.equals(provider.wallet.publicKey));
+		const decodedName = decodeName(registry.names[1]);
+		assert(name === decodedName);
+
+		const secondUserAccountPublicKey = await getUserAccountPublicKey(
+			clearingHouse.program.programId,
+			provider.wallet.publicKey,
+			seed
+		);
+
+		const secondUserAccount = (await clearingHouse.program.account.user.fetch(
+			secondUserAccountPublicKey
+		)) as UserAccount;
+		assert(secondUserAccount.seed === 1);
+
+		const secondUserOrdersAccountPublicKey =
+			await getUserOrdersAccountPublicKey(
+				clearingHouse.program.programId,
+				secondUserAccountPublicKey
+			);
+
+		const secondUserOrdersAccount =
+			(await clearingHouse.program.account.userOrders.fetch(
+				secondUserOrdersAccountPublicKey
+			)) as UserOrdersAccount;
+
+		assert(secondUserOrdersAccount !== undefined);
+	});
+
+	it('fail add user', async () => {
+		const name = 'crisp1';
+		const encodedName = encodeName(name);
+		const seed = 1;
+		try {
+			await clearingHouse.addUser(seed, encodedName);
+		} catch (e) {
+			return;
+		}
+		assert(false);
+	});
+
+	it('update user name', async () => {
+		const name = 'lil perp';
+		const encodedName = encodeName(name);
+		const seed = 1;
+		await clearingHouse.updateUserName(seed, encodedName);
+
+		const registry = (await clearingHouse.program.account.userRegistry.fetch(
+			await clearingHouse.getUserRegistryAccountPublicKey()
+		)) as UserRegistryAccount;
+
+		const decodedName = decodeName(registry.names[1]);
 		assert(name === decodedName);
 	});
 });

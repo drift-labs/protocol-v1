@@ -33,19 +33,31 @@ export async function getClearingHouseStateAccountPublicKey(
 
 export async function getUserAccountPublicKeyAndNonce(
 	programId: PublicKey,
-	authority: PublicKey
+	authority: PublicKey,
+	userSeed?: number
 ): Promise<[PublicKey, number]> {
-	return anchor.web3.PublicKey.findProgramAddress(
-		[Buffer.from(anchor.utils.bytes.utf8.encode('user')), authority.toBuffer()],
-		programId
-	);
+	const seeds =
+		userSeed === undefined || userSeed === 0
+			? [
+					Buffer.from(anchor.utils.bytes.utf8.encode('user')),
+					authority.toBuffer(),
+			  ]
+			: [
+					Buffer.from(anchor.utils.bytes.utf8.encode('user')),
+					Uint8Array.from([userSeed]),
+					authority.toBuffer(),
+			  ];
+	return anchor.web3.PublicKey.findProgramAddress(seeds, programId);
 }
 
 export async function getUserAccountPublicKey(
 	programId: PublicKey,
-	authority: PublicKey
+	authority: PublicKey,
+	userSeed?: number
 ): Promise<PublicKey> {
-	return (await getUserAccountPublicKeyAndNonce(programId, authority))[0];
+	return (
+		await getUserAccountPublicKeyAndNonce(programId, authority, userSeed)
+	)[0];
 }
 
 export async function getUserOrdersAccountPublicKeyAndNonce(
