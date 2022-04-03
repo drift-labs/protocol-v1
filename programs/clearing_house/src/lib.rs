@@ -352,155 +352,59 @@ pub mod clearing_house {
     }
 
     pub fn deposit_collateral(ctx: Context<DepositCollateral>, amount: u64) -> ProgramResult {
-        let user = &mut ctx.accounts.user;
-        let clock = Clock::get()?;
-        let now = clock.unix_timestamp;
-
-        if amount == 0 {
-            return Err(ErrorCode::InsufficientDeposit.into());
-        }
-
-        let collateral_before = user.collateral;
-        let cumulative_deposits_before = user.cumulative_deposits;
-
-        user.collateral = user
-            .collateral
-            .checked_add(cast(amount)?)
-            .ok_or_else(math_error!())?;
-        user.cumulative_deposits = user
-            .cumulative_deposits
-            .checked_add(cast(amount)?)
-            .ok_or_else(math_error!())?;
-
-        let markets = &ctx.accounts.markets.load()?;
-        let user_positions = &mut ctx.accounts.user_positions.load_mut()?;
-        let funding_payment_history = &mut ctx.accounts.funding_payment_history.load_mut()?;
-        controller::funding::settle_funding_payment(
-            user,
-            user_positions,
-            markets,
-            funding_payment_history,
-            now,
-        )?;
-
-        controller::token::receive(
+        controller::deposits::deposit_collateral(
+            amount,
+            &ctx.accounts.state,
+            &ctx.accounts.authority,
+            &mut ctx.accounts.user,
+            &mut ctx.accounts.user_positions,
+            &ctx.accounts.markets,
             &ctx.accounts.token_program,
             &ctx.accounts.user_collateral_account,
             &ctx.accounts.collateral_vault,
-            &ctx.accounts.authority,
-            amount,
-        )?;
-
-        let deposit_history = &mut ctx.accounts.deposit_history.load_mut()?;
-        let record_id = deposit_history.next_record_id();
-        deposit_history.append(DepositRecord {
-            ts: now,
-            record_id,
-            user_authority: user.authority,
-            user: user.to_account_info().key(),
-            direction: DepositDirection::DEPOSIT,
-            collateral_before,
-            cumulative_deposits_before,
-            amount,
-        });
-
-        if ctx.accounts.state.max_deposit > 0
-            && user.cumulative_deposits > cast(ctx.accounts.state.max_deposit)?
-        {
-            return Err(ErrorCode::UserMaxDeposit.into());
-        }
-
-        Ok(())
+            &ctx.accounts.funding_payment_history,
+            &ctx.accounts.deposit_history,
+            &Clock::get()?,
+        )
     }
 
     #[access_control(
         exchange_not_paused(&ctx.accounts.state)
     )]
     pub fn withdraw_collateral(ctx: Context<WithdrawCollateral>, amount: u64) -> ProgramResult {
-        let user = &mut ctx.accounts.user;
-        let clock = Clock::get()?;
-        let now = clock.unix_timestamp;
-
-        let collateral_before = user.collateral;
-        let cumulative_deposits_before = user.cumulative_deposits;
-
-        let markets = &ctx.accounts.markets.load()?;
-        let user_positions = &mut ctx.accounts.user_positions.load_mut()?;
-        let funding_payment_history = &mut ctx.accounts.funding_payment_history.load_mut()?;
-        controller::funding::settle_funding_payment(
-            user,
-            user_positions,
-            markets,
-            funding_payment_history,
-            now,
-        )?;
-
-        if cast_to_u128(amount)? > user.collateral {
-            return Err(ErrorCode::InsufficientCollateral.into());
-        }
-
-        let (collateral_account_withdrawal, insurance_account_withdrawal) =
-            calculate_withdrawal_amounts(
-                amount,
-                &ctx.accounts.collateral_vault,
-                &ctx.accounts.insurance_vault,
-            )?;
-
-        // amount_withdrawn can be less than amount if there is an insufficient balance in collateral and insurance vault
-        let amount_withdraw = collateral_account_withdrawal
-            .checked_add(insurance_account_withdrawal)
-            .ok_or_else(math_error!())?;
-
-        user.cumulative_deposits = user
-            .cumulative_deposits
-            .checked_sub(cast(amount_withdraw)?)
-            .ok_or_else(math_error!())?;
-
-        user.collateral = user
-            .collateral
-            .checked_sub(cast(collateral_account_withdrawal)?)
-            .ok_or_else(math_error!())?
-            .checked_sub(cast(insurance_account_withdrawal)?)
-            .ok_or_else(math_error!())?;
-
-        if !meets_initial_margin_requirement(user, user_positions, markets)? {
-            return Err(ErrorCode::InsufficientCollateral.into());
-        }
-
-        controller::token::send(
+        controller::deposits::withdraw_collateral(
+            amount,
+            &ctx.accounts.state,
+            &mut ctx.accounts.user,
+            &mut ctx.accounts.user_positions,
+            &ctx.accounts.markets,
             &ctx.accounts.token_program,
-            &ctx.accounts.collateral_vault,
             &ctx.accounts.user_collateral_account,
+            &ctx.accounts.collateral_vault,
             &ctx.accounts.collateral_vault_authority,
-            ctx.accounts.state.collateral_vault_nonce,
-            collateral_account_withdrawal,
-        )?;
+            &ctx.accounts.insurance_vault,
+            &ctx.accounts.insurance_vault_authority,
+            &ctx.accounts.funding_payment_history,
+            &ctx.accounts.deposit_history,
+            &Clock::get()?,
+        )
+    }
 
-        if insurance_account_withdrawal > 0 {
-            controller::token::send(
-                &ctx.accounts.token_program,
-                &ctx.accounts.insurance_vault,
-                &ctx.accounts.user_collateral_account,
-                &ctx.accounts.insurance_vault_authority,
-                ctx.accounts.state.insurance_vault_nonce,
-                insurance_account_withdrawal,
-            )?;
-        }
-
-        let deposit_history = &mut ctx.accounts.deposit_history.load_mut()?;
-        let record_id = deposit_history.next_record_id();
-        deposit_history.append(DepositRecord {
-            ts: now,
-            record_id,
-            user_authority: user.authority,
-            user: user.to_account_info().key(),
-            direction: DepositDirection::WITHDRAW,
-            collateral_before,
-            cumulative_deposits_before,
-            amount: amount_withdraw,
-        });
-
-        Ok(())
+    #[access_control(
+        exchange_not_paused(&ctx.accounts.state)
+    )]
+    pub fn transfer_collateral(ctx: Context<TransferCollateral>, amount: u64) -> ProgramResult {
+        controller::deposits::transfer_collateral(
+            amount,
+            &mut ctx.accounts.from_user,
+            &mut ctx.accounts.from_user_positions,
+            &mut ctx.accounts.to_user,
+            &mut ctx.accounts.to_user_positions,
+            &ctx.accounts.markets,
+            &ctx.accounts.funding_payment_history,
+            &ctx.accounts.deposit_history,
+            &Clock::get()?,
+        )
     }
 
     #[allow(unused_must_use)]

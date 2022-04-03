@@ -13,7 +13,7 @@ import {
 
 import { mockUSDCMint, mockUserUSDCAccount } from './testHelpers';
 import { decodeName, encodeName } from '../sdk/src/userName';
-import { getUserOrdersAccountPublicKey, UserOrdersAccount } from '../sdk';
+import { getUserOrdersAccountPublicKey, UserOrdersAccount, ZERO } from '../sdk';
 
 describe('user registry', () => {
 	const provider = anchor.Provider.local(undefined, {
@@ -44,7 +44,7 @@ describe('user registry', () => {
 			}
 		);
 		await clearingHouse.initialize(usdcMint.publicKey, true);
-		await clearingHouse.subscribe();
+		await clearingHouse.subscribe(['depositHistoryAccount']);
 
 		await clearingHouse.initializeUserAccountAndDepositCollateral(
 			usdcAmount,
@@ -143,5 +143,51 @@ describe('user registry', () => {
 
 		const decodedName = decodeName(registry.names[1]);
 		assert(name === decodedName);
+	});
+
+	it('transfer collateral', async () => {
+		const toUserAccountPublicKey = await getUserAccountPublicKey(
+			clearingHouse.program.programId,
+			provider.wallet.publicKey,
+			1
+		);
+
+		await clearingHouse.transferCollateral(usdcAmount, toUserAccountPublicKey);
+
+		const toUserAccount = (await clearingHouse.program.account.user.fetch(
+			toUserAccountPublicKey
+		)) as UserAccount;
+
+		assert(toUserAccount.collateral.eq(usdcAmount));
+		assert(toUserAccount.cumulativeDeposits.eq(usdcAmount));
+
+		const fromUserAccount = (await clearingHouse.program.account.user.fetch(
+			await clearingHouse.getUserAccountPublicKey()
+		)) as UserAccount;
+
+		assert(fromUserAccount.collateral.eq(ZERO));
+		assert(fromUserAccount.cumulativeDeposits.eq(ZERO));
+
+		const depositsHistory = clearingHouse.getDepositHistoryAccount();
+
+		const transferOutRecord = depositsHistory.depositRecords[1];
+		assert(transferOutRecord.direction.hasOwnProperty('transferOut'));
+		assert(transferOutRecord.userAuthority.equals(provider.wallet.publicKey));
+		assert(
+			transferOutRecord.user.equals(
+				await clearingHouse.getUserAccountPublicKey()
+			)
+		);
+		assert(transferOutRecord.collateralBefore.eq(usdcAmount));
+		assert(transferOutRecord.cumulativeDepositsBefore.eq(usdcAmount));
+		assert(transferOutRecord.amount.eq(usdcAmount));
+
+		const transferInRecord = depositsHistory.depositRecords[2];
+		assert(transferInRecord.direction.hasOwnProperty('transferIn'));
+		assert(transferInRecord.userAuthority.equals(provider.wallet.publicKey));
+		assert(transferInRecord.user.equals(toUserAccountPublicKey));
+		assert(transferInRecord.collateralBefore.eq(ZERO));
+		assert(transferInRecord.cumulativeDepositsBefore.eq(ZERO));
+		assert(transferOutRecord.amount.eq(usdcAmount));
 	});
 });

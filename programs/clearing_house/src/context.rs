@@ -299,7 +299,6 @@ pub struct InitializeMarket<'info> {
 
 #[derive(Accounts)]
 pub struct DepositCollateral<'info> {
-    #[account(mut)]
     pub state: Box<Account<'info, State>>,
     #[account(
         mut,
@@ -339,7 +338,6 @@ pub struct DepositCollateral<'info> {
 
 #[derive(Accounts)]
 pub struct WithdrawCollateral<'info> {
-    #[account(mut)]
     pub state: Box<Account<'info, State>>,
     #[account(
         mut,
@@ -380,6 +378,48 @@ pub struct WithdrawCollateral<'info> {
     pub user_positions: AccountLoader<'info, UserPositions>,
     #[account(
         mut,
+        constraint = &state.funding_payment_history.eq(&funding_payment_history.key())
+    )]
+    pub funding_payment_history: AccountLoader<'info, FundingPaymentHistory>,
+    #[account(
+        mut,
+        constraint = &state.deposit_history.eq(&deposit_history.key())
+    )]
+    pub deposit_history: AccountLoader<'info, DepositHistory>,
+}
+
+#[derive(Accounts)]
+pub struct TransferCollateral<'info> {
+    pub state: Box<Account<'info, State>>,
+    pub authority: Signer<'info>,
+    #[account(
+        mut,
+        has_one = authority,
+        constraint = &from_user.positions.eq(&from_user_positions.key())
+    )]
+    pub from_user: Box<Account<'info, User>>,
+    #[account(
+        mut,
+        constraint = &from_user_positions.load()?.user.eq(&from_user.key())
+    )]
+    pub from_user_positions: AccountLoader<'info, UserPositions>,
+    #[account(
+        mut,
+        has_one = authority,
+        constraint = &to_user.positions.eq(&to_user_positions.key())
+    )]
+    pub to_user: Box<Account<'info, User>>,
+    #[account(
+        mut,
+        constraint = &to_user_positions.load()?.user.eq(&to_user.key())
+    )]
+    pub to_user_positions: AccountLoader<'info, UserPositions>,
+    #[account(
+        constraint = &state.markets.eq(&markets.key())
+    )]
+    pub markets: AccountLoader<'info, Markets>,
+    #[account(
+     mut,
         constraint = &state.funding_payment_history.eq(&funding_payment_history.key())
     )]
     pub funding_payment_history: AccountLoader<'info, FundingPaymentHistory>,

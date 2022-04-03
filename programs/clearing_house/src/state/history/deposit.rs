@@ -26,14 +26,16 @@ impl DepositHistory {
 
 #[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq)]
 pub enum DepositDirection {
-    DEPOSIT,
-    WITHDRAW,
+    Deposit,
+    Withdraw,
+    TransferIn,
+    TransferOut,
 }
 
 impl Default for DepositDirection {
     // UpOnly
     fn default() -> Self {
-        DepositDirection::DEPOSIT
+        DepositDirection::Deposit
     }
 }
 

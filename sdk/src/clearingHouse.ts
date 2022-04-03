@@ -718,6 +718,45 @@ export class ClearingHouse {
 		});
 	}
 
+	public async transferCollateral(
+		amount: BN,
+		userPublicKey: PublicKey
+	): Promise<TransactionSignature> {
+		return this.txSender.send(
+			wrapInTx(await this.getTransferCollateralIx(amount, userPublicKey)),
+			[],
+			this.opts
+		);
+	}
+
+	public async getTransferCollateralIx(
+		amount: BN,
+		userPublicKey: PublicKey
+	): Promise<TransactionInstruction> {
+		const fromUserAccountPublicKey = await this.getUserAccountPublicKey();
+		const fromUser = (await this.program.account.user.fetch(
+			fromUserAccountPublicKey
+		)) as UserAccount;
+		const toUser = (await this.program.account.user.fetch(
+			userPublicKey
+		)) as UserAccount;
+
+		const state = this.getStateAccount();
+		return await this.program.instruction.transferCollateral(amount, {
+			accounts: {
+				state: await this.getStatePublicKey(),
+				fromUser: fromUserAccountPublicKey,
+				fromUserPositions: fromUser.positions,
+				toUser: userPublicKey,
+				toUserPositions: toUser.positions,
+				authority: this.wallet.publicKey,
+				markets: state.markets,
+				fundingPaymentHistory: state.fundingPaymentHistory,
+				depositHistory: state.depositHistory,
+			},
+		});
+	}
+
 	public async openPosition(
 		direction: PositionDirection,
 		amount: BN,

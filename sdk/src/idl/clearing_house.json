@@ -237,7 +237,7 @@
       "accounts": [
         {
           "name": "state",
-          "isMut": true,
+          "isMut": false,
           "isSigner": false
         },
         {
@@ -298,7 +298,7 @@
       "accounts": [
         {
           "name": "state",
-          "isMut": true,
+          "isMut": false,
           "isSigner": false
         },
         {
@@ -349,6 +349,62 @@
         {
           "name": "userPositions",
           "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fundingPaymentHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositHistory",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "transferCollateral",
+      "accounts": [
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "fromUser",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fromUserPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "toUser",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "toUserPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "markets",
+          "isMut": false,
           "isSigner": false
         },
         {
@@ -3968,10 +4024,16 @@
         "kind": "enum",
         "variants": [
           {
-            "name": "DEPOSIT"
+            "name": "Deposit"
           },
           {
-            "name": "WITHDRAW"
+            "name": "Withdraw"
+          },
+          {
+            "name": "TransferIn"
+          },
+          {
+            "name": "TransferOut"
           }
         ]
       }

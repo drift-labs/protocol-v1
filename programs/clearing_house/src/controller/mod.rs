@@ -4,3 +4,4 @@ pub mod orders;
 pub mod position;
 pub mod repeg;
 pub mod token;
+pub mod deposits;
