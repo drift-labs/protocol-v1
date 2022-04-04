@@ -678,6 +678,57 @@
       ]
     },
     {
+      "name": "cancelAllOrders",
+      "accounts": [
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orderState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "markets",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "userPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userOrders",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fundingPaymentHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "orderHistory",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "expireOrders",
       "accounts": [
         {
@@ -1441,6 +1492,11 @@
         },
         {
           "name": "userPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userOrders",
           "isMut": true,
           "isSigner": false
         },
@@ -3236,8 +3292,8 @@
             "type": "u128"
           },
           {
-            "name": "padding1",
-            "type": "u64"
+            "name": "netRevenueSinceLastFunding",
+            "type": "i64"
           },
           {
             "name": "padding2",
@@ -4244,6 +4300,11 @@
       "code": 6060,
       "name": "CantExpireOrders",
       "msg": "CantExpireOrders"
+    },
+    {
+      "code": 6061,
+      "name": "InvalidRepegPriceImpact",
+      "msg": "AMM repeg mark price impact vs oracle too large"
     }
   ]
 }
