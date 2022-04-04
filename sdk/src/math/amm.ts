@@ -8,10 +8,6 @@ import {
 	AMM_TO_QUOTE_PRECISION_RATIO,
 	QUOTE_PRECISION,
 } from '../constants/numericConstants';
-<<<<<<< HEAD
-// import { calculateBaseAssetValue } from './position';
-=======
->>>>>>> origin/master
 import {
 	AMM,
 	PositionDirection,
@@ -20,16 +16,7 @@ import {
 	isVariant,
 } from '../types';
 import { assert } from '../assert/assert';
-<<<<<<< HEAD
-import {
-	// calculatePositionPNL,
-	// calculateMarkPrice,
-	// convertToNumber,
-	squareRootBN,
-} from '..';
-=======
 import { squareRootBN } from '..';
->>>>>>> origin/master
 
 /**
  * Calculates a price given an arbitrary base and quote amount (they must have the same precision)
