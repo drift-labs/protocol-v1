@@ -765,6 +765,7 @@ pub mod clearing_house {
                 now,
                 clock_slot,
                 funding_rate_history,
+                &mut Some(None),
                 &ctx.accounts.state.oracle_guard_rails,
                 ctx.accounts.state.funding_paused,
                 Some(mark_price_before),
@@ -959,6 +960,7 @@ pub mod clearing_house {
             now,
             clock_slot,
             funding_rate_history,
+            Some(None),
             &ctx.accounts.state.oracle_guard_rails,
             ctx.accounts.state.funding_paused,
             Some(mark_price_before),
@@ -2079,6 +2081,12 @@ pub mod clearing_house {
         let clock_slot = clock.slot;
 
         let funding_rate_history = &mut ctx.accounts.funding_rate_history.load_mut()?;
+        let extended_curve_history = &mut ctx
+            .accounts
+            .extended_curve_history
+            .load_mut()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
+
         controller::funding::update_funding_rate(
             market_index,
             market,
@@ -2086,6 +2094,7 @@ pub mod clearing_house {
             now,
             clock_slot,
             funding_rate_history,
+            Some(extended_curve_history),
             &ctx.accounts.state.oracle_guard_rails,
             ctx.accounts.state.funding_paused,
             None,

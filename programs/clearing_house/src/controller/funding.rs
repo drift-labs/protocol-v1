@@ -5,7 +5,7 @@ use anchor_lang::prelude::*;
 
 use crate::error::*;
 use crate::math::amm;
-use crate::math::amm::{budget_k_adjustment, normalise_oracle_price};
+use crate::math::amm::{adjust_k_cost, budget_k_adjustment, normalise_oracle_price};
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math::constants::{
@@ -14,6 +14,7 @@ use crate::math::constants::{
 use crate::math::funding::{calculate_funding_payment, calculate_funding_rate_long_short};
 use crate::math::oracle;
 use crate::math_error;
+use crate::state::history::curve::ExtendedCurveHistory;
 use crate::state::history::funding_payment::{FundingPaymentHistory, FundingPaymentRecord};
 use crate::state::history::funding_rate::{FundingRateHistory, FundingRateRecord};
 use crate::state::market::AMM;
@@ -93,6 +94,7 @@ pub fn update_funding_rate(
     now: UnixTimestamp,
     clock_slot: u64,
     funding_rate_history: &mut RefMut<FundingRateHistory>,
+    curve_history: &mut Option<RefMut<ExtendedCurveHistory>>,
     guard_rails: &OracleGuardRails,
     funding_paused: bool,
     precomputed_mark_price: Option<u128>,
@@ -182,26 +184,6 @@ pub fn update_funding_rate(
                 AMM_TO_QUOTE_PRECISION_RATIO_I128 * cast_to_i128(FUNDING_PAYMENT_PRECISION)?,
             )
             .ok_or_else(math_error!())?;
-
-        let budget = if funding_imbalance_cost < 0 {
-            // negative cost is period revenue, give back half in k increase
-            funding_imbalance_cost
-                .checked_div(2)
-                .ok_or_else(math_error!())?
-        } else if market.amm.net_revenue_since_last_funding < (funding_imbalance_cost as i64) {
-            // cost exceeded period revenue, take back half in k decrease
-            max(0, market.amm.net_revenue_since_last_funding)
-                .checked_sub(funding_imbalance_cost as i64)
-                .ok_or_else(math_error!())?
-                .checked_div(2)
-                .ok_or_else(math_error!())? as i128
-        } else {
-            0
-        };
-        if budget != 0 {
-            let (p_numer, p_denom) = budget_k_adjustment(market, budget)?;
-            msg!("update k by {:?}/{:?}", p_numer, p_denom);
-        }
 
         market.amm.cumulative_funding_rate_long = market
             .amm

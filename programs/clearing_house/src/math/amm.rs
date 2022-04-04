@@ -453,7 +453,7 @@ pub fn is_oracle_valid(
         || is_conf_too_large))
 }
 
-pub fn budget_k_adjustment(market: &mut Market, budget: i128) -> ClearingHouseResult<(i128, i128)> {
+pub fn budget_k_adjustment(market: &mut Market, budget: i128) -> ClearingHouseResult<(u128, u128)> {
     let y = market.amm.quote_asset_reserve;
     let x = market.amm.base_asset_reserve;
     let c = budget;
@@ -514,7 +514,36 @@ pub fn budget_k_adjustment(market: &mut Market, budget: i128) -> ClearingHouseRe
         .checked_div(AMM_RESERVE_PRECISIONi128)
         .ok_or_else(math_error!())?;
 
-    Ok((numerator, denominator))
+    let K_PCT_SCALE = 10000;
+    let lower_bound = 9991;
+    let upper_bound = 10010;
+
+    assert!(upper_bound > K_PCT_SCALE);
+    assert!(lower_bound < K_PCT_SCALE);
+    assert!(upper_bound < (K_PCT_SCALE * 101 / 100));
+    assert!(lower_bound > (K_PCT_SCALE * 99 / 100));
+
+    let numerator_clipped = if numerator > denominator {
+        min(
+            numerator,
+            denominator
+                .checked_mul(upper_bound)
+                .ok_or_else(math_error!())?
+                .checked_div(K_PCT_SCALE)
+                .ok_or_else(math_error!())?,
+        )
+    } else {
+        max(
+            numerator,
+            denominator
+                .checked_mul(lower_bound)
+                .ok_or_else(math_error!())?
+                .checked_div(K_PCT_SCALE)
+                .ok_or_else(math_error!())?,
+        )
+    };
+
+    Ok((cast_to_u128(numerator_clipped)?, cast_to_u128(denominator)?))
 }
 
 /// To find the cost of adjusting k, compare the the net market value before and after adjusting k
