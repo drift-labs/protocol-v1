@@ -13,12 +13,12 @@ export function getLimitOrderParams(
 	baseAssetAmount: BN,
 	price: BN,
 	reduceOnly: boolean,
-	immediateOrCancel: boolean,
 	discountToken = false,
 	referrer = false,
 	userOrderId = 0,
 	postOnly = false,
-	oraclePriceOffset = ZERO
+	oraclePriceOffset = ZERO,
+	immediateOrCancel = false
 ): OrderParams {
 	return {
 		orderType: OrderType.LIMIT,
