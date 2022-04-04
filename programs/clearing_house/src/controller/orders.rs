@@ -1,4 +1,4 @@
-use crate::controller::position::{add_new_position, get_position_index};
+use crate::controller::position::{add_new_position, get_position_index, PositionDirection};
 use crate::error::ClearingHouseResult;
 use crate::error::*;
 use crate::math::casting::cast;
@@ -13,7 +13,7 @@ use crate::context::*;
 use crate::math::{amm, fees, margin::*, orders::*};
 use crate::state::market::OraclePriceData;
 use crate::state::{
-    history::curve::{ExtendedCurveHistory, ExtendedCurveRecord},
+    history::curve::ExtendedCurveHistory,
     history::order_history::{OrderHistory, OrderRecord},
     history::trade::{TradeHistory, TradeRecord},
     market::Markets,
@@ -24,14 +24,20 @@ use crate::state::{
 };
 
 use crate::controller;
-use crate::math::amm::normalise_oracle_price;
+use crate::math::amm::{is_oracle_valid, normalise_oracle_price};
+use crate::math::collateral::calculate_updated_collateral;
+use crate::math::constants::QUOTE_PRECISION;
 use crate::math::fees::calculate_order_fee_tier;
-use crate::order_validation::{validate_order, validate_order_can_be_canceled};
+use crate::order_validation::{
+    get_base_asset_amount_for_order, validate_order, validate_order_can_be_canceled,
+};
 use crate::state::history::funding_payment::FundingPaymentHistory;
 use crate::state::history::funding_rate::FundingRateHistory;
 use crate::state::history::order_history::OrderAction;
+use crate::state::market::Market;
 use spl_token::state::Account as TokenAccount;
 use std::cell::RefMut;
+use std::collections::BTreeMap;
 
 pub fn place_order(
     state: &State,
@@ -46,6 +52,7 @@ pub fn place_order(
     referrer: &Option<Account<User>>,
     clock: &Clock,
     params: OrderParams,
+    oracle: Option<&AccountInfo>,
 ) -> ClearingHouseResult {
     let now = clock.unix_timestamp;
 
@@ -100,6 +107,8 @@ pub fn place_order(
     let market_position = &mut user_positions.positions[position_index];
     market_position.open_orders += 1;
 
+    let base_asset_amount = get_base_asset_amount_for_order(&params, market, market_position);
+
     let order_id = order_history_account.next_order_id();
     let new_order = Order {
         status: OrderStatus::Open,
@@ -110,7 +119,7 @@ pub fn place_order(
         market_index: params.market_index,
         price: params.price,
         user_base_asset_amount: market_position.base_asset_amount,
-        base_asset_amount: params.base_asset_amount,
+        base_asset_amount,
         quote_asset_amount: params.quote_asset_amount,
         base_asset_amount_filled: 0,
         quote_asset_amount_filled: 0,
@@ -125,14 +134,20 @@ pub fn place_order(
             None => Pubkey::default(),
         },
         post_only: params.post_only,
-
-        // always false until we add support
-        immediate_or_cancel: false,
-        oracle_price_offset: 0,
+        oracle_price_offset: params.oracle_price_offset,
+        immediate_or_cancel: params.immediate_or_cancel,
         padding: [0; 3],
     };
 
-    validate_order(&new_order, market, order_state)?;
+    let valid_oracle_price = get_valid_oracle_price(
+        oracle,
+        market,
+        &new_order,
+        &state.oracle_guard_rails.validity,
+        clock.slot,
+    )?;
+
+    validate_order(&new_order, market, order_state, valid_oracle_price)?;
 
     user_orders.orders[new_order_idx] = new_order;
 
@@ -159,6 +174,7 @@ pub fn place_order(
 }
 
 pub fn cancel_order_by_order_id(
+    state: &State,
     order_id: u128,
     user: &mut Box<Account<User>>,
     user_positions: &AccountLoader<UserPositions>,
@@ -167,6 +183,7 @@ pub fn cancel_order_by_order_id(
     funding_payment_history: &AccountLoader<FundingPaymentHistory>,
     order_history: &AccountLoader<OrderHistory>,
     clock: &Clock,
+    oracle: Option<&AccountInfo>,
 ) -> ClearingHouseResult {
     let user_orders = &mut user_orders
         .load_mut()
@@ -180,6 +197,7 @@ pub fn cancel_order_by_order_id(
     let order = &mut user_orders.orders[order_index];
 
     cancel_order(
+        state,
         order,
         user,
         user_positions,
@@ -187,10 +205,12 @@ pub fn cancel_order_by_order_id(
         funding_payment_history,
         order_history,
         clock,
+        oracle,
     )
 }
 
 pub fn cancel_order_by_user_order_id(
+    state: &State,
     user_order_id: u8,
     user: &mut Box<Account<User>>,
     user_positions: &AccountLoader<UserPositions>,
@@ -199,6 +219,7 @@ pub fn cancel_order_by_user_order_id(
     funding_payment_history: &AccountLoader<FundingPaymentHistory>,
     order_history: &AccountLoader<OrderHistory>,
     clock: &Clock,
+    oracle: Option<&AccountInfo>,
 ) -> ClearingHouseResult {
     let user_orders = &mut user_orders
         .load_mut()
@@ -212,6 +233,7 @@ pub fn cancel_order_by_user_order_id(
     let order = &mut user_orders.orders[order_index];
 
     cancel_order(
+        state,
         order,
         user,
         user_positions,
@@ -219,10 +241,63 @@ pub fn cancel_order_by_user_order_id(
         funding_payment_history,
         order_history,
         clock,
+        oracle,
     )
 }
 
+pub fn cancel_all_orders(
+    state: &State,
+    user: &mut Box<Account<User>>,
+    user_positions: &AccountLoader<UserPositions>,
+    markets: &AccountLoader<Markets>,
+    user_orders: &AccountLoader<UserOrders>,
+    funding_payment_history: &AccountLoader<FundingPaymentHistory>,
+    order_history: &AccountLoader<OrderHistory>,
+    clock: &Clock,
+    remaining_accounts: &[AccountInfo],
+) -> ClearingHouseResult {
+    let user_orders = &mut user_orders
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
+
+    let mut oracle_account_infos: BTreeMap<Pubkey, &AccountInfo> = BTreeMap::new();
+    for account_info in remaining_accounts.iter() {
+        oracle_account_infos.insert(account_info.key(), account_info);
+    }
+
+    for order in user_orders.orders.iter_mut() {
+        if order.status != OrderStatus::Open {
+            continue;
+        }
+
+        let oracle = {
+            let markets = &markets
+                .load()
+                .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
+            let market = markets.get_market(order.market_index);
+            oracle_account_infos
+                .get(&market.amm.oracle)
+                .map(|oracle| *oracle)
+        };
+
+        cancel_order(
+            state,
+            order,
+            user,
+            user_positions,
+            markets,
+            funding_payment_history,
+            order_history,
+            clock,
+            oracle,
+        )?
+    }
+
+    Ok(())
+}
+
 pub fn cancel_order(
+    state: &State,
     order: &mut Order,
     user: &mut Box<Account<User>>,
     user_positions: &AccountLoader<UserPositions>,
@@ -230,6 +305,7 @@ pub fn cancel_order(
     funding_payment_history: &AccountLoader<FundingPaymentHistory>,
     order_history: &AccountLoader<OrderHistory>,
     clock: &Clock,
+    oracle: Option<&AccountInfo>,
 ) -> ClearingHouseResult {
     let now = clock.unix_timestamp;
 
@@ -254,7 +330,20 @@ pub fn cancel_order(
         return Err(ErrorCode::OrderNotOpen);
     }
 
-    validate_order_can_be_canceled(order, markets.get_market(order.market_index))?;
+    let market = markets.get_market(order.market_index);
+    let valid_oracle_price = get_valid_oracle_price(
+        oracle,
+        market,
+        &order,
+        &state.oracle_guard_rails.validity,
+        clock.slot,
+    )?;
+
+    validate_order_can_be_canceled(
+        order,
+        markets.get_market(order.market_index),
+        valid_oracle_price,
+    )?;
 
     // Add to the order history account
     let order_history_account = &mut order_history
@@ -283,6 +372,88 @@ pub fn cancel_order(
     let market_position = &mut user_positions.positions[position_index];
     market_position.open_orders -= 1;
     *order = Order::default();
+
+    Ok(())
+}
+
+pub fn expire_orders(
+    user: &mut Box<Account<User>>,
+    user_positions: &AccountLoader<UserPositions>,
+    user_orders: &AccountLoader<UserOrders>,
+    filler: &mut Box<Account<User>>,
+    order_history: &AccountLoader<OrderHistory>,
+    clock: &Clock,
+) -> ClearingHouseResult {
+    let now = clock.unix_timestamp;
+    let ten_quote = 10 * QUOTE_PRECISION;
+
+    if user.collateral >= ten_quote {
+        msg!("User has more than ten quote asset, cant expire orders");
+        return Err(ErrorCode::CantExpireOrders);
+    }
+
+    let max_filler_reward = QUOTE_PRECISION / 100; // .01 quote asset
+    let filler_reward = min(user.collateral, max_filler_reward);
+
+    let user_orders = &mut user_orders
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
+
+    let expired_orders = user_orders
+        .orders
+        .iter()
+        .filter(|&order| order.status == OrderStatus::Open)
+        .count();
+    if expired_orders == 0 {
+        msg!("No orders to be expired");
+        return Err(ErrorCode::CantExpireOrders);
+    }
+
+    user.collateral = calculate_updated_collateral(user.collateral, -(filler_reward as i128))?;
+    filler.collateral = calculate_updated_collateral(filler.collateral, filler_reward as i128)?;
+
+    let filler_reward_per_order: u128 = filler_reward / (expired_orders as u128);
+
+    let user_positions = &mut user_positions
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
+    let order_history_account = &mut order_history
+        .load_mut()
+        .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
+    for order in user_orders.orders.iter_mut() {
+        if order.status == OrderStatus::Init {
+            continue;
+        }
+
+        order.fee = order
+            .fee
+            .checked_add(filler_reward_per_order)
+            .ok_or_else(math_error!())?;
+
+        // Add to the order history account
+        let record_id = order_history_account.next_record_id();
+        order_history_account.append(OrderRecord {
+            ts: now,
+            record_id,
+            order: *order,
+            user: user.key(),
+            authority: user.authority,
+            action: OrderAction::Expire,
+            filler: filler.key(),
+            trade_record_id: 0,
+            base_asset_amount_filled: 0,
+            quote_asset_amount_filled: 0,
+            filler_reward: filler_reward_per_order,
+            fee: filler_reward_per_order,
+            quote_asset_amount_surplus: 0,
+            padding: [0; 8],
+        });
+
+        let position_index = get_position_index(user_positions, order.market_index)?;
+        let market_position = &mut user_positions.positions[position_index];
+        market_position.open_orders -= 1;
+        *order = Order::default();
+    }
 
     Ok(())
 }
@@ -641,24 +812,24 @@ pub fn fill_order(
             Some(mark_price_before),
         )?;
 
-        if market_index >= 12 {
-            // todo for soft launch
-            let extended_curve_history = &mut extended_curve_history
-                .load_mut()
-                .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
+        // if market_index >= 12 {
+        // todo for soft launch
+        let extended_curve_history = &mut extended_curve_history
+            .load_mut()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
 
-            controller::repeg::formulaic_repeg(
-                market,
-                mark_price_after,
-                &oracle_price_data,
-                is_oracle_valid,
-                fee_to_market,
-                extended_curve_history,
-                now,
-                market_index,
-                trade_record_id,
-            )?;
-        }
+        controller::repeg::formulaic_repeg(
+            market,
+            mark_price_after,
+            &oracle_price_data,
+            is_oracle_valid,
+            fee_to_market,
+            extended_curve_history,
+            now,
+            market_index,
+            trade_record_id,
+        )?;
+        // }
     }
 
     Ok(base_asset_amount)
@@ -718,6 +889,7 @@ pub fn execute_market_order(
                 market,
                 user,
                 market_position,
+                mark_price_before,
                 now,
                 None,
             )?
@@ -836,7 +1008,7 @@ pub fn execute_non_market_order(
     let market_position = &mut user_positions.positions[position_index];
 
     let maker_limit_price = if order.post_only {
-        Some(order.price)
+        Some(order.get_limit_price(valid_oracle_price)?)
     } else {
         None
     };
@@ -852,6 +1024,7 @@ pub fn execute_non_market_order(
         market,
         user,
         market_position,
+        mark_price_before,
         now,
         maker_limit_price,
     )?;
@@ -902,4 +1075,32 @@ pub fn update_order_after_trade(
     order.fee = order.fee.checked_add(fee).ok_or_else(math_error!())?;
 
     Ok(())
+}
+
+fn get_valid_oracle_price(
+    oracle: Option<&AccountInfo>,
+    market: &Market,
+    order: &Order,
+    validity_guardrails: &ValidityGuardRails,
+    slot: u64,
+) -> ClearingHouseResult<Option<i128>> {
+    let price = if let Some(oracle) = oracle {
+        let oracle_data = market.amm.get_oracle_price(oracle, slot)?;
+        let is_oracle_valid = is_oracle_valid(&market.amm, &oracle_data, validity_guardrails)?;
+        if is_oracle_valid {
+            Some(oracle_data.price)
+        } else if order.has_oracle_price_offset() {
+            msg!("Invalid oracle for order with oracle price offset");
+            return Err(print_error!(ErrorCode::InvalidOracle)());
+        } else {
+            None
+        }
+    } else if order.has_oracle_price_offset() {
+        msg!("Oracle not found for order with oracle price offset");
+        return Err(print_error!(ErrorCode::OracleNotFound)());
+    } else {
+        None
+    };
+
+    Ok(price)
 }

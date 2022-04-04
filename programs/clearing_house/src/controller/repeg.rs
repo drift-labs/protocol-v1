@@ -1,16 +1,15 @@
 use crate::error::*;
-use crate::math::casting::{cast_to_i128, cast_to_u128};
-use std::cell::{Ref, RefMut};
+use crate::math::casting::cast_to_u128;
+use std::cell::RefMut;
 
 use crate::math::repeg;
 
 use crate::math::amm;
 use crate::math_error;
-use crate::state::market::{Market, OraclePriceData, AMM};
+use crate::state::market::{Market, OraclePriceData};
 use crate::state::state::OracleGuardRails;
-use std::cmp::{max, min};
+use std::cmp::min;
 
-use crate::math::constants::{AMM_RESERVE_PRECISION, MARK_PRICE_PRECISION, QUOTE_PRECISION};
 use crate::state::history::curve::{ExtendedCurveHistory, ExtendedCurveRecord};
 use anchor_lang::prelude::AccountInfo;
 use solana_program::msg;
@@ -39,7 +38,7 @@ pub fn repeg(
         price_impact_valid,
         _oracle_terminal_divergence,
     ) = repeg::calculate_repeg_validity_from_oracle_account(
-        repegged_market,
+        &repegged_market,
         price_oracle,
         terminal_price_before,
         clock_slot,
@@ -48,22 +47,22 @@ pub fn repeg(
 
     // cannot repeg if oracle is invalid
     if !oracle_is_valid {
-        return Err(ErrorCode::InvalidOracle.into());
+        return Err(ErrorCode::InvalidOracle);
     }
 
     // only push terminal in direction of oracle
     if !direction_valid {
-        return Err(ErrorCode::InvalidRepegDirection.into());
+        return Err(ErrorCode::InvalidRepegDirection);
     }
 
     // only push terminal up to closer edge of oracle confidence band
     if !profitability_valid {
-        return Err(ErrorCode::InvalidRepegProfitability.into());
+        return Err(ErrorCode::InvalidRepegProfitability);
     }
 
     // only push mark up to further edge of oracle confidence band
     if !price_impact_valid {
-        return Err(ErrorCode::InvalidRepegPriceImpact.into());
+        return Err(ErrorCode::InvalidRepegPriceImpact);
     }
 
     // modify market's total fee change and peg change
@@ -71,7 +70,7 @@ pub fn repeg(
     if cost_applied {
         market.amm.peg_multiplier = new_peg_candidate;
     } else {
-        return Err(ErrorCode::InvalidRepegProfitability.into());
+        return Err(ErrorCode::InvalidRepegProfitability);
     }
 
     Ok(adjustment_cost)
@@ -90,7 +89,11 @@ pub fn formulaic_repeg(
 ) -> ClearingHouseResult<i128> {
     // backrun market swaps to do automatic on-chain repeg
 
-    if !is_oracle_valid {
+    if !is_oracle_valid || oracle_price_data.delay > 5 {
+        msg!(
+            "invalid oracle (oracle delay = {:?})",
+            oracle_price_data.delay
+        );
         return Ok(0);
     }
 
@@ -101,36 +104,35 @@ pub fn formulaic_repeg(
 
     let (terminal_price_before, terminal_quote_reserves, _terminal_base_reserves) =
         amm::calculate_terminal_price_and_reserves(market)?;
-    // let oracle_terminal_spread_before = oracle_price
-    //     .checked_sub(cast_to_i128(terminal_price_before)?)
-    //     .ok_or_else(math_error!())?;
 
     // max budget for single repeg what larger of pool budget and user fee budget
-    let pool_budget = repeg::calculate_pool_budget(market, mark_price, oracle_price_data)?;
-    let budget = min(fee_budget, pool_budget);
+    let repeg_pool_budget =
+        repeg::calculate_repeg_pool_budget(market, mark_price, oracle_price_data)?;
+    let repeg_budget = min(fee_budget, repeg_pool_budget);
 
     let (new_peg_candidate, adjustment_cost, repegged_market) = repeg::calculate_budgeted_peg(
         market,
         terminal_quote_reserves,
-        budget,
+        repeg_budget,
         mark_price,
         cast_to_u128(oracle_price_data.price)?,
     )?;
 
     let (
         oracle_valid,
-        direction_valid,
+        _direction_valid,
         profitability_valid,
         price_impact_valid,
         _oracle_terminal_divergence_pct_after,
     ) = repeg::calculate_repeg_validity(
-        repegged_market,
+        &repegged_market,
         oracle_price_data,
         is_oracle_valid,
         terminal_price_before,
     )?;
 
-    if oracle_valid && direction_valid && profitability_valid && price_impact_valid {
+    // any budgeted direction valid for formulaic
+    if oracle_valid && profitability_valid && price_impact_valid {
         let cost_applied = apply_cost_to_market(market, adjustment_cost)?;
         if cost_applied {
             market.amm.peg_multiplier = new_peg_candidate;
@@ -182,7 +184,7 @@ fn apply_cost_to_market(market: &mut Market, cost: i128) -> ClearingHouseResult<
 
         // Only a portion of the protocol fees are allocated to repegging
         // This checks that the total_fee_minus_distributions does not decrease too much after repeg
-        if new_total_fee_minus_distributions > repeg::total_fee_lower_bound(&market)? {
+        if new_total_fee_minus_distributions > repeg::total_fee_lower_bound(market)? {
             market.amm.total_fee_minus_distributions = new_total_fee_minus_distributions;
         } else {
             return Ok(false);

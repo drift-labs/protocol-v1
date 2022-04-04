@@ -6,11 +6,14 @@ import {
 	PEG_PRECISION,
 	convertToNumber,
 	calculateMarkPrice,
+<<<<<<< HEAD
 	calculateTargetPriceTrade
+=======
+	calculateTargetPriceTrade,
+>>>>>>> origin/master
 } from '../sdk/src';
 
 import { assert } from '../sdk/src/assert/assert';
-// import { getTokenAccount } from '@project-serum/common';
 import { mockOracle } from './mockAccounts';
 import { getFeedData, setFeedPrice } from './mockPythUtils';
 import {
@@ -50,6 +53,7 @@ export async function stress_test(
 	// todo: should be equal at init, with xeq for scale as oracle px
 	const periodicity = new BN(1); // 1 SECOND
 	const PAIR_AMT = sqrtk;
+<<<<<<< HEAD
 	console.log('sqrtK:', sqrtk)
 	const ammInitialQuoteAssetAmount = (new BN(PAIR_AMT)).mul(
 		MARK_PRICE_PRECISION
@@ -57,6 +61,11 @@ export async function stress_test(
 	const ammInitialBaseAssetAmount = (new BN(PAIR_AMT)).mul(
 		MARK_PRICE_PRECISION
 	);
+=======
+	console.log('sqrtK:', sqrtk);
+	const ammInitialQuoteAssetAmount = new BN(PAIR_AMT).mul(MARK_PRICE_PRECISION);
+	const ammInitialBaseAssetAmount = new BN(PAIR_AMT).mul(MARK_PRICE_PRECISION);
+>>>>>>> origin/master
 
 	for (let i = 0; i < oracles.length; i++) {
 		const amtScale = pegs[i].div(PEG_PRECISION); // same slippage pct for regardless of peg levels
@@ -141,11 +150,18 @@ export async function stress_test(
 				).mul(MARK_PRICE_PRECISION.div(PEG_PRECISION));
 				const markPriceMantissa = calculateMarkPrice(marketData);
 
+<<<<<<< HEAD
 				[randEType, rand_amt, _entry_px] =
 					calculateTargetPriceTrade(
 						marketData,
 						oraclePriceMantissa
 					);
+=======
+				[randEType, rand_amt, _entry_px] = calculateTargetPriceTrade(
+					marketData,
+					oraclePriceMantissa
+				);
+>>>>>>> origin/master
 
 				rand_amt = BN.min(
 					rand_amt.abs(),
@@ -218,7 +234,7 @@ export async function stress_test(
 		console.log([user_i, market_i, rand_e, rand_amt]);
 		const user_e = user_keys[user_i];
 		const userUSDCAccount = userUSDCAccounts[user_i];
-		const user_act_info_e = userAccountInfos[user_i];
+		// const user_act_info_e = userAccountInfos[user_i];
 
 		let clearingHouse_e = clearingHouses[user_i];
 		if (['move'].includes(rand_e)) {
@@ -317,7 +333,7 @@ export async function stress_test(
 
 		const stateI2 = Object.assign(
 			{},
-			state_i,
+			state_i
 			// userSummary2,
 			// userSummary3
 			// userSummary
