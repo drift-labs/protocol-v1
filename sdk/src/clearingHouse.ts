@@ -78,6 +78,7 @@ export class ClearingHouse {
 	eventEmitter: StrictEventEmitter<EventEmitter, ClearingHouseAccountEvents>;
 	_isSubscribed = false;
 	txSender: TxSender;
+	seed: number;
 
 	public get isSubscribed() {
 		return this._isSubscribed && this.accountSubscriber.isSubscribed;
@@ -93,19 +94,23 @@ export class ClearingHouse {
 	 * @param wallet
 	 * @param clearingHouseProgramId
 	 * @param opts
+	 * @param seed
 	 * @returns
 	 */
 	public static from(
 		connection: Connection,
 		wallet: IWallet,
 		clearingHouseProgramId: PublicKey,
-		opts: ConfirmOptions = Provider.defaultOptions()
+		opts: ConfirmOptions = Provider.defaultOptions(),
+		seed?: number
 	): ClearingHouse {
 		const config = getWebSocketClearingHouseConfig(
 			connection,
 			wallet,
 			clearingHouseProgramId,
-			opts
+			opts,
+			undefined,
+			seed
 		);
 		return getClearingHouse(config);
 	}
@@ -116,7 +121,8 @@ export class ClearingHouse {
 		program: Program,
 		accountSubscriber: ClearingHouseAccountSubscriber,
 		txSender: TxSender,
-		opts: ConfirmOptions
+		opts: ConfirmOptions,
+		seed = 0
 	) {
 		this.connection = connection;
 		this.wallet = wallet;
@@ -125,6 +131,7 @@ export class ClearingHouse {
 		this.accountSubscriber = accountSubscriber;
 		this.eventEmitter = this.accountSubscriber.eventEmitter;
 		this.txSender = txSender;
+		this.seed = seed;
 	}
 
 	/**
@@ -487,7 +494,8 @@ export class ClearingHouse {
 
 		this.userAccountPublicKey = await getUserAccountPublicKey(
 			this.program.programId,
-			this.wallet.publicKey
+			this.wallet.publicKey,
+			this.seed
 		);
 		return this.userAccountPublicKey;
 	}

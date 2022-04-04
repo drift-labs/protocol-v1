@@ -21,6 +21,7 @@ export class WebSocketUserAccountSubscriber implements UserAccountSubscriber {
 	program: Program;
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
 	authority: PublicKey;
+	seed: number;
 
 	userDataAccountSubscriber: AccountSubscriber<UserAccount>;
 	userPositionsAccountSubscriber: AccountSubscriber<UserPositionsAccount>;
@@ -28,11 +29,12 @@ export class WebSocketUserAccountSubscriber implements UserAccountSubscriber {
 
 	type: ClearingHouseConfigType = 'websocket';
 
-	public constructor(program: Program, authority: PublicKey) {
+	public constructor(program: Program, authority: PublicKey, seed = 0) {
 		this.isSubscribed = false;
 		this.program = program;
 		this.authority = authority;
 		this.eventEmitter = new EventEmitter();
+		this.seed = seed;
 	}
 
 	async subscribe(): Promise<boolean> {
@@ -42,7 +44,8 @@ export class WebSocketUserAccountSubscriber implements UserAccountSubscriber {
 
 		const userPublicKey = await getUserAccountPublicKey(
 			this.program.programId,
-			this.authority
+			this.authority,
+			this.seed
 		);
 		this.userDataAccountSubscriber = new WebSocketAccountSubscriber(
 			'user',

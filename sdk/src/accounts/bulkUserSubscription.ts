@@ -32,36 +32,53 @@ export async function bulkPollingUserSubscribe(
 	]);
 
 	// Create a map of the authority to keys
-	const authorityToKeys = new Map<string, UserPublicKeys>();
-	const userToAuthority = new Map<string, string>();
+	const authorityToSeedToKeys = new Map<string, Map<number, UserPublicKeys>>();
+	const userToSeedAndAuthority = new Map<string, [number, string]>();
 	for (const userProgramAccount of userProgramAccounts) {
 		const userAccountPublicKey = userProgramAccount.publicKey;
 		const userAccount = userProgramAccount.account as UserAccount;
 
-		authorityToKeys.set(userAccount.authority.toString(), {
-			user: userAccountPublicKey,
-			userPositions: userAccount.positions,
-			userOrders: undefined,
-		});
+		if (authorityToSeedToKeys.has(userAccount.authority.toString())) {
+			const seedToKeys = authorityToSeedToKeys.get(
+				userAccount.authority.toString()
+			);
+			seedToKeys.set(userAccount.seed, {
+				user: userAccountPublicKey,
+				userPositions: userAccount.positions,
+				userOrders: undefined,
+			});
+		} else {
+			const seedToKeys = new Map<number, UserPublicKeys>();
+			seedToKeys.set(userAccount.seed, {
+				user: userAccountPublicKey,
+				userPositions: userAccount.positions,
+				userOrders: undefined,
+			});
+			authorityToSeedToKeys.set(userAccount.authority.toString(), seedToKeys);
+		}
 
-		userToAuthority.set(
-			userAccountPublicKey.toString(),
-			userAccount.authority.toString()
-		);
+		userToSeedAndAuthority.set(userAccountPublicKey.toString(), [
+			userAccount.seed,
+			userAccount.authority.toString(),
+		]);
 	}
 	for (const orderProgramAccount of orderProgramAccounts) {
 		const userOrderAccountPublicKey = orderProgramAccount.publicKey;
 		const userOrderAccount = orderProgramAccount.account as UserOrdersAccount;
 
-		const authority = userToAuthority.get(userOrderAccount.user.toString());
-		const userPublicKeys = authorityToKeys.get(authority);
+		const [seed, authority] = userToSeedAndAuthority.get(
+			userOrderAccount.user.toString()
+		);
+		const userPublicKeys = authorityToSeedToKeys.get(authority).get(seed);
 		userPublicKeys.userOrders = userOrderAccountPublicKey;
 	}
 
 	await Promise.all(
 		users.map((user) => {
 			// Pull the keys from the authority map so we can skip fetching them in addToAccountLoader
-			const userPublicKeys = authorityToKeys.get(user.authority.toString());
+			const userPublicKeys = authorityToSeedToKeys
+				.get(user.authority.toString())
+				.get(user.seed);
 			return (
 				user.accountSubscriber as PollingUserAccountSubscriber
 			).addToAccountLoader(userPublicKeys);

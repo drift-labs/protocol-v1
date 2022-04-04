@@ -6,6 +6,7 @@ import { Program } from '@project-serum/anchor';
 import {
 	Admin,
 	BN,
+	ClearingHouseUser,
 	UserRegistryAccount,
 	getUserAccountPublicKey,
 	UserAccount,
@@ -146,17 +147,19 @@ describe('user registry', () => {
 	});
 
 	it('transfer collateral', async () => {
-		const toUserAccountPublicKey = await getUserAccountPublicKey(
-			clearingHouse.program.programId,
+		const toClearingHouseUser = ClearingHouseUser.from(
+			clearingHouse,
 			provider.wallet.publicKey,
 			1
 		);
+		await toClearingHouseUser.subscribe();
 
-		await clearingHouse.transferCollateral(usdcAmount, toUserAccountPublicKey);
+		await clearingHouse.transferCollateral(
+			usdcAmount,
+			await toClearingHouseUser.getUserAccountPublicKey()
+		);
 
-		const toUserAccount = (await clearingHouse.program.account.user.fetch(
-			toUserAccountPublicKey
-		)) as UserAccount;
+		const toUserAccount = toClearingHouseUser.getUserAccount();
 
 		assert(toUserAccount.collateral.eq(usdcAmount));
 		assert(toUserAccount.cumulativeDeposits.eq(usdcAmount));
@@ -185,9 +188,15 @@ describe('user registry', () => {
 		const transferInRecord = depositsHistory.depositRecords[2];
 		assert(transferInRecord.direction.hasOwnProperty('transferIn'));
 		assert(transferInRecord.userAuthority.equals(provider.wallet.publicKey));
-		assert(transferInRecord.user.equals(toUserAccountPublicKey));
+		assert(
+			transferInRecord.user.equals(
+				await toClearingHouseUser.getUserAccountPublicKey()
+			)
+		);
 		assert(transferInRecord.collateralBefore.eq(ZERO));
 		assert(transferInRecord.cumulativeDepositsBefore.eq(ZERO));
 		assert(transferOutRecord.amount.eq(usdcAmount));
+
+		await toClearingHouseUser.unsubscribe();
 	});
 });

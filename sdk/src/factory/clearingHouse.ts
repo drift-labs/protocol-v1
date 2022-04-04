@@ -20,6 +20,7 @@ type BaseClearingHouseConfig = {
 	programID: PublicKey;
 	opts?: ConfirmOptions;
 	txSender?: TxSender;
+	seed?: number;
 };
 
 type WebSocketClearingHouseConfiguration = BaseClearingHouseConfig;
@@ -37,7 +38,8 @@ export function getWebSocketClearingHouseConfig(
 	wallet: IWallet,
 	programID: PublicKey,
 	opts: ConfirmOptions = Provider.defaultOptions(),
-	txSender?: TxSender
+	txSender?: TxSender,
+	seed?: number
 ): WebSocketClearingHouseConfiguration {
 	return {
 		type: 'websocket',
@@ -46,6 +48,7 @@ export function getWebSocketClearingHouseConfig(
 		programID,
 		opts,
 		txSender,
+		seed,
 	};
 }
 
@@ -55,7 +58,8 @@ export function getPollingClearingHouseConfig(
 	programID: PublicKey,
 	accountLoader: BulkAccountLoader,
 	opts: ConfirmOptions = Provider.defaultOptions(),
-	txSender?: TxSender
+	txSender?: TxSender,
+	seed?: number
 ): PollingClearingHouseConfiguration {
 	return {
 		type: 'polling',
@@ -65,6 +69,7 @@ export function getPollingClearingHouseConfig(
 		accountLoader,
 		opts,
 		txSender,
+		seed,
 	};
 }
 
@@ -92,7 +97,8 @@ export function getClearingHouse(config: ClearingHouseConfig): ClearingHouse {
 		program,
 		accountSubscriber,
 		txSender,
-		config.opts
+		config.opts,
+		config.seed
 	);
 }
 

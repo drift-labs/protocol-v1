@@ -48,6 +48,7 @@ export class ClearingHouseUser {
 	userOrdersAccountPublicKey?: PublicKey;
 	_isSubscribed = false;
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
+	seed: number;
 
 	public get isSubscribed() {
 		return this._isSubscribed && this.accountSubscriber.isSubscribed;
@@ -65,14 +66,16 @@ export class ClearingHouseUser {
 	 */
 	public static from(
 		clearingHouse: ClearingHouse,
-		authority: PublicKey
+		authority: PublicKey,
+		seed?: number
 	): ClearingHouseUser {
 		if (clearingHouse.accountSubscriber.type !== 'websocket')
 			throw 'This method only works for clearing houses with a websocket account listener. Try using the getClearingHouseUser factory method to initialize a ClearingHouseUser instead';
 
 		const config = getWebSocketClearingHouseUserConfig(
 			clearingHouse,
-			authority
+			authority,
+			seed
 		);
 		return getClearingHouseUser(config);
 	}
@@ -80,12 +83,14 @@ export class ClearingHouseUser {
 	public constructor(
 		clearingHouse: ClearingHouse,
 		authority: PublicKey,
-		accountSubscriber: UserAccountSubscriber
+		accountSubscriber: UserAccountSubscriber,
+		seed = 0
 	) {
 		this.clearingHouse = clearingHouse;
 		this.authority = authority;
 		this.accountSubscriber = accountSubscriber;
 		this.eventEmitter = this.accountSubscriber.eventEmitter;
+		this.seed = seed;
 	}
 
 	/**
@@ -172,7 +177,8 @@ export class ClearingHouseUser {
 
 		this.userAccountPublicKey = await getUserAccountPublicKey(
 			this.clearingHouse.program.programId,
-			this.authority
+			this.authority,
+			this.seed
 		);
 		return this.userAccountPublicKey;
 	}

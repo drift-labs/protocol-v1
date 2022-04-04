@@ -23,6 +23,7 @@ export class PollingUserAccountSubscriber implements UserAccountSubscriber {
 	program: Program;
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
 	authority: PublicKey;
+	seed: number;
 
 	accountLoader: BulkAccountLoader;
 	accountsToPoll = new Map<string, AccountToPoll>();
@@ -37,13 +38,15 @@ export class PollingUserAccountSubscriber implements UserAccountSubscriber {
 	public constructor(
 		program: Program,
 		authority: PublicKey,
-		accountLoader: BulkAccountLoader
+		accountLoader: BulkAccountLoader,
+		seed = 0
 	) {
 		this.isSubscribed = false;
 		this.program = program;
 		this.authority = authority;
 		this.accountLoader = accountLoader;
 		this.eventEmitter = new EventEmitter();
+		this.seed = seed;
 	}
 
 	async subscribe(): Promise<boolean> {
@@ -67,7 +70,8 @@ export class PollingUserAccountSubscriber implements UserAccountSubscriber {
 		if (!userPublicKeys) {
 			const userPublicKey = await getUserAccountPublicKey(
 				this.program.programId,
-				this.authority
+				this.authority,
+				this.seed
 			);
 
 			const userAccount = (await this.program.account.user.fetch(

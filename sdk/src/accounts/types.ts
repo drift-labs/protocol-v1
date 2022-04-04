@@ -103,6 +103,7 @@ export interface UserAccountEvents {
 export interface UserAccountSubscriber {
 	eventEmitter: StrictEventEmitter<EventEmitter, UserAccountEvents>;
 	isSubscribed: boolean;
+	seed: number;
 
 	subscribe(): Promise<boolean>;
 	fetch(): Promise<void>;
