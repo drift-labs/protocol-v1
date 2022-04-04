@@ -979,8 +979,14 @@ pub mod clearing_house {
 
         let oracle = get_oracle_for_place_order(account_info_iter, &ctx.accounts.markets, &params)?;
 
-        if params.order_type == OrderType::Market || params.immediate_or_cancel {
+        if params.order_type == OrderType::Market {
+            msg!("market order must be in place and fill");
             return Err(ErrorCode::MarketOrderMustBeInPlaceAndFill.into());
+        }
+
+        if params.immediate_or_cancel {
+            msg!("immediate_or_cancel order must be in place and fill");
+            return Err(print_error!(ErrorCode::InvalidOrder)().into());
         }
 
         controller::orders::place_order(
