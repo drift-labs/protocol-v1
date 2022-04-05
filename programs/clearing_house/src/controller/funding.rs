@@ -94,7 +94,7 @@ pub fn update_funding_rate(
     now: UnixTimestamp,
     clock_slot: u64,
     funding_rate_history: &mut RefMut<FundingRateHistory>,
-    curve_history: &mut Option<RefMut<ExtendedCurveHistory>>,
+    curve_history: Option<&mut RefMut<ExtendedCurveHistory>>,
     guard_rails: &OracleGuardRails,
     funding_paused: bool,
     precomputed_mark_price: Option<u128>,

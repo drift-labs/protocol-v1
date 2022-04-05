@@ -131,6 +131,7 @@ pub fn formulaic_k(
     };
 
     if budget != 0 && curve_history.is_some() {
+        let curve_history = curve_history.unwrap();
         let (p_numer, p_denom) = amm::budget_k_adjustment(market, budget)?;
 
         if p_numer > p_denom {
@@ -159,8 +160,8 @@ pub fn formulaic_k(
             let quote_asset_reserve_after = market.amm.quote_asset_reserve;
             let sqrt_k_after = market.amm.sqrt_k;
 
-            let record_id = curve_history?.next_record_id();
-            curve_history?.append(ExtendedCurveRecord {
+            let record_id = curve_history.next_record_id();
+            curve_history.append(ExtendedCurveRecord {
                 ts: now,
                 record_id,
                 market_index,
@@ -185,6 +186,7 @@ pub fn formulaic_k(
             });
         }
     }
+    Ok(())
 }
 
 #[allow(dead_code)]

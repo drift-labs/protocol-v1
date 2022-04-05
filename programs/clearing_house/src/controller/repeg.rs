@@ -172,7 +172,7 @@ pub fn formulaic_repeg(
     Ok(adjustment_cost)
 }
 
-fn apply_cost_to_market(market: &mut Market, cost: i128) -> ClearingHouseResult<bool> {
+pub fn apply_cost_to_market(market: &mut Market, cost: i128) -> ClearingHouseResult<bool> {
     // positive cost is expense, negative cost is revenue
     // Reduce pnl to quote asset precision and take the absolute value
     if cost > 0 {
