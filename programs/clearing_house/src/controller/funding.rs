@@ -5,7 +5,7 @@ use anchor_lang::prelude::*;
 
 use crate::error::*;
 use crate::math::amm;
-use crate::math::amm::{adjust_k_cost, budget_k_adjustment, normalise_oracle_price};
+use crate::math::amm::{adjust_k_cost, calculate_budgeted_k_scale, normalise_oracle_price};
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math::constants::{

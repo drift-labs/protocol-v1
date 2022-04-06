@@ -453,7 +453,10 @@ pub fn is_oracle_valid(
         || is_conf_too_large))
 }
 
-pub fn budget_k_adjustment(market: &mut Market, budget: i128) -> ClearingHouseResult<(u128, u128)> {
+pub fn calculate_budgeted_k_scale(
+    market: &mut Market,
+    budget: i128,
+) -> ClearingHouseResult<(u128, u128)> {
     let y = market.amm.quote_asset_reserve;
     let x = market.amm.base_asset_reserve;
     let c = budget;
@@ -514,6 +517,7 @@ pub fn budget_k_adjustment(market: &mut Market, budget: i128) -> ClearingHouseRe
         .checked_div(AMM_RESERVE_PRECISIONi128)
         .ok_or_else(math_error!())?;
 
+    // hardcoded scale bounds for a single update (.1% increase and .09% decrease)
     let K_PCT_SCALE = 10000;
     let lower_bound = 9991;
     let upper_bound = 10010;
@@ -549,11 +553,24 @@ pub fn budget_k_adjustment(market: &mut Market, budget: i128) -> ClearingHouseRe
 /// To find the cost of adjusting k, compare the the net market value before and after adjusting k
 /// Increasing k costs the protocol money because it reduces slippage and improves the exit price for net market position
 /// Decreasing k costs the protocol money because it increases slippage and hurts the exit price for net market position
-pub fn adjust_k_cost(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouseResult<i128> {
+pub fn adjust_k_cost(market: &Market, new_sqrt_k: bn::U256) -> ClearingHouseResult<(Market, i128)> {
+    let mut market_clone = *market;
+
     // Find the net market value before adjusting k
     let (current_net_market_value, _) =
-        _calculate_base_asset_value_and_pnl(market.base_asset_amount, 0, &market.amm)?;
+        _calculate_base_asset_value_and_pnl(market_clone.base_asset_amount, 0, &market_clone.amm)?;
 
+    update_k(&mut market_clone, new_sqrt_k);
+
+    let (_new_net_market_value, cost) = _calculate_base_asset_value_and_pnl(
+        market_clone.base_asset_amount,
+        current_net_market_value,
+        &market_clone.amm,
+    )?;
+    Ok((market_clone, cost))
+}
+
+pub fn update_k(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouseResult {
     let mark_price_precision = bn::U256::from(MARK_PRICE_PRECISION);
 
     let sqrt_k_ratio = new_sqrt_k
@@ -593,13 +610,7 @@ pub fn adjust_k_cost(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouse
         .try_to_u128()
         .unwrap();
 
-    let (_new_net_market_value, cost) = _calculate_base_asset_value_and_pnl(
-        market.base_asset_amount,
-        current_net_market_value,
-        &market.amm,
-    )?;
-
-    Ok(cost)
+    Ok(())
 }
 
 pub fn calculate_max_base_asset_amount_to_trade(

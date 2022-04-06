@@ -1,14 +1,14 @@
 use solana_program::msg;
 
+use crate::controller::repeg::apply_cost_to_market;
 use crate::error::{ClearingHouseResult, ErrorCode};
 use crate::math::amm::calculate_quote_asset_amount_swapped;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::constants::PRICE_TO_PEG_PRECISION_RATIO;
 use crate::math::{amm, bn, quote_asset::*, repeg};
-use crate::controller::repeg::apply_cost_to_market;
 use crate::math_error;
 use crate::state::history::curve::{ExtendedCurveHistory, ExtendedCurveRecord};
-use crate::state::market::{Market, AMM, OraclePriceData};
+use crate::state::market::{Market, OraclePriceData, AMM};
 use std::cell::RefMut;
 
 use std::cmp::{max, min};
@@ -132,7 +132,7 @@ pub fn formulaic_k(
 
     if budget != 0 && curve_history.is_some() {
         let curve_history = curve_history.unwrap();
-        let (p_numer, p_denom) = amm::budget_k_adjustment(market, budget)?;
+        let (p_numer, p_denom) = amm::calculate_budgeted_k_scale(market, budget)?;
 
         if p_numer > p_denom {
             msg!("increase sqrt_k (* {:?}/{:?})", p_numer, p_denom);
@@ -148,12 +148,12 @@ pub fn formulaic_k(
             .checked_div(p_denom)
             .ok_or_else(math_error!())?;
 
-        // let adjustment_cost = adjust_k_cost(market, bn::U256::from(new_sqrt_k))?;
-
-        let adjustment_cost = amm::adjust_k_cost(market, bn::U256::from(new_sqrt_k))?;
+        let (adjust_k_market, adjustment_cost) =
+            amm::adjust_k_cost(market, bn::U256::from(new_sqrt_k))?;
         let cost_applied = apply_cost_to_market(market, adjustment_cost)?;
         if cost_applied {
             // todo: do actual k adj here
+            amm::update_k(market, bn::U256::from(new_sqrt_k))?;
 
             let peg_multiplier_after = market.amm.peg_multiplier;
             let base_asset_reserve_after = market.amm.base_asset_reserve;

@@ -4,27 +4,12 @@ import { Connection, Keypair } from '@solana/web3.js';
 import { Program } from '@project-serum/anchor';
 import {
 	BN,
-<<<<<<< HEAD
-	FUNDING_PAYMENT_PRECISION,
-=======
->>>>>>> origin/master
 	Admin,
 	MARK_PRICE_PRECISION,
 	calculateMarkPrice,
 	ClearingHouseUser,
 	PEG_PRECISION,
 	PositionDirection,
-<<<<<<< HEAD
-	calculateBudgetedPeg,
-	calculateBudgetedK,
-	// OrderStatus,
-	// OrderDiscountTier,
-	// OrderRecord,
-	// OrderAction,
-	// OrderTriggerCondition,
-	// calculateTargetPriceTrade,
-=======
->>>>>>> origin/master
 	convertToNumber,
 	AMM_RESERVE_PRECISION,
 	// Wallet,
@@ -35,11 +20,6 @@ import {
 	QUOTE_PRECISION,
 } from '../sdk/src';
 
-<<<<<<< HEAD
-import { Markets } from '../sdk/src/constants/markets';
-
-=======
->>>>>>> origin/master
 import {
 	createPriceFeed,
 	mockUSDCMint,
@@ -58,13 +38,8 @@ async function formRepegHelper(
 	clearingHouse: Admin,
 	userAccount: ClearingHouseUser,
 	marketIndex: BN,
-<<<<<<< HEAD
-	oraclePrice: Number,
-	amt: Number,
-=======
 	oraclePrice: number,
 	amt: number,
->>>>>>> origin/master
 	direction: PositionDirection
 ) {
 	const markets = await clearingHouse.getMarketsAccount();
@@ -414,6 +389,7 @@ describe('formulaic curve (repeg)', () => {
 
 		// net revenue above fee collected
 		const feeCollected = newOracle * base * 0.001;
+		console.log('feeCollected (', feeCollected, ') < profit (', profit, ')');
 		assert(profit > feeCollected);
 
 		const netRev2 = await formRepegHelper(
@@ -454,11 +430,7 @@ describe('formulaic curve (repeg)', () => {
 		const newOracle = 0.16;
 		const base = 2;
 
-<<<<<<< HEAD
 		const profit = await formRepegHelper(
-=======
-		await formRepegHelper(
->>>>>>> origin/master
 			connection,
 			clearingHouse,
 			userAccount,
@@ -467,6 +439,8 @@ describe('formulaic curve (repeg)', () => {
 			base,
 			PositionDirection.LONG
 		);
+
+		console.log('profit:', profit);
 	});
 
 	it('cause repeg? tiny prices', async () => {
@@ -489,11 +463,7 @@ describe('formulaic curve (repeg)', () => {
 		const newOracle = 0.1699;
 		const base = 100;
 
-<<<<<<< HEAD
 		const profit = await formRepegHelper(
-=======
-		await formRepegHelper(
->>>>>>> origin/master
 			connection,
 			clearingHouse,
 			userAccount,
@@ -502,5 +472,6 @@ describe('formulaic curve (repeg)', () => {
 			base,
 			PositionDirection.LONG
 		);
+		console.log('profit:', profit);
 	});
 });
