@@ -989,7 +989,13 @@ pub mod clearing_house {
         let oracle = get_oracle_for_place_order(account_info_iter, &ctx.accounts.markets, &params)?;
 
         if params.order_type == OrderType::Market {
+            msg!("market order must be in place and fill");
             return Err(ErrorCode::MarketOrderMustBeInPlaceAndFill.into());
+        }
+
+        if params.immediate_or_cancel {
+            msg!("immediate_or_cancel order must be in place and fill");
+            return Err(print_error!(ErrorCode::InvalidOrder)().into());
         }
 
         controller::orders::place_order(
@@ -1056,6 +1062,22 @@ pub mod clearing_house {
             &ctx.accounts.order_history,
             &Clock::get()?,
             oracle,
+        )?;
+
+        Ok(())
+    }
+
+    pub fn cancel_all_orders(ctx: Context<CancelOrder>) -> ProgramResult {
+        controller::orders::cancel_all_orders(
+            &ctx.accounts.state,
+            &mut ctx.accounts.user,
+            &ctx.accounts.user_positions,
+            &ctx.accounts.markets,
+            &ctx.accounts.user_orders,
+            &ctx.accounts.funding_payment_history,
+            &ctx.accounts.order_history,
+            &Clock::get()?,
+            ctx.remaining_accounts,
         )?;
 
         Ok(())
@@ -1134,6 +1156,7 @@ pub mod clearing_house {
             &ctx.accounts.user.key(),
             None,
         )?;
+        let is_immediate_or_cancel = params.immediate_or_cancel;
 
         controller::orders::place_order(
             &ctx.accounts.state,
@@ -1176,6 +1199,21 @@ pub mod clearing_house {
             referrer,
             &Clock::get()?,
         )?;
+
+        if is_immediate_or_cancel {
+            controller::orders::cancel_order_by_order_id(
+                &ctx.accounts.state,
+                order_id,
+                &mut ctx.accounts.user,
+                &ctx.accounts.user_positions,
+                &ctx.accounts.markets,
+                &ctx.accounts.user_orders,
+                &ctx.accounts.funding_payment_history,
+                &ctx.accounts.order_history,
+                &Clock::get()?,
+                Some(&ctx.accounts.oracle),
+            )?;
+        }
 
         Ok(())
     }
@@ -2135,6 +2173,21 @@ pub mod clearing_house {
             .gt(&UPDATE_K_ALLOWED_PRICE_CHANGE);
 
         if price_change_too_large {
+            return Err(ErrorCode::InvalidUpdateK.into());
+        }
+
+        let k_sqrt_check = bn::U192::from(amm.base_asset_reserve)
+            .checked_mul(bn::U192::from(amm.quote_asset_reserve))
+            .ok_or_else(math_error!())?
+            .integer_sqrt()
+            .try_to_u128()?;
+
+        let k_err = cast_to_i128(k_sqrt_check)?
+            .checked_sub(cast_to_i128(amm.sqrt_k)?)
+            .ok_or_else(math_error!())?;
+
+        if k_err.unsigned_abs() > 100 {
+            msg!("k_err={:?}, {:?} != {:?}", k_err, k_sqrt_check, amm.sqrt_k);
             return Err(ErrorCode::InvalidUpdateK.into());
         }
 

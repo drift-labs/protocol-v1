@@ -89,7 +89,11 @@ pub fn formulaic_repeg(
 ) -> ClearingHouseResult<i128> {
     // backrun market swaps to do automatic on-chain repeg
 
-    if !is_oracle_valid {
+    if !is_oracle_valid || oracle_price_data.delay > 5 {
+        msg!(
+            "invalid oracle (oracle delay = {:?})",
+            oracle_price_data.delay
+        );
         return Ok(0);
     }
 
@@ -116,7 +120,7 @@ pub fn formulaic_repeg(
 
     let (
         oracle_valid,
-        direction_valid,
+        _direction_valid,
         profitability_valid,
         price_impact_valid,
         _oracle_terminal_divergence_pct_after,
@@ -127,7 +131,8 @@ pub fn formulaic_repeg(
         terminal_price_before,
     )?;
 
-    if oracle_valid && direction_valid && profitability_valid && price_impact_valid {
+    // any budgeted direction valid for formulaic
+    if oracle_valid && profitability_valid && price_impact_valid {
         let cost_applied = apply_cost_to_market(market, adjustment_cost)?;
         if cost_applied {
             market.amm.peg_multiplier = new_peg_candidate;
