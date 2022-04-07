@@ -4,8 +4,11 @@ use std::cmp::{max, min};
 use anchor_lang::prelude::*;
 
 use crate::error::*;
+
+use crate::controller::amm::formulaic_k;
+
 use crate::math::amm;
-use crate::math::amm::{adjust_k_cost, calculate_budgeted_k_scale, normalise_oracle_price};
+use crate::math::amm::normalise_oracle_price;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math::constants::{
@@ -103,16 +106,21 @@ pub fn update_funding_rate(
         .checked_sub(market.amm.last_funding_rate_ts)
         .ok_or_else(math_error!())?;
 
+    let mark_price = match precomputed_mark_price {
+        Some(mark_price) => mark_price,
+        None => market.amm.mark_price()?,
+    };
+
     // Pause funding if oracle is invalid or if mark/oracle spread is too divergent
     let (block_funding_rate_update, oracle_price_data) = oracle::block_operation(
         &market.amm,
         price_oracle,
         clock_slot,
         guard_rails,
-        precomputed_mark_price,
+        Some(mark_price),
     )?;
     let normalised_oracle_price =
-        normalise_oracle_price(&market.amm, &oracle_price_data, precomputed_mark_price)?;
+        normalise_oracle_price(&market.amm, &oracle_price_data, Some(mark_price))?;
 
     // round next update time to be available on the hour
     let mut next_update_wait = market.amm.funding_period;
@@ -184,6 +192,18 @@ pub fn update_funding_rate(
                 AMM_TO_QUOTE_PRECISION_RATIO_I128 * cast_to_i128(FUNDING_PAYMENT_PRECISION)?,
             )
             .ok_or_else(math_error!())?;
+
+        formulaic_k(
+            market,
+            mark_price,
+            &oracle_price_data,
+            true, // only way to have gotten here
+            funding_imbalance_cost,
+            curve_history,
+            now,
+            market_index,
+            None,
+        )?;
 
         market.amm.cumulative_funding_rate_long = market
             .amm

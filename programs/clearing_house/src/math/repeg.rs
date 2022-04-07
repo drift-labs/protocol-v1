@@ -196,7 +196,7 @@ pub fn calculate_mm_target_price(
     let oracle_price_weight: u128 = cast_to_u128(max(
         0,
         50_i64
-            .checked_sub(oracle_price_data.delay)
+            .checked_sub(max(0, oracle_price_data.delay))
             .ok_or_else(math_error!())?,
     ))?;
     let current_price_weight: u128 = weight_denom

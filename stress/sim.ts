@@ -1,40 +1,8 @@
-<<<<<<< HEAD
-
-import * as anchor from '@project-serum/anchor';
-import {
-	QUOTE_PRECISION,
-	MARK_PRICE_PRECISION,
-	PEG_PRECISION,
-	convertToNumber,
-    Wallet,
-	ClearingHouse,
-	Admin,
-	BN,
-} from '../sdk/src';
-import { Connection, Keypair, PublicKey } from '@solana/web3.js';
-import {
-	getFeedData,
-	initUserAccounts,
-	mockOracle,
-	mockUserUSDCAccount,
-	mockUSDCMint,
-	setFeedPrice,
-} from './../tests/testHelpers';
-import {
-	stress_test
-} from './stress';
-import {
-	readStressCSV,
-	simEvent,
-	writeStressCSV,
-} from './stressUtils';
-=======
 import * as anchor from '@project-serum/anchor';
 import { Admin } from '../sdk/src';
 import { Keypair } from '@solana/web3.js';
 import { mockUSDCMint } from './../tests/testHelpers';
 import { stress_test } from './stress';
->>>>>>> origin/master
 
 describe('stress-test', () => {
 	const provider = anchor.Provider.local();
@@ -115,11 +83,7 @@ describe('stress-test', () => {
 			provider,
 			1,
 			100,
-<<<<<<< HEAD
-			10 * 10 ** 6,
-=======
 			10 * 10 ** 6
->>>>>>> origin/master
 			// 25 * 10 ** 13,
 			// 'stress/configs/clearingHouse.spec.pegmult.csv'
 		);

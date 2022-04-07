@@ -947,14 +947,6 @@ describe('clearing_house', () => {
 			state.insuranceVault
 		);
 
-<<<<<<< HEAD
-		console.log('user collateral for IF based withdrawal', 
-		convertToNumber(user.collateral, QUOTE_PRECISION),
-		'vault balance:', 
-		convertToNumber(chCollateralAccountToken0.amount, QUOTE_PRECISION)
-		,'IF balance:', 
-		convertToNumber(chInsuranceAccountToken0.amount, QUOTE_PRECISION)
-=======
 		console.log(
 			'user collateral for IF based withdrawal',
 			convertToNumber(user.collateral, QUOTE_PRECISION),
@@ -962,7 +954,6 @@ describe('clearing_house', () => {
 			convertToNumber(chCollateralAccountToken0.amount, QUOTE_PRECISION),
 			'IF balance:',
 			convertToNumber(chInsuranceAccountToken0.amount, QUOTE_PRECISION)
->>>>>>> origin/master
 		);
 
 		await clearingHouse.withdrawCollateral(

@@ -1,6 +1,6 @@
 import * as anchor from '@project-serum/anchor';
 import { assert } from 'chai';
-import { BN, FUNDING_PAYMENT_PRECISION } from '../sdk';
+import { BN } from '../sdk';
 
 import { Keypair } from '@solana/web3.js';
 import { Program } from '@project-serum/anchor';
@@ -20,7 +20,7 @@ import {
 	createPriceFeed,
 	mockUSDCMint,
 	mockUserUSDCAccount,
-	setFeedPrice,
+	// setFeedPrice,
 	getFeedData,
 } from './testHelpers';
 import { QUOTE_PRECISION } from '../sdk/lib';
@@ -146,22 +146,22 @@ describe('formulaic curve (k)', () => {
 
 		const marginOfError = new BN(MARK_PRICE_PRECISION.div(new BN(1000))); // price change less than 3 decimal places
 
-		// console.log(
-		// 	'oldSqrtK',
-		// 	convertToNumber(ammOld.sqrtK),
-		// 	'oldKPrice:',
-		// 	convertToNumber(oldKPrice)
-		// );
-		// console.log(
-		// 	'newSqrtK',
-		// 	convertToNumber(newSqrtK),
-		// 	'newKPrice:',
-		// 	convertToNumber(newKPrice)
-		// );
+		console.log(
+			'oldSqrtK',
+			convertToNumber(ammOld.sqrtK),
+			'oldKPrice:',
+			convertToNumber(oldKPrice)
+		);
+		console.log(
+			'newSqrtK',
+			convertToNumber(newSqrtK),
+			'newKPrice:',
+			convertToNumber(newKPrice)
+		);
 
-		// assert(ammOld.sqrtK.eq(amm.sqrtK));
-		// assert(newKPrice.sub(oldKPrice).abs().lt(marginOfError));
-		// assert(!amm.sqrtK.eq(newSqrtK));
+		assert(ammOld.sqrtK.eq(amm.sqrtK));
+		assert(newKPrice.sub(oldKPrice).abs().lt(marginOfError));
+		assert(!amm.sqrtK.eq(newSqrtK));
 
 		console.log(
 			'realizedFeeOld',

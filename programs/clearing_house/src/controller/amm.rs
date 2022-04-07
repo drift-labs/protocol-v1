@@ -132,6 +132,8 @@ pub fn formulaic_k(
 
     if budget != 0 && curve_history.is_some() {
         let curve_history = curve_history.unwrap();
+
+        // single k scale is capped by .1% increase and .09% decrease (regardless of budget)
         let (p_numer, p_denom) = amm::calculate_budgeted_k_scale(market, budget)?;
 
         if p_numer > p_denom {
