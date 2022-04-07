@@ -339,7 +339,7 @@ pub mod clearing_house {
                 last_oracle_price_twap_ts: now,
                 last_oracle_price: oracle_price,
                 minimum_base_asset_trade_size: 10000000,
-                padding1: 0,
+                net_revenue_since_last_funding: 0,
                 padding2: 0,
                 padding3: 0,
             },
@@ -655,6 +655,11 @@ pub mod clearing_house {
                 .total_fee_minus_distributions
                 .checked_add(fee_to_market)
                 .ok_or_else(math_error!())?;
+            market.amm.net_revenue_since_last_funding = market
+                .amm
+                .net_revenue_since_last_funding
+                .checked_add(fee_to_market as i64)
+                .ok_or_else(math_error!())?;
         }
 
         // Subtract the fee from user's collateral
@@ -851,7 +856,11 @@ pub mod clearing_house {
             .total_fee_minus_distributions
             .checked_add(fee_to_market)
             .ok_or_else(math_error!())?;
-
+        market.amm.net_revenue_since_last_funding = market
+            .amm
+            .net_revenue_since_last_funding
+            .checked_add(fee_to_market as i64)
+            .ok_or_else(math_error!())?;
         // Subtract the fee from user's collateral
         user.collateral = user.collateral.checked_sub(user_fee).or(Some(0)).unwrap();
 
@@ -980,7 +989,13 @@ pub mod clearing_house {
         let oracle = get_oracle_for_place_order(account_info_iter, &ctx.accounts.markets, &params)?;
 
         if params.order_type == OrderType::Market {
+            msg!("market order must be in place and fill");
             return Err(ErrorCode::MarketOrderMustBeInPlaceAndFill.into());
+        }
+
+        if params.immediate_or_cancel {
+            msg!("immediate_or_cancel order must be in place and fill");
+            return Err(print_error!(ErrorCode::InvalidOrder)().into());
         }
 
         controller::orders::place_order(
@@ -1052,6 +1067,22 @@ pub mod clearing_house {
         Ok(())
     }
 
+    pub fn cancel_all_orders(ctx: Context<CancelOrder>) -> ProgramResult {
+        controller::orders::cancel_all_orders(
+            &ctx.accounts.state,
+            &mut ctx.accounts.user,
+            &ctx.accounts.user_positions,
+            &ctx.accounts.markets,
+            &ctx.accounts.user_orders,
+            &ctx.accounts.funding_payment_history,
+            &ctx.accounts.order_history,
+            &Clock::get()?,
+            ctx.remaining_accounts,
+        )?;
+
+        Ok(())
+    }
+
     pub fn expire_orders(ctx: Context<ExpireOrder>) -> ProgramResult {
         controller::orders::expire_orders(
             &mut ctx.accounts.user,
@@ -1090,6 +1121,7 @@ pub mod clearing_house {
             &ctx.accounts.trade_history,
             &ctx.accounts.order_history,
             &ctx.accounts.funding_rate_history,
+            &ctx.accounts.extended_curve_history,
             referrer,
             &Clock::get()?,
         )?;
@@ -1124,6 +1156,8 @@ pub mod clearing_house {
             &ctx.accounts.user.key(),
             None,
         )?;
+        let is_immediate_or_cancel = params.immediate_or_cancel;
+        let base_asset_amount_to_fill = params.base_asset_amount;
 
         controller::orders::place_order(
             &ctx.accounts.state,
@@ -1148,7 +1182,7 @@ pub mod clearing_house {
         }
 
         let user = &mut ctx.accounts.user;
-        controller::orders::fill_order(
+        let base_asset_amount_filled = controller::orders::fill_order(
             order_id,
             &ctx.accounts.state,
             &ctx.accounts.order_state,
@@ -1162,9 +1196,25 @@ pub mod clearing_house {
             &ctx.accounts.trade_history,
             &ctx.accounts.order_history,
             &ctx.accounts.funding_rate_history,
+            &ctx.accounts.extended_curve_history,
             referrer,
             &Clock::get()?,
         )?;
+
+        if is_immediate_or_cancel && base_asset_amount_to_fill != base_asset_amount_filled {
+            controller::orders::cancel_order_by_order_id(
+                &ctx.accounts.state,
+                order_id,
+                &mut ctx.accounts.user,
+                &ctx.accounts.user_positions,
+                &ctx.accounts.markets,
+                &ctx.accounts.user_orders,
+                &ctx.accounts.funding_payment_history,
+                &ctx.accounts.order_history,
+                &Clock::get()?,
+                Some(&ctx.accounts.oracle),
+            )?;
+        }
 
         Ok(())
     }
@@ -2090,12 +2140,22 @@ pub mod clearing_house {
                     .total_fee_minus_distributions
                     .checked_sub(adjustment_cost.unsigned_abs())
                     .ok_or_else(math_error!())?;
+                market.amm.net_revenue_since_last_funding = market
+                    .amm
+                    .net_revenue_since_last_funding
+                    .checked_add(adjustment_cost as i64)
+                    .ok_or_else(math_error!())?;
             }
         } else {
             market.amm.total_fee_minus_distributions = market
                 .amm
                 .total_fee_minus_distributions
                 .checked_add(adjustment_cost.unsigned_abs())
+                .ok_or_else(math_error!())?;
+            market.amm.net_revenue_since_last_funding = market
+                .amm
+                .net_revenue_since_last_funding
+                .checked_add(adjustment_cost as i64)
                 .ok_or_else(math_error!())?;
         }
 
