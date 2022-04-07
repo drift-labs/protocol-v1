@@ -20,7 +20,7 @@ use crate::math::cpsqcurve;
 use num_integer::Roots;
 
 use crate::math_error;
-use crate::state::market::{Market, OracleSource, OraclePriceData, AMM};
+use crate::state::market::{Market, OraclePriceData, OracleSource, AMM};
 use crate::state::state::{PriceDivergenceGuardRails, ValidityGuardRails};
 
 // todo: should be (x + 1)^2 for low priced coin
@@ -30,10 +30,10 @@ pub fn squarify(value: u128, precision: u128) -> ClearingHouseResult<u128> {
     // if half_pr ecision > value {
     // msg!("value: {:?}", value);
     result = value
-    .checked_mul(value)
-    .ok_or_else(math_error!())?
-    .checked_div(precision)
-    .ok_or_else(math_error!())?;
+        .checked_mul(value)
+        .ok_or_else(math_error!())?
+        .checked_div(precision)
+        .ok_or_else(math_error!())?;
     // } else {
     //     let value_half_precision = value
     //     .checked_div(half_precision)
@@ -83,10 +83,7 @@ pub fn calculate_swap_output(
         AssetType::QUOTE => amm.quote_asset_reserve,
     };
 
-    msg!(
-    "swap amount: {:?}",
-    swap_amount
-    );
+    msg!("swap amount: {:?}", swap_amount);
 
     let (new_output_amount, new_input_amount) = match amm.oracle_source {
         OracleSource::PythSquared => cpsqcurve::calculate_swap_output(
@@ -102,7 +99,9 @@ pub fn calculate_swap_output(
     Ok((new_output_amount, new_input_amount))
 }
 
-pub fn calculate_terminal_price(market: &mut Market) -> ClearingHouseResult<u128> {
+pub fn calculate_terminal_price_and_reserves(
+    market: &Market,
+) -> ClearingHouseResult<(u128, u128, u128)> {
     let swap_direction = if market.base_asset_amount > 0 {
         SwapDirection::Add
     } else {
@@ -128,7 +127,11 @@ pub fn calculate_terminal_price(market: &mut Market) -> ClearingHouseResult<u128
         )?,
     };
 
-    Ok(terminal_price)
+    Ok((
+        terminal_price,
+        new_quote_asset_amount,
+        new_base_asset_amount,
+    ))
 }
 
 pub fn calculate_quote_asset_amount_swapped(
@@ -137,8 +140,11 @@ pub fn calculate_quote_asset_amount_swapped(
     swap_direction: SwapDirection,
     peg_multiplier: u128,
 ) -> ClearingHouseResult<u128> {
-    msg!("calculate_quote_asset_amount_swapped: {:?}, {:?}", 
-    quote_asset_reserve_before, quote_asset_reserve_after);
+    msg!(
+        "calculate_quote_asset_amount_swapped: {:?}, {:?}",
+        quote_asset_reserve_before,
+        quote_asset_reserve_after
+    );
 
     let quote_asset_reserve_change = match swap_direction {
         SwapDirection::Add => quote_asset_reserve_before
@@ -186,7 +192,7 @@ pub fn calculate_new_mark_twap(
         None => amm.mark_price()?,
     };
 
-    let new_twap: u128 = cast(calculate_twap(
+    let new_twap: u128 = cast(calculate_weighted_average(
         cast(current_price)?,
         cast(amm.last_mark_price_twap)?,
         since_last,
@@ -266,7 +272,7 @@ pub fn calculate_new_oracle_price_twap(
         .checked_div(1000)
         .ok_or_else(math_error!())?;
 
-    let interpolated_oracle_price = min(
+    let mut interpolated_oracle_price = min(
         capped_last_oracle_price
             .checked_add(capped_last_oracle_price_10bp)
             .ok_or_else(math_error!())?,
@@ -278,7 +284,35 @@ pub fn calculate_new_oracle_price_twap(
         ),
     );
 
-    let new_twap = calculate_twap(
+    // if an oracle delay impacted last oracle_twap, shrink toward mark_twap
+    interpolated_oracle_price = if amm.last_mark_price_twap_ts > amm.last_oracle_price_twap_ts {
+        let since_last_valid = cast_to_i128(
+            amm.last_mark_price_twap_ts
+                .checked_sub(amm.last_oracle_price_twap_ts)
+                .ok_or_else(math_error!())?,
+        )?;
+        msg!(
+            "correcting oracle twap update (oracle previously invalid for {:?} seconds)",
+            since_last_valid
+        );
+
+        let from_start_valid = max(
+            1,
+            cast_to_i128(amm.funding_period)?
+                .checked_sub(since_last_valid)
+                .ok_or_else(math_error!())?,
+        );
+        calculate_weighted_average(
+            cast_to_i128(amm.last_mark_price_twap)?,
+            interpolated_oracle_price,
+            since_last_valid,
+            from_start_valid,
+        )?
+    } else {
+        interpolated_oracle_price
+    };
+
+    let new_twap = calculate_weighted_average(
         interpolated_oracle_price,
         amm.last_oracle_price_twap,
         since_last,
@@ -288,17 +322,15 @@ pub fn calculate_new_oracle_price_twap(
     Ok(new_twap)
 }
 
-pub fn calculate_twap(
-    new_data: i128,
-    old_data: i128,
-    new_weight: i128,
-    old_weight: i128,
+pub fn calculate_weighted_average(
+    data1: i128,
+    data2: i128,
+    weight1: i128,
+    weight2: i128,
 ) -> ClearingHouseResult<i128> {
-    let denominator = new_weight
-        .checked_add(old_weight)
-        .ok_or_else(math_error!())?;
-    let prev_twap_99 = old_data.checked_mul(old_weight).ok_or_else(math_error!())?;
-    let latest_price_01 = new_data.checked_mul(new_weight).ok_or_else(math_error!())?;
+    let denominator = weight1.checked_add(weight2).ok_or_else(math_error!())?;
+    let prev_twap_99 = data1.checked_mul(weight1).ok_or_else(math_error!())?;
+    let latest_price_01 = data2.checked_mul(weight2).ok_or_else(math_error!())?;
 
     prev_twap_99
         .checked_add(latest_price_01)
@@ -309,23 +341,15 @@ pub fn calculate_twap(
 
 pub fn calculate_oracle_mark_spread(
     amm: &AMM,
-    window: u32,
     oracle_price_data: &OraclePriceData,
     precomputed_mark_price: Option<u128>,
 ) -> ClearingHouseResult<(i128, i128)> {
-    let mark_price: i128;
-    let oracle_price: i128;
+    let mark_price = match precomputed_mark_price {
+        Some(mark_price) => cast_to_i128(mark_price)?,
+        None => cast_to_i128(amm.mark_price()?)?,
+    };
 
-    if window > 0 {
-        mark_price = cast_to_i128(amm.last_mark_price_twap)?;
-        oracle_price = oracle_price_data.twap;
-    } else {
-        mark_price = match precomputed_mark_price {
-            Some(mark_price) => cast_to_i128(mark_price)?,
-            None => cast_to_i128(amm.mark_price()?)?,
-        };
-        oracle_price = oracle_price_data.price;
-    }
+    let oracle_price = oracle_price_data.price;
 
     let price_spread = mark_price
         .checked_sub(oracle_price)
@@ -389,11 +413,10 @@ pub fn normalise_oracle_price(
 pub fn calculate_oracle_mark_spread_pct(
     amm: &AMM,
     oracle_price_data: &OraclePriceData,
-    window: u32,
     precomputed_mark_price: Option<u128>,
 ) -> ClearingHouseResult<i128> {
     let (oracle_price, price_spread) =
-        calculate_oracle_mark_spread(amm, window, oracle_price_data, precomputed_mark_price)?;
+        calculate_oracle_mark_spread(amm, oracle_price_data, precomputed_mark_price)?;
 
     price_spread
         .checked_mul(PRICE_SPREAD_PRECISION)
@@ -448,24 +471,26 @@ pub fn use_oracle_price_for_margin_calculation(
 }
 
 pub fn is_oracle_valid(
+    amm: &AMM,
     oracle_price_data: &OraclePriceData,
     valid_oracle_guard_rails: &ValidityGuardRails,
 ) -> ClearingHouseResult<bool> {
     let OraclePriceData {
         price: oracle_price,
-        twap: oracle_twap,
         confidence: oracle_conf,
-        twap_confidence: oracle_twap_conf,
         delay: oracle_delay,
+        has_sufficient_number_of_data_points,
+        ..
     } = *oracle_price_data;
 
-    let is_oracle_price_nonpositive = (oracle_twap <= 0) || (oracle_price <= 0);
+    let is_oracle_price_nonpositive = oracle_price <= 0;
 
     let is_oracle_price_too_volatile = ((oracle_price
-        .checked_div(max(1, oracle_twap))
+        .checked_div(max(1, amm.last_oracle_price_twap))
         .ok_or_else(math_error!())?)
     .gt(&valid_oracle_guard_rails.too_volatile_ratio))
-        || ((oracle_twap
+        || ((amm
+            .last_oracle_price_twap
             .checked_div(max(1, oracle_price))
             .ok_or_else(math_error!())?)
         .gt(&valid_oracle_guard_rails.too_volatile_ratio));
@@ -473,19 +498,16 @@ pub fn is_oracle_valid(
     let conf_denom_of_price = cast_to_u128(oracle_price)?
         .checked_div(max(1, oracle_conf))
         .ok_or_else(math_error!())?;
-    let conf_denom_of_twap_price = cast_to_u128(oracle_twap)?
-        .checked_div(max(1, oracle_twap_conf))
-        .ok_or_else(math_error!())?;
-    let is_conf_too_large = (conf_denom_of_price
-        .lt(&valid_oracle_guard_rails.confidence_interval_max_size))
-        || (conf_denom_of_twap_price.lt(&valid_oracle_guard_rails.confidence_interval_max_size));
+    let is_conf_too_large =
+        conf_denom_of_price.lt(&valid_oracle_guard_rails.confidence_interval_max_size);
 
     let is_stale = oracle_delay.gt(&valid_oracle_guard_rails.slots_before_stale);
 
     Ok(!(is_stale
-        || is_conf_too_large
+        || !has_sufficient_number_of_data_points
         || is_oracle_price_nonpositive
-        || is_oracle_price_too_volatile))
+        || is_oracle_price_too_volatile
+        || is_conf_too_large))
 }
 
 /// To find the cost of adjusting k, compare the the net market value before and after adjusting k
@@ -496,17 +518,17 @@ pub fn adjust_k_cost(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouse
     let (current_net_market_value, _) =
         _calculate_base_asset_value_and_pnl(market.base_asset_amount, 0, &market.amm)?;
 
-    let ratio_scalar = bn::U256::from(MARK_PRICE_PRECISION);
+    let mark_price_precision = bn::U256::from(MARK_PRICE_PRECISION);
 
     let sqrt_k_ratio = new_sqrt_k
-        .checked_mul(ratio_scalar)
+        .checked_mul(mark_price_precision)
         .ok_or_else(math_error!())?
         .checked_div(bn::U256::from(market.amm.sqrt_k))
         .ok_or_else(math_error!())?;
 
     // if decreasing k, max decrease ratio for single transaction is 2.5%
     if sqrt_k_ratio
-        < ratio_scalar
+        < mark_price_precision
             .checked_mul(bn::U256::from(975))
             .ok_or_else(math_error!())?
             .checked_div(bn::U256::from(1000))
@@ -519,14 +541,18 @@ pub fn adjust_k_cost(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouse
     market.amm.base_asset_reserve = bn::U256::from(market.amm.base_asset_reserve)
         .checked_mul(sqrt_k_ratio)
         .ok_or_else(math_error!())?
-        .checked_div(ratio_scalar)
+        .checked_div(mark_price_precision)
         .ok_or_else(math_error!())?
         .try_to_u128()
         .unwrap();
-    market.amm.quote_asset_reserve = bn::U256::from(market.amm.quote_asset_reserve)
-        .checked_mul(sqrt_k_ratio)
-        .ok_or_else(math_error!())?
-        .checked_div(ratio_scalar)
+
+    let invariant_sqrt_u192 = U192::from(market.amm.sqrt_k);
+    let invariant = invariant_sqrt_u192
+        .checked_mul(invariant_sqrt_u192)
+        .ok_or_else(math_error!())?;
+
+    market.amm.quote_asset_reserve = invariant
+        .checked_div(U192::from(market.amm.base_asset_reserve))
         .ok_or_else(math_error!())?
         .try_to_u128()
         .unwrap();

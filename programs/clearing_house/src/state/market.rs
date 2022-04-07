@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use switchboard_v2::AggregatorAccountData;
 
 use crate::error::*;
 use crate::math::amm;
@@ -6,19 +7,12 @@ use crate::math::casting::{cast, cast_to_i128, cast_to_i64, cast_to_u128};
 use crate::math_error;
 use crate::MARK_PRICE_PRECISION;
 use solana_program::msg;
+use std::cmp::max;
+use switchboard_v2::decimal::SwitchboardDecimal;
 
 #[account(zero_copy)]
 pub struct Markets {
     pub markets: [Market; 64],
-}
-
-#[derive(Default, Clone, Copy, Debug)]
-pub struct OraclePriceData {
-    pub price: i128,
-    pub twap: i128,
-    pub confidence: u128,
-    pub twap_confidence: u128,
-    pub delay: i64,
 }
 
 impl Default for Markets {
@@ -106,7 +100,7 @@ pub struct AMM {
     pub minimum_base_asset_trade_size: u128,
 
     // upgrade-ability
-    pub padding1: u64,
+    pub net_revenue_since_last_funding: i64,
     pub padding2: u128,
     pub padding3: u128,
 }
@@ -116,11 +110,23 @@ impl AMM {
         amm::calculate_price(&self)
     }
 
+    pub fn get_oracle_price(
+        &self,
+        price_oracle: &AccountInfo,
+        clock_slot: u64,
+    ) -> ClearingHouseResult<OraclePriceData> {
+        match self.oracle_source {
+            OracleSource::Pyth => self.get_pyth_price(price_oracle, clock_slot),
+            OracleSource::PythSquared => self.get_pyth_price_squared(price_oracle, clock_slot),
+            OracleSource::Switchboard => self.get_switchboard_price(price_oracle, clock_slot),
+        }
+    }
+
     pub fn get_pyth_price(
         &self,
         price_oracle: &AccountInfo,
         clock_slot: u64,
-    ) -> ClearingHouseResult<(i128, i128, u128, u128, i64)> {
+    ) -> ClearingHouseResult<OraclePriceData> {
         let pyth_price_data = price_oracle
             .try_borrow_data()
             .or(Err(ErrorCode::UnableToLoadOracle))?;
@@ -128,8 +134,6 @@ impl AMM {
 
         let oracle_price = cast_to_i128(price_data.agg.price)?;
         let oracle_conf = cast_to_u128(price_data.agg.conf)?;
-        let oracle_twap = cast_to_i128(price_data.twap.val)?;
-        let oracle_twac = cast_to_u128(price_data.twac.val)?;
 
         let oracle_precision = 10_u128.pow(price_data.expo.unsigned_abs());
 
@@ -152,19 +156,7 @@ impl AMM {
             .checked_div(cast(oracle_scale_div)?)
             .ok_or_else(math_error!())?;
 
-        let oracle_twap_scaled = (oracle_twap)
-            .checked_mul(cast(oracle_scale_mult)?)
-            .ok_or_else(math_error!())?
-            .checked_div(cast(oracle_scale_div)?)
-            .ok_or_else(math_error!())?;
-
         let oracle_conf_scaled = (oracle_conf)
-            .checked_mul(oracle_scale_mult)
-            .ok_or_else(math_error!())?
-            .checked_div(oracle_scale_div)
-            .ok_or_else(math_error!())?;
-
-        let oracle_twac_scaled = (oracle_twac)
             .checked_mul(oracle_scale_mult)
             .ok_or_else(math_error!())?
             .checked_div(oracle_scale_div)
@@ -174,22 +166,25 @@ impl AMM {
             .checked_sub(cast(price_data.valid_slot)?)
             .ok_or_else(math_error!())?;
 
-        Ok((
-            oracle_price_scaled,
-            oracle_twap_scaled,
-            oracle_conf_scaled,
-            oracle_twac_scaled,
-            oracle_delay,
-        ))
+        Ok(OraclePriceData {
+            price: oracle_price_scaled,
+            confidence: oracle_conf_scaled,
+            delay: oracle_delay,
+            has_sufficient_number_of_data_points: true,
+        })
     }
 
     pub fn get_pyth_price_squared(
         &self,
         price_oracle: &AccountInfo,
         clock_slot: u64,
-    ) -> ClearingHouseResult<(i128, i128, u128, u128, i64)> {
-        let (oracle_px, oracle_twap, oracle_conf, oracle_twac, oracle_delay) =
-            self.get_pyth_price(price_oracle, clock_slot)?;
+    ) -> ClearingHouseResult<OraclePriceData> {
+        let OraclePriceData {
+            price: oracle_px,
+            confidence: oracle_conf,
+            delay,
+            has_sufficient_number_of_data_points,
+        } = self.get_pyth_price(price_oracle, clock_slot)?;
         // sqrt(MARK_PRICE_PRECISION) = sqrt(1e10) = 1e5
         let oracle_px_shrunk = oracle_px.checked_div(100000).ok_or_else(math_error!())?;
         let oracle_px_sq = oracle_px_shrunk
@@ -201,32 +196,120 @@ impl AMM {
             .checked_mul(oracle_conf_shrunk)
             .ok_or_else(math_error!())?;
 
-        Ok((
-            oracle_px_sq,
-            0, //todo
-            oracle_conf_sq,
-            0, //todo
-            oracle_delay,
-        ))
+        Ok(OraclePriceData {
+            price: oracle_px_sq,
+            confidence: oracle_conf_sq,
+            delay,
+            has_sufficient_number_of_data_points,
+        })
     }
 
-    pub fn get_oracle_price(
+    pub fn get_switchboard_price(
         &self,
         price_oracle: &AccountInfo,
         clock_slot: u64,
     ) -> ClearingHouseResult<OraclePriceData> {
-        let (price, twap, confidence, twap_confidence, delay) = match self
-            .oracle_source
-        {
-            OracleSource::Pyth => self.get_pyth_price(price_oracle, clock_slot)?,
-            OracleSource::PythSquared => self.get_pyth_price_squared(price_oracle, clock_slot)?,
-            OracleSource::Switchboard => (0, 0, 0, 0, 0),
+        let aggregator_data =
+            AggregatorAccountData::new(price_oracle).or(Err(ErrorCode::UnableToLoadOracle))?;
+
+        let price = convert_switchboard_decimal(&aggregator_data.latest_confirmed_round.result)?;
+        let confidence =
+            convert_switchboard_decimal(&aggregator_data.latest_confirmed_round.std_deviation)?;
+
+        // std deviation should always be positive, if we get a negative make it u128::MAX so it's flagged as bad value
+        let confidence = if confidence < 0 {
+            u128::MAX
+        } else {
+            let price_10bps = price
+                .unsigned_abs()
+                .checked_div(1000)
+                .ok_or_else(math_error!())?;
+            max(confidence.unsigned_abs(), price_10bps)
         };
+
+        let delay: i64 = cast_to_i64(clock_slot)?
+            .checked_sub(cast(
+                aggregator_data.latest_confirmed_round.round_open_slot,
+            )?)
+            .ok_or_else(math_error!())?;
+
+        let has_sufficient_number_of_data_points =
+            aggregator_data.latest_confirmed_round.num_success
+                >= aggregator_data.min_oracle_results;
+
         Ok(OraclePriceData {
             price,
-            twap,
             confidence,
-            twap_confidence,
             delay,
+            has_sufficient_number_of_data_points,
         })
-    }} 
+    }
+
+    pub fn get_oracle_twap(&self, price_oracle: &AccountInfo) -> ClearingHouseResult<Option<i128>> {
+        match self.oracle_source {
+            OracleSource::Pyth => Ok(Some(self.get_pyth_twap(price_oracle)?)),
+            OracleSource::Switchboard => Ok(None),
+            OracleSource::PythSquared => Ok(None),
+        }
+    }
+
+    pub fn get_pyth_twap(&self, price_oracle: &AccountInfo) -> ClearingHouseResult<i128> {
+        let pyth_price_data = price_oracle
+            .try_borrow_data()
+            .or(Err(ErrorCode::UnableToLoadOracle))?;
+        let price_data = pyth_client::cast::<pyth_client::Price>(&pyth_price_data);
+
+        let oracle_twap = cast_to_i128(price_data.twap.val)?;
+
+        let oracle_precision = 10_u128.pow(price_data.expo.unsigned_abs());
+
+        let mut oracle_scale_mult = 1;
+        let mut oracle_scale_div = 1;
+
+        if oracle_precision > MARK_PRICE_PRECISION {
+            oracle_scale_div = oracle_precision
+                .checked_div(MARK_PRICE_PRECISION)
+                .ok_or_else(math_error!())?;
+        } else {
+            oracle_scale_mult = MARK_PRICE_PRECISION
+                .checked_div(oracle_precision)
+                .ok_or_else(math_error!())?;
+        }
+
+        let oracle_twap_scaled = (oracle_twap)
+            .checked_mul(cast(oracle_scale_mult)?)
+            .ok_or_else(math_error!())?
+            .checked_div(cast(oracle_scale_div)?)
+            .ok_or_else(math_error!())?;
+
+        Ok(oracle_twap_scaled)
+    }
+}
+
+#[derive(Default, Clone, Copy, Debug)]
+pub struct OraclePriceData {
+    pub price: i128,
+    pub confidence: u128,
+    pub delay: i64,
+    pub has_sufficient_number_of_data_points: bool,
+}
+
+/// Given a decimal number represented as a mantissa (the digits) plus an
+/// original_precision (10.pow(some number of decimals)), scale the
+/// mantissa/digits to make sense with a new_precision.
+fn convert_switchboard_decimal(
+    switchboard_decimal: &SwitchboardDecimal,
+) -> ClearingHouseResult<i128> {
+    let switchboard_precision = 10_u128.pow(switchboard_decimal.scale);
+    if switchboard_precision > MARK_PRICE_PRECISION {
+        switchboard_decimal
+            .mantissa
+            .checked_div((switchboard_precision / MARK_PRICE_PRECISION) as i128)
+            .ok_or_else(math_error!())
+    } else {
+        switchboard_decimal
+            .mantissa
+            .checked_mul((MARK_PRICE_PRECISION / switchboard_precision) as i128)
+            .ok_or_else(math_error!())
+    }
+}

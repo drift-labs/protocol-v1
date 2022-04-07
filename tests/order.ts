@@ -421,10 +421,11 @@ describe('orders', () => {
 		assert(firstPosition.baseAssetAmount.eq(baseAssetAmount));
 
 		const expectedQuoteAssetAmount = new BN(1000003);
-		// console.log(convertToNumber(firstPosition.quoteAssetAmount, QUOTE_PRECISION),
-		//  '!=',
-		//  convertToNumber(expectedQuoteAssetAmount, QUOTE_PRECISION),
-		//  );
+		console.log(
+			convertToNumber(firstPosition.quoteAssetAmount, QUOTE_PRECISION),
+			'!=',
+			convertToNumber(expectedQuoteAssetAmount, QUOTE_PRECISION)
+		);
 		assert(firstPosition.quoteAssetAmount.eq(expectedQuoteAssetAmount));
 
 		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();

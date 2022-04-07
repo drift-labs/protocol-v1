@@ -120,6 +120,14 @@ pub enum ErrorCode {
     NoPositionsLiquidatable,
     #[msg("Invalid Margin Ratio")]
     InvalidMarginRatio,
+    #[msg("Cant Cancel Post Only Order")]
+    CantCancelPostOnlyOrder,
+    #[msg("InvalidOracleOffset")]
+    InvalidOracleOffset,
+    #[msg("CantExpireOrders")]
+    CantExpireOrders,
+    #[msg("AMM repeg mark price impact vs oracle too large")]
+    InvalidRepegPriceImpact,
 }
 
 #[macro_export]

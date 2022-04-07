@@ -15,6 +15,7 @@ use crate::math::amm::calculate_swap_output;
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
 use crate::math::constants::{
     AMM_TO_QUOTE_PRECISION_RATIO, MARGIN_PRECISION, MARK_PRICE_PRECISION,
+    MARK_PRICE_TIMES_AMM_TO_QUOTE_PRECISION_RATIO,
 };
 use crate::math::margin::calculate_free_collateral;
 use crate::math::quote_asset::asset_to_reserve_amount;
@@ -28,7 +29,9 @@ pub fn calculate_base_asset_amount_market_can_execute(
     valid_oracle_price: Option<i128>,
 ) -> ClearingHouseResult<u128> {
     match order.order_type {
-        OrderType::Limit => calculate_base_asset_amount_to_trade_for_limit(order, market),
+        OrderType::Limit => {
+            calculate_base_asset_amount_to_trade_for_limit(order, market, valid_oracle_price)
+        }
         OrderType::TriggerMarket => calculate_base_asset_amount_to_trade_for_trigger_market(
             order,
             market,
@@ -45,17 +48,20 @@ pub fn calculate_base_asset_amount_market_can_execute(
     }
 }
 
-fn calculate_base_asset_amount_to_trade_for_limit(
+pub fn calculate_base_asset_amount_to_trade_for_limit(
     order: &Order,
     market: &Market,
+    valid_oracle_price: Option<i128>,
 ) -> ClearingHouseResult<u128> {
     let base_asset_amount_to_fill = order
         .base_asset_amount
         .checked_sub(order.base_asset_amount_filled)
         .ok_or_else(math_error!())?;
 
+    let limit_price = order.get_limit_price(valid_oracle_price)?;
+
     let (max_trade_base_asset_amount, max_trade_direction) =
-        math::amm::calculate_max_base_asset_amount_to_trade(&market.amm, order.price)?;
+        math::amm::calculate_max_base_asset_amount_to_trade(&market.amm, limit_price)?;
     if max_trade_direction != order.direction || max_trade_base_asset_amount == 0 {
         return Ok(0);
     }
@@ -142,7 +148,7 @@ fn calculate_base_asset_amount_to_trade_for_trigger_limit(
         }
     }
 
-    calculate_base_asset_amount_to_trade_for_limit(order, market)
+    calculate_base_asset_amount_to_trade_for_limit(order, market, None)
 }
 
 pub fn calculate_base_asset_amount_user_can_execute(
@@ -263,4 +269,14 @@ pub fn limit_price_satisfied(
     }
 
     Ok(true)
+}
+
+pub fn calculate_quote_asset_amount_for_maker_order(
+    base_asset_amount: u128,
+    limit_price: u128,
+) -> ClearingHouseResult<u128> {
+    Ok(base_asset_amount
+        .checked_mul(limit_price)
+        .ok_or_else(math_error!())?
+        .div(MARK_PRICE_TIMES_AMM_TO_QUOTE_PRECISION_RATIO))
 }

@@ -34,7 +34,11 @@ declare_id!("AsW7LnXB9UA1uec9wi9MctYTgTz7YH9snhxd16GsFaGX");
 #[program]
 pub mod clearing_house {
     use crate::math;
-    use crate::optional_accounts::{get_discount_token, get_referrer, get_referrer_for_fill_order};
+    use crate::optional_accounts::{
+        get_discount_token, get_oracle_for_cancel_order_by_order_id,
+        get_oracle_for_cancel_order_by_user_order_id, get_oracle_for_place_order, get_referrer,
+        get_referrer_for_fill_order,
+    };
     use crate::state::history::curve::ExtendedCurveRecord;
     use crate::state::history::deposit::{DepositDirection, DepositRecord};
     use crate::state::history::liquidation::LiquidationRecord;
@@ -241,6 +245,7 @@ pub mod clearing_house {
         amm_quote_asset_reserve: u128,
         amm_periodicity: i64,
         amm_peg_multiplier: u128,
+        oracle_source: OracleSource,
         margin_ratio_initial: u32,
         margin_ratio_partial: u32,
         margin_ratio_maintenance: u32,
@@ -267,12 +272,27 @@ pub mod clearing_house {
         // Verify oracle is readable
         let OraclePriceData {
             price: oracle_price,
-            twap: oracle_price_twap,
             ..
-        } = market
-            .amm
-            .get_oracle_price(&ctx.accounts.oracle, clock_slot)
-            .unwrap();
+        } = match oracle_source {
+            OracleSource::Pyth => market
+                .amm
+                .get_pyth_price(&ctx.accounts.oracle, clock_slot)
+                .unwrap(),
+            OracleSource::Switchboard => market
+                .amm
+                .get_switchboard_price(&ctx.accounts.oracle, clock_slot)
+                .unwrap(),
+            _ => market
+                .amm
+                .get_switchboard_price(&ctx.accounts.oracle, clock_slot)
+                .unwrap(),
+        };
+
+        let last_oracle_price_twap = match oracle_source {
+            OracleSource::Pyth => market.amm.get_pyth_twap(&ctx.accounts.oracle)?,
+            OracleSource::Switchboard => oracle_price,
+            _ => oracle_price,
+        };
 
         validate_margin(
             margin_ratio_initial,
@@ -296,7 +316,7 @@ pub mod clearing_house {
             padding4: 0,
             amm: AMM {
                 oracle: *ctx.accounts.oracle.key,
-                oracle_source: OracleSource::Pyth,
+                oracle_source,
                 base_asset_reserve: amm_base_asset_reserve,
                 quote_asset_reserve: amm_quote_asset_reserve,
                 cumulative_repeg_rebate_long: 0,
@@ -306,8 +326,8 @@ pub mod clearing_house {
                 last_funding_rate: 0,
                 last_funding_rate_ts: now,
                 funding_period: amm_periodicity,
-                last_oracle_price_twap: oracle_price_twap,
-                last_mark_price_twap: cast_to_u128(oracle_price_twap)?,
+                last_oracle_price_twap,
+                last_mark_price_twap: cast_to_u128(last_oracle_price_twap)?,
                 last_mark_price_twap_ts: now,
                 sqrt_k: amm_base_asset_reserve,
                 peg_multiplier: amm_peg_multiplier,
@@ -318,7 +338,7 @@ pub mod clearing_house {
                 last_oracle_price_twap_ts: now,
                 last_oracle_price: oracle_price,
                 minimum_base_asset_trade_size: 10000000,
-                padding1: 0,
+                net_revenue_since_last_funding: 0,
                 padding2: 0,
                 padding3: 0,
             },
@@ -368,7 +388,6 @@ pub mod clearing_house {
         // Verify oracle is readable
         let OraclePriceData {
             price: oracle_price,
-            twap: oracle_price_twap,
             ..
         } = market
             .amm
@@ -376,15 +395,14 @@ pub mod clearing_house {
             .unwrap();
 
         let oracle_price_sq = amm::squarify(cast_to_u128(oracle_price)?, MARK_PRICE_PRECISION)?;
-        let oracle_price_twap_sq =
-            amm::squarify(cast_to_u128(oracle_price_twap)?, MARK_PRICE_PRECISION)?;
+        let oracle_price_twap_sq = oracle_price_sq; // todo
 
         validate_margin(
             margin_ratio_initial,
             margin_ratio_initial,
             margin_ratio_maintenance,
         )?;
-        
+
         let market = Market {
             initialized: true,
             base_asset_amount_long: 0,
@@ -423,7 +441,7 @@ pub mod clearing_house {
                 last_oracle_price_twap_ts: now,
                 last_oracle_price: cast_to_i128(oracle_price_sq)?,
                 minimum_base_asset_trade_size: 10000000,
-                padding1: 0,
+                net_revenue_since_last_funding: 0,
                 padding2: 0,
                 padding3: 0,
             },
@@ -639,10 +657,10 @@ pub mod clearing_house {
             oracle_mark_spread_pct_before = amm::calculate_oracle_mark_spread_pct(
                 &market.amm,
                 oracle_price_data,
-                0,
                 Some(mark_price_before),
             )?;
             is_oracle_valid = amm::is_oracle_valid(
+                &market.amm,
                 oracle_price_data,
                 &ctx.accounts.state.oracle_guard_rails.validity,
             )?;
@@ -667,7 +685,7 @@ pub mod clearing_house {
         {
             let markets = &mut ctx.accounts.markets.load_mut()?;
             let market = markets.get_market_mut(market_index);
-            let (_potentially_risk_increasing, _, _base_asset_amount, _quote_asset_amount) =
+            let (_potentially_risk_increasing, _, _base_asset_amount, _quote_asset_amount, _) =
                 controller::position::update_position_with_quote_asset_amount(
                     quote_asset_amount,
                     direction,
@@ -697,7 +715,6 @@ pub mod clearing_house {
             oracle_mark_spread_pct_after = amm::calculate_oracle_mark_spread_pct(
                 &market.amm,
                 oracle_price_data,
-                0,
                 Some(mark_price_after),
             )?;
             oracle_price_after = oracle_price_data.price;
@@ -719,7 +736,7 @@ pub mod clearing_house {
             &ctx.accounts.authority.key(),
         )?;
         let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) =
-            fees::calculate_fee_for_market_order(
+            fees::calculate_fee_for_trade(
                 quote_asset_amount,
                 &ctx.accounts.state.fee_structure,
                 discount_token,
@@ -739,6 +756,11 @@ pub mod clearing_house {
                 .amm
                 .total_fee_minus_distributions
                 .checked_add(fee_to_market)
+                .ok_or_else(math_error!())?;
+            market.amm.net_revenue_since_last_funding = market
+                .amm
+                .net_revenue_since_last_funding
+                .checked_add(fee_to_market as i64)
                 .ok_or_else(math_error!())?;
         }
 
@@ -895,16 +917,16 @@ pub mod clearing_house {
         let oracle_mark_spread_pct_before = amm::calculate_oracle_mark_spread_pct(
             &market.amm,
             oracle_price_data,
-            0,
             Some(mark_price_before),
         )?;
         let direction_to_close =
             math::position::direction_to_close_position(market_position.base_asset_amount);
-        let (quote_asset_amount, base_asset_amount) = controller::position::close(
+        let (quote_asset_amount, base_asset_amount, _) = controller::position::close(
             user,
             market,
             market_position,
             now,
+            None,
             Some(mark_price_before),
         )?;
         let base_asset_amount = base_asset_amount.unsigned_abs();
@@ -918,7 +940,7 @@ pub mod clearing_house {
             &ctx.accounts.authority.key(),
         )?;
         let (user_fee, fee_to_market, token_discount, referrer_reward, referee_discount) =
-            fees::calculate_fee_for_market_order(
+            fees::calculate_fee_for_trade(
                 quote_asset_amount,
                 &ctx.accounts.state.fee_structure,
                 discount_token,
@@ -936,7 +958,11 @@ pub mod clearing_house {
             .total_fee_minus_distributions
             .checked_add(fee_to_market)
             .ok_or_else(math_error!())?;
-
+        market.amm.net_revenue_since_last_funding = market
+            .amm
+            .net_revenue_since_last_funding
+            .checked_add(fee_to_market as i64)
+            .ok_or_else(math_error!())?;
         // Subtract the fee from user's collateral
         user.collateral = user.collateral.checked_sub(user_fee).or(Some(0)).unwrap();
 
@@ -971,12 +997,12 @@ pub mod clearing_house {
         let oracle_mark_spread_pct_after = amm::calculate_oracle_mark_spread_pct(
             &market.amm,
             oracle_price_data,
-            0,
             Some(mark_price_after),
         )?;
         let oracle_price_after = oracle_price_data.price;
 
         let is_oracle_valid = amm::is_oracle_valid(
+            &market.amm,
             oracle_price_data,
             &ctx.accounts.state.oracle_guard_rails.validity,
         )?;
@@ -1062,8 +1088,16 @@ pub mod clearing_house {
             None,
         )?;
 
+        let oracle = get_oracle_for_place_order(account_info_iter, &ctx.accounts.markets, &params)?;
+
         if params.order_type == OrderType::Market {
+            msg!("market order must be in place and fill");
             return Err(ErrorCode::MarketOrderMustBeInPlaceAndFill.into());
+        }
+
+        if params.immediate_or_cancel {
+            msg!("immediate_or_cancel order must be in place and fill");
+            return Err(print_error!(ErrorCode::InvalidOrder)().into());
         }
 
         controller::orders::place_order(
@@ -1079,13 +1113,23 @@ pub mod clearing_house {
             &referrer,
             &Clock::get()?,
             params,
+            oracle,
         )?;
 
         Ok(())
     }
 
     pub fn cancel_order(ctx: Context<CancelOrder>, order_id: u128) -> ProgramResult {
+        let account_info_iter = &mut ctx.remaining_accounts.iter();
+        let oracle = get_oracle_for_cancel_order_by_order_id(
+            account_info_iter,
+            &ctx.accounts.user_orders,
+            &ctx.accounts.markets,
+            order_id,
+        )?;
+
         controller::orders::cancel_order_by_order_id(
+            &ctx.accounts.state,
             order_id,
             &mut ctx.accounts.user,
             &ctx.accounts.user_positions,
@@ -1094,13 +1138,23 @@ pub mod clearing_house {
             &ctx.accounts.funding_payment_history,
             &ctx.accounts.order_history,
             &Clock::get()?,
+            oracle,
         )?;
 
         Ok(())
     }
 
     pub fn cancel_order_by_user_id(ctx: Context<CancelOrder>, user_order_id: u8) -> ProgramResult {
+        let account_info_iter = &mut ctx.remaining_accounts.iter();
+        let oracle = get_oracle_for_cancel_order_by_user_order_id(
+            account_info_iter,
+            &ctx.accounts.user_orders,
+            &ctx.accounts.markets,
+            user_order_id,
+        )?;
+
         controller::orders::cancel_order_by_user_order_id(
+            &ctx.accounts.state,
             user_order_id,
             &mut ctx.accounts.user,
             &ctx.accounts.user_positions,
@@ -1109,8 +1163,37 @@ pub mod clearing_house {
             &ctx.accounts.funding_payment_history,
             &ctx.accounts.order_history,
             &Clock::get()?,
+            oracle,
         )?;
 
+        Ok(())
+    }
+
+    pub fn cancel_all_orders(ctx: Context<CancelOrder>) -> ProgramResult {
+        controller::orders::cancel_all_orders(
+            &ctx.accounts.state,
+            &mut ctx.accounts.user,
+            &ctx.accounts.user_positions,
+            &ctx.accounts.markets,
+            &ctx.accounts.user_orders,
+            &ctx.accounts.funding_payment_history,
+            &ctx.accounts.order_history,
+            &Clock::get()?,
+            ctx.remaining_accounts,
+        )?;
+
+        Ok(())
+    }
+
+    pub fn expire_orders(ctx: Context<ExpireOrder>) -> ProgramResult {
+        controller::orders::expire_orders(
+            &mut ctx.accounts.user,
+            &ctx.accounts.user_positions,
+            &ctx.accounts.user_orders,
+            &mut ctx.accounts.filler,
+            &ctx.accounts.order_history,
+            &Clock::get()?,
+        )?;
         Ok(())
     }
 
@@ -1140,6 +1223,7 @@ pub mod clearing_house {
             &ctx.accounts.trade_history,
             &ctx.accounts.order_history,
             &ctx.accounts.funding_rate_history,
+            &ctx.accounts.extended_curve_history,
             referrer,
             &Clock::get()?,
         )?;
@@ -1174,6 +1258,8 @@ pub mod clearing_house {
             &ctx.accounts.user.key(),
             None,
         )?;
+        let is_immediate_or_cancel = params.immediate_or_cancel;
+        let base_asset_amount_to_fill = params.base_asset_amount;
 
         controller::orders::place_order(
             &ctx.accounts.state,
@@ -1188,6 +1274,7 @@ pub mod clearing_house {
             &referrer,
             &Clock::get()?,
             params,
+            Some(&ctx.accounts.oracle),
         )?;
 
         let order_id;
@@ -1197,7 +1284,7 @@ pub mod clearing_house {
         }
 
         let user = &mut ctx.accounts.user;
-        controller::orders::fill_order(
+        let base_asset_amount_filled = controller::orders::fill_order(
             order_id,
             &ctx.accounts.state,
             &ctx.accounts.order_state,
@@ -1211,9 +1298,25 @@ pub mod clearing_house {
             &ctx.accounts.trade_history,
             &ctx.accounts.order_history,
             &ctx.accounts.funding_rate_history,
+            &ctx.accounts.extended_curve_history,
             referrer,
             &Clock::get()?,
         )?;
+
+        if is_immediate_or_cancel && base_asset_amount_to_fill != base_asset_amount_filled {
+            controller::orders::cancel_order_by_order_id(
+                &ctx.accounts.state,
+                order_id,
+                &mut ctx.accounts.user,
+                &ctx.accounts.user_positions,
+                &ctx.accounts.markets,
+                &ctx.accounts.user_orders,
+                &ctx.accounts.funding_payment_history,
+                &ctx.accounts.order_history,
+                &Clock::get()?,
+                Some(&ctx.accounts.oracle),
+            )?;
+        }
 
         Ok(())
     }
@@ -1397,13 +1500,16 @@ pub mod clearing_house {
 
                     (quote_asset_amount, base_asset_amount)
                 } else {
-                    controller::position::close(
+                    let (quote_asset_amount, base_asset_amount, _) = controller::position::close(
                         user,
                         market,
                         market_position,
                         now,
+                        None,
                         Some(mark_price_before),
-                    )?
+                    )?;
+
+                    (quote_asset_amount, base_asset_amount)
                 };
 
                 let base_asset_amount = base_asset_amount.unsigned_abs();
@@ -1918,20 +2024,13 @@ pub mod clearing_house {
 
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
-        let clock_slot = clock.slot;
 
         let market =
             &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
         let price_oracle = &ctx.accounts.oracle;
-        let oracle_price_data = &market.amm.get_oracle_price(price_oracle, clock_slot)?;
-        let oracle_twap = oracle_price_data.twap;
+        let oracle_twap = market.amm.get_oracle_twap(price_oracle)?;
 
-        let is_oracle_valid = amm::is_oracle_valid(
-            oracle_price_data,
-            &ctx.accounts.state.oracle_guard_rails.validity,
-        )?;
-
-        if is_oracle_valid {
+        if let Some(oracle_twap) = oracle_twap {
             let oracle_mark_gap_before = cast_to_i128(market.amm.last_mark_price_twap)?
                 .checked_sub(market.amm.last_oracle_price_twap)
                 .ok_or_else(math_error!())?;
@@ -1977,6 +2076,7 @@ pub mod clearing_house {
         let oracle_price_data = &market.amm.get_oracle_price(price_oracle, clock_slot)?;
 
         let is_oracle_valid = amm::is_oracle_valid(
+            &market.amm,
             oracle_price_data,
             &ctx.accounts.state.oracle_guard_rails.validity,
         )?;
@@ -2138,12 +2238,22 @@ pub mod clearing_house {
                     .total_fee_minus_distributions
                     .checked_sub(adjustment_cost.unsigned_abs())
                     .ok_or_else(math_error!())?;
+                market.amm.net_revenue_since_last_funding = market
+                    .amm
+                    .net_revenue_since_last_funding
+                    .checked_add(adjustment_cost as i64)
+                    .ok_or_else(math_error!())?;
             }
         } else {
             market.amm.total_fee_minus_distributions = market
                 .amm
                 .total_fee_minus_distributions
                 .checked_add(adjustment_cost.unsigned_abs())
+                .ok_or_else(math_error!())?;
+            market.amm.net_revenue_since_last_funding = market
+                .amm
+                .net_revenue_since_last_funding
+                .checked_add(adjustment_cost as i64)
                 .ok_or_else(math_error!())?;
         }
 
@@ -2158,6 +2268,21 @@ pub mod clearing_house {
             .gt(&UPDATE_K_ALLOWED_PRICE_CHANGE);
 
         if price_change_too_large {
+            return Err(ErrorCode::InvalidUpdateK.into());
+        }
+
+        let k_sqrt_check = bn::U192::from(amm.base_asset_reserve)
+            .checked_mul(bn::U192::from(amm.quote_asset_reserve))
+            .ok_or_else(math_error!())?
+            .integer_sqrt()
+            .try_to_u128()?;
+
+        let k_err = cast_to_i128(k_sqrt_check)?
+            .checked_sub(cast_to_i128(amm.sqrt_k)?)
+            .ok_or_else(math_error!())?;
+
+        if k_err.unsigned_abs() > 100 {
+            msg!("k_err={:?}, {:?} != {:?}", k_err, k_sqrt_check, amm.sqrt_k);
             return Err(ErrorCode::InvalidUpdateK.into());
         }
 

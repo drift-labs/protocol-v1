@@ -213,6 +213,12 @@
           "type": "u128"
         },
         {
+          "name": "oracleSource",
+          "type": {
+            "defined": "OracleSource"
+          }
+        },
+        {
           "name": "marginRatioInitial",
           "type": "u32"
         },
@@ -729,6 +735,103 @@
           "type": "u8"
         }
       ]
+    },
+    {
+      "name": "cancelAllOrders",
+      "accounts": [
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orderState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "markets",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "userPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userOrders",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fundingPaymentHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "orderHistory",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "expireOrders",
+      "accounts": [
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orderState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "filler",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userOrders",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "orderHistory",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
     },
     {
       "name": "fillOrder",
@@ -1448,6 +1551,11 @@
         },
         {
           "name": "userPositions",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userOrders",
           "isMut": true,
           "isSigner": false
         },
@@ -2669,7 +2777,7 @@
           },
           {
             "name": "oraclePriceOffset",
-            "type": "u128"
+            "type": "i128"
           },
           {
             "name": "padding0",
@@ -3243,8 +3351,8 @@
             "type": "u128"
           },
           {
-            "name": "padding1",
-            "type": "u64"
+            "name": "netRevenueSinceLastFunding",
+            "type": "i64"
           },
           {
             "name": "padding2",
@@ -3315,11 +3423,15 @@
             "type": "u128"
           },
           {
+            "name": "quoteAssetAmountSurplus",
+            "type": "u128"
+          },
+          {
             "name": "padding",
             "type": {
               "array": [
                 "u64",
-                10
+                8
               ]
             }
           }
@@ -3866,6 +3978,9 @@
           },
           {
             "name": "Fill"
+          },
+          {
+            "name": "Expire"
           }
         ]
       }
@@ -4246,6 +4361,26 @@
       "code": 6057,
       "name": "InvalidMarginRatio",
       "msg": "Invalid Margin Ratio"
+    },
+    {
+      "code": 6058,
+      "name": "CantCancelPostOnlyOrder",
+      "msg": "Cant Cancel Post Only Order"
+    },
+    {
+      "code": 6059,
+      "name": "InvalidOracleOffset",
+      "msg": "InvalidOracleOffset"
+    },
+    {
+      "code": 6060,
+      "name": "CantExpireOrders",
+      "msg": "CantExpireOrders"
+    },
+    {
+      "code": 6061,
+      "name": "InvalidRepegPriceImpact",
+      "msg": "AMM repeg mark price impact vs oracle too large"
     }
   ]
 }

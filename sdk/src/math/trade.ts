@@ -211,12 +211,7 @@ export function calculateTargetPriceTrade(
 				);
 		} else {
 			baseAssetReserveAfter = squareRootBN(
-				k
-					.div(targetPrice)
-					.mul(peg)
-					.div(PEG_PRECISION)
-					.mul(new BN(2))
-					.sub(biasModifier),
+				k.div(targetPrice).mul(peg).div(PEG_PRECISION).sub(biasModifier),
 				AMM_RESERVE_PRECISION
 			).sub(new BN(1));
 			quoteAssetReserveAfter = k
