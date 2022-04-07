@@ -1,6 +1,6 @@
 import { BN } from '../';
 
-export const squareRootBN = (n, precision: BN, closeness = new BN(1)): BN => {
+export const squareRootBN = (n, closeness = new BN(1)): BN => {
 	// Assuming the sqrt of n as n only
 	let x = n;
 
@@ -24,8 +24,11 @@ export const squareRootBN = (n, precision: BN, closeness = new BN(1)): BN => {
 		// Update root
 		x = root;
 	}
-	const scale = new BN(Math.sqrt(precision.toNumber()));
-	return root.mul(precision).div(scale);
+
+	return root;
+
+	// const scale = new BN(Math.sqrt(precision.toNumber()));
+	// return root.mul(precision).div(scale);
 };
 
 // Javascript program to find cubic root of a number

@@ -211,8 +211,7 @@ export function calculateTargetPriceTrade(
 				);
 		} else {
 			baseAssetReserveAfter = squareRootBN(
-				k.div(targetPrice).mul(peg).div(PEG_PRECISION).sub(biasModifier),
-				AMM_RESERVE_PRECISION
+				k.div(targetPrice).mul(peg).div(PEG_PRECISION).sub(biasModifier)
 			).sub(new BN(1));
 			quoteAssetReserveAfter = k
 				.div(MARK_PRICE_PRECISION)
@@ -249,8 +248,7 @@ export function calculateTargetPriceTrade(
 				);
 		} else {
 			baseAssetReserveAfter = squareRootBN(
-				k.div(targetPrice).mul(peg).div(PEG_PRECISION).add(biasModifier),
-				AMM_RESERVE_PRECISION
+				k.div(targetPrice).mul(peg).div(PEG_PRECISION).add(biasModifier)
 			).add(new BN(1));
 			quoteAssetReserveAfter = k
 				.div(MARK_PRICE_PRECISION)

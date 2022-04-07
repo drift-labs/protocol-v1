@@ -118,10 +118,7 @@ export function calculateSwapOutputCpSq(
 			)
 		);
 	} else {
-		newOutputAssetReserve = squareRootBN(
-			invariant.div(newInputAssetReserve).mul(AMM_RESERVE_PRECISION),
-			AMM_RESERVE_PRECISION
-		);
+		newOutputAssetReserve = squareRootBN(invariant.div(newInputAssetReserve));
 		console.log(
 			convertToNumber(newOutputAssetReserve, AMM_RESERVE_PRECISION),
 			'^2 * ',

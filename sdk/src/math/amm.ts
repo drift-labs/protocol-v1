@@ -1,6 +1,7 @@
 import { BN } from '@project-serum/anchor';
 import {
 	AMM_TIMES_PEG_TO_QUOTE_PRECISION_RATIO,
+	AMM_RESERVE_PRECISION,
 	MARK_PRICE_PRECISION,
 	PEG_PRECISION,
 	ZERO,
@@ -222,10 +223,7 @@ export function calculateMaxBaseAssetAmountToTrade(
 		.div(limit_price)
 		.div(PEG_PRECISION);
 
-	const newBaseAssetReserve = squareRootBN(
-		newBaseAssetReserveSquared,
-		AMM_RESERVE_PRECISION
-	);
+	const newBaseAssetReserve = squareRootBN(newBaseAssetReserveSquared);
 
 	if (newBaseAssetReserve.gt(amm.baseAssetReserve)) {
 		return [
