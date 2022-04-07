@@ -11,7 +11,7 @@ use crate::math::constants::{
 };
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math_error;
-use crate::state::market::{Market, OraclePriceData};
+use crate::state::market::{Market, OraclePriceData, AMM};
 use std::cmp::{max, min};
 
 use crate::state::state::OracleGuardRails;
@@ -177,23 +177,61 @@ pub fn calculate_peg_from_target_price(
     Ok(new_peg)
 }
 
+pub fn calculate_mm_target_price(
+    amm: &AMM,
+    current_price: u128,
+    oracle_price_data: &OraclePriceData,
+) -> ClearingHouseResult<u128> {
+    // calculates peg_multiplier that changing to would cost no more than budget
+    let oracle_delay = oracle_price_data.delay;
+
+    let oracle_price_normalised = cast_to_u128(amm::normalise_oracle_price(
+        amm,
+        oracle_price_data,
+        Some(current_price),
+    )?)?;
+
+    let weight_denom = 100_u128;
+
+    let oracle_price_weight: u128 = cast_to_u128(max(
+        0,
+        50_i64
+            .checked_sub(oracle_price_data.delay)
+            .ok_or_else(math_error!())?,
+    ))?;
+    let current_price_weight: u128 = weight_denom
+        .checked_sub(oracle_price_weight)
+        .ok_or_else(math_error!())?;
+
+    let target_price = oracle_price_normalised
+        .checked_mul(oracle_price_weight)
+        .ok_or_else(math_error!())?
+        .checked_div(weight_denom)
+        .ok_or_else(math_error!())?
+        .checked_add(
+            current_price
+                .checked_mul(current_price_weight)
+                .ok_or_else(math_error!())?
+                .checked_div(weight_denom)
+                .ok_or_else(math_error!())?,
+        )
+        .ok_or_else(math_error!())?;
+
+    Ok(target_price)
+}
+
 pub fn calculate_budgeted_peg(
     market: &mut Market,
     terminal_quote_reserves: u128,
     budget: u128,
     current_price: u128,
-    target_price: u128,
+    oracle_price_data: &OraclePriceData,
 ) -> ClearingHouseResult<(u128, i128, Market)> {
-    // calculates peg_multiplier that changing to would cost no more than budget
-
+    let target_price = calculate_mm_target_price(&market.amm, current_price, oracle_price_data)?;
     let optimal_peg = calculate_peg_from_target_price(
         market.amm.quote_asset_reserve,
         market.amm.base_asset_reserve,
-        target_price
-            .checked_add(current_price)
-            .ok_or_else(math_error!())?
-            .checked_div(2)
-            .ok_or_else(math_error!())?,
+        target_price,
     )?;
 
     let delta_peg_sign = if market.amm.quote_asset_reserve > terminal_quote_reserves {
