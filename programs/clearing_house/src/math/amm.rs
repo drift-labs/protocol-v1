@@ -189,28 +189,27 @@ pub fn calculate_new_oracle_price_twap(
     );
 
     // if an oracle delay impacted last oracle_twap, shrink toward mark_twap
-    interpolated_oracle_price =
-        if amm.last_mark_price_twap_ts > amm.last_oracle_price_twap_ts {
-            let since_last_valid = cast_to_i128(
-                amm.last_mark_price_twap_ts
-                    .checked_sub(amm.last_oracle_price_twap_ts)
-                    .ok_or_else(math_error!())?,
-            )?;
-            let from_start_valid = max(
-                1,
-                cast_to_i128(amm.funding_period)?
-                    .checked_sub(since_last)
-                    .ok_or_else(math_error!())?,
-            );
-            calculate_twap(
-                cast_to_i128(amm.last_mark_price_twap)?,
-                interpolated_oracle_price,
-                since_last_valid,
-                from_start_valid,
-            )?
-        } else {
-            interpolated_oracle_price
-        };
+    interpolated_oracle_price = if amm.last_mark_price_twap_ts > amm.last_oracle_price_twap_ts {
+        let since_last_valid = cast_to_i128(
+            amm.last_mark_price_twap_ts
+                .checked_sub(amm.last_oracle_price_twap_ts)
+                .ok_or_else(math_error!())?,
+        )?;
+        let from_start_valid = max(
+            1,
+            cast_to_i128(amm.funding_period)?
+                .checked_sub(since_last_valid)
+                .ok_or_else(math_error!())?,
+        );
+        calculate_twap(
+            cast_to_i128(amm.last_mark_price_twap)?,
+            interpolated_oracle_price,
+            since_last_valid,
+            from_start_valid,
+        )?
+    } else {
+        interpolated_oracle_price
+    };
 
     let new_twap = calculate_twap(
         interpolated_oracle_price,
@@ -228,9 +227,6 @@ pub fn calculate_twap(
     new_weight: i128,
     old_weight: i128,
 ) -> ClearingHouseResult<i128> {
-    assert!(old_weight>=0);
-    assert!(new_weight>=0);
-
     let denominator = new_weight
         .checked_add(old_weight)
         .ok_or_else(math_error!())?;
