@@ -1311,6 +1311,7 @@ export class ClearingHouse {
 				markets: state.markets,
 				oracle: oracle,
 				fundingRateHistory: state.fundingRateHistory,
+				extendedCurveHistory: state.extendedCurveHistory,
 			},
 		});
 	}

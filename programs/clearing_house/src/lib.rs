@@ -765,6 +765,7 @@ pub mod clearing_house {
                 now,
                 clock_slot,
                 funding_rate_history,
+                None,
                 &ctx.accounts.state.oracle_guard_rails,
                 ctx.accounts.state.funding_paused,
                 Some(mark_price_before),
@@ -959,6 +960,7 @@ pub mod clearing_house {
             now,
             clock_slot,
             funding_rate_history,
+            None,
             &ctx.accounts.state.oracle_guard_rails,
             ctx.accounts.state.funding_paused,
             Some(mark_price_before),
@@ -2080,6 +2082,12 @@ pub mod clearing_house {
         let clock_slot = clock.slot;
 
         let funding_rate_history = &mut ctx.accounts.funding_rate_history.load_mut()?;
+        let extended_curve_history = &mut ctx
+            .accounts
+            .extended_curve_history
+            .load_mut()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
+
         controller::funding::update_funding_rate(
             market_index,
             market,
@@ -2087,6 +2095,7 @@ pub mod clearing_house {
             now,
             clock_slot,
             funding_rate_history,
+            Some(extended_curve_history),
             &ctx.accounts.state.oracle_guard_rails,
             ctx.accounts.state.funding_paused,
             None,
@@ -2124,7 +2133,12 @@ pub mod clearing_house {
         let quote_asset_reserve_before = market.amm.quote_asset_reserve;
         let sqrt_k_before = market.amm.sqrt_k;
 
-        let adjustment_cost = math::amm::adjust_k_cost(market, bn::U256::from(sqrt_k))?;
+        let new_sqrt_k_U256 = bn::U256::from(sqrt_k);
+
+        let (mut adjust_k_market, adjustment_cost) =
+            math::amm::adjust_k_cost(market, new_sqrt_k_U256)?;
+
+        math::amm::update_k(market, new_sqrt_k_U256);
 
         if adjustment_cost > 0 {
             let max_cost = market

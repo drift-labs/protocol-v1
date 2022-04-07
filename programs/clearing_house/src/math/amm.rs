@@ -9,8 +9,9 @@ use crate::math::bn;
 use crate::math::bn::U192;
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
 use crate::math::constants::{
-    MARK_PRICE_PRECISION, PEG_PRECISION, PRICE_SPREAD_PRECISION, PRICE_SPREAD_PRECISION_U128,
-    PRICE_TO_PEG_PRECISION_RATIO,
+    AMM_RESERVE_PRECISION, AMM_TO_QUOTE_PRECISION_RATIO, MARK_PRICE_PRECISION, PEG_PRECISION,
+    PRICE_SPREAD_PRECISION, PRICE_SPREAD_PRECISION_U128, PRICE_TO_PEG_PRECISION_RATIO,
+    QUOTE_PRECISION,
 };
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math::quote_asset::{asset_to_reserve_amount, reserve_to_asset_amount};
@@ -452,14 +453,124 @@ pub fn is_oracle_valid(
         || is_conf_too_large))
 }
 
+pub fn calculate_budgeted_k_scale(
+    market: &mut Market,
+    budget: i128,
+) -> ClearingHouseResult<(u128, u128)> {
+    let y = market.amm.quote_asset_reserve;
+    let x = market.amm.base_asset_reserve;
+    let c = budget;
+    let q = cast_to_i128(market.amm.peg_multiplier)?;
+    let d = market.base_asset_amount;
+
+    let AMM_RESERVE_PRECISIONi128 = cast_to_i128(AMM_RESERVE_PRECISION)?;
+
+    let x_d = cast_to_i128(x)?.checked_add(d).ok_or_else(math_error!())?;
+
+    let numer1 = cast_to_i128(y)?
+        .checked_mul(d)
+        .ok_or_else(math_error!())?
+        .checked_mul(q)
+        .ok_or_else(math_error!())?
+        .checked_div(cast_to_i128(AMM_RESERVE_PRECISION * PEG_PRECISION)?)
+        .ok_or_else(math_error!())?;
+    let numer2 = c
+        .checked_mul(x_d)
+        .ok_or_else(math_error!())?
+        .checked_div(cast_to_i128(QUOTE_PRECISION)?)
+        .ok_or_else(math_error!())?;
+    let denom1 = c
+        .checked_mul(cast_to_i128(x)?)
+        .ok_or_else(math_error!())?
+        .checked_mul(x_d)
+        .ok_or_else(math_error!())?
+        .checked_div(cast_to_i128(AMM_RESERVE_PRECISION * QUOTE_PRECISION)?)
+        .ok_or_else(math_error!())?;
+    let denom2 = cast_to_i128(y)?
+        .checked_mul(d)
+        .ok_or_else(math_error!())?
+        .checked_div(AMM_RESERVE_PRECISIONi128)
+        .ok_or_else(math_error!())?
+        .checked_mul(d)
+        .ok_or_else(math_error!())?
+        .checked_div(AMM_RESERVE_PRECISIONi128)
+        .ok_or_else(math_error!())?
+        .checked_mul(q)
+        .ok_or_else(math_error!())?
+        .checked_div(cast_to_i128(PEG_PRECISION)?)
+        .ok_or_else(math_error!())?;
+
+    let numerator = d
+        .checked_mul(numer1.checked_add(numer2).ok_or_else(math_error!())?)
+        .ok_or_else(math_error!())?
+        .checked_div(AMM_RESERVE_PRECISIONi128)
+        .ok_or_else(math_error!())?
+        .checked_div(AMM_RESERVE_PRECISIONi128)
+        .ok_or_else(math_error!())?
+        .checked_div(cast_to_i128(AMM_TO_QUOTE_PRECISION_RATIO)?)
+        .ok_or_else(math_error!())?;
+    let denominator = denom1
+        .checked_add(denom2)
+        .ok_or_else(math_error!())?
+        .checked_div(AMM_RESERVE_PRECISIONi128)
+        .ok_or_else(math_error!())?
+        .checked_div(AMM_RESERVE_PRECISIONi128)
+        .ok_or_else(math_error!())?;
+
+    // hardcoded scale bounds for a single update (.1% increase and .09% decrease)
+    let K_PCT_SCALE = 10000;
+    let lower_bound = 9991;
+    let upper_bound = 10010;
+
+    assert!(upper_bound > K_PCT_SCALE);
+    assert!(lower_bound < K_PCT_SCALE);
+    assert!(upper_bound < (K_PCT_SCALE * 101 / 100));
+    assert!(lower_bound > (K_PCT_SCALE * 99 / 100));
+
+    let numerator_clipped = if numerator > denominator {
+        min(
+            numerator,
+            denominator
+                .checked_mul(upper_bound)
+                .ok_or_else(math_error!())?
+                .checked_div(K_PCT_SCALE)
+                .ok_or_else(math_error!())?,
+        )
+    } else {
+        max(
+            numerator,
+            denominator
+                .checked_mul(lower_bound)
+                .ok_or_else(math_error!())?
+                .checked_div(K_PCT_SCALE)
+                .ok_or_else(math_error!())?,
+        )
+    };
+
+    Ok((cast_to_u128(numerator_clipped)?, cast_to_u128(denominator)?))
+}
+
 /// To find the cost of adjusting k, compare the the net market value before and after adjusting k
 /// Increasing k costs the protocol money because it reduces slippage and improves the exit price for net market position
 /// Decreasing k costs the protocol money because it increases slippage and hurts the exit price for net market position
-pub fn adjust_k_cost(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouseResult<i128> {
+pub fn adjust_k_cost(market: &Market, new_sqrt_k: bn::U256) -> ClearingHouseResult<(Market, i128)> {
+    let mut market_clone = *market;
+
     // Find the net market value before adjusting k
     let (current_net_market_value, _) =
-        _calculate_base_asset_value_and_pnl(market.base_asset_amount, 0, &market.amm)?;
+        _calculate_base_asset_value_and_pnl(market_clone.base_asset_amount, 0, &market_clone.amm)?;
 
+    update_k(&mut market_clone, new_sqrt_k);
+
+    let (_new_net_market_value, cost) = _calculate_base_asset_value_and_pnl(
+        market_clone.base_asset_amount,
+        current_net_market_value,
+        &market_clone.amm,
+    )?;
+    Ok((market_clone, cost))
+}
+
+pub fn update_k(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouseResult {
     let mark_price_precision = bn::U256::from(MARK_PRICE_PRECISION);
 
     let sqrt_k_ratio = new_sqrt_k
@@ -499,13 +610,7 @@ pub fn adjust_k_cost(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouse
         .try_to_u128()
         .unwrap();
 
-    let (_new_net_market_value, cost) = _calculate_base_asset_value_and_pnl(
-        market.base_asset_amount,
-        current_net_market_value,
-        &market.amm,
-    )?;
-
-    Ok(cost)
+    Ok(())
 }
 
 pub fn calculate_max_base_asset_amount_to_trade(

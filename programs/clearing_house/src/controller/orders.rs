@@ -800,6 +800,9 @@ pub fn fill_order(
         let funding_rate_history = &mut funding_rate_history
             .load_mut()
             .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
+        let extended_curve_history = &mut extended_curve_history
+            .load_mut()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         controller::funding::update_funding_rate(
             market_index,
             market,
@@ -807,6 +810,7 @@ pub fn fill_order(
             now,
             clock_slot,
             funding_rate_history,
+            Some(extended_curve_history),
             &state.oracle_guard_rails,
             state.funding_paused,
             Some(mark_price_before),
@@ -814,9 +818,6 @@ pub fn fill_order(
 
         // if market_index >= 12 {
         // todo for soft launch
-        let extended_curve_history = &mut extended_curve_history
-            .load_mut()
-            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
 
         controller::repeg::formulaic_repeg(
             market,

@@ -1561,6 +1561,11 @@
           "name": "fundingRateHistory",
           "isMut": true,
           "isSigner": false
+        },
+        {
+          "name": "extendedCurveHistory",
+          "isMut": true,
+          "isSigner": false
         }
       ],
       "args": [

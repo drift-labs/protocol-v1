@@ -389,6 +389,7 @@ describe('formulaic curve (repeg)', () => {
 
 		// net revenue above fee collected
 		const feeCollected = newOracle * base * 0.001;
+		console.log('feeCollected (', feeCollected, ') < profit (', profit, ')');
 		assert(profit > feeCollected);
 
 		const netRev2 = await formRepegHelper(
@@ -429,7 +430,7 @@ describe('formulaic curve (repeg)', () => {
 		const newOracle = 0.16;
 		const base = 2;
 
-		await formRepegHelper(
+		const profit = await formRepegHelper(
 			connection,
 			clearingHouse,
 			userAccount,
@@ -438,6 +439,8 @@ describe('formulaic curve (repeg)', () => {
 			base,
 			PositionDirection.LONG
 		);
+
+		console.log('profit:', profit);
 	});
 
 	it('cause repeg? tiny prices', async () => {
@@ -460,7 +463,7 @@ describe('formulaic curve (repeg)', () => {
 		const newOracle = 0.1699;
 		const base = 100;
 
-		await formRepegHelper(
+		const profit = await formRepegHelper(
 			connection,
 			clearingHouse,
 			userAccount,
@@ -469,5 +472,6 @@ describe('formulaic curve (repeg)', () => {
 			base,
 			PositionDirection.LONG
 		);
+		console.log('profit:', profit);
 	});
 });

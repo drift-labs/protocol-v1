@@ -851,6 +851,11 @@ pub struct UpdateFundingRate<'info> {
         constraint = &state.funding_rate_history.eq(&funding_rate_history.key())
     )]
     pub funding_rate_history: AccountLoader<'info, FundingRateHistory>,
+    #[account(
+        mut,
+        constraint = &state.extended_curve_history.eq(&extended_curve_history.key())
+    )]
+    pub extended_curve_history: AccountLoader<'info, ExtendedCurveHistory>,
 }
 
 #[derive(Accounts)]

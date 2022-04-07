@@ -1,12 +1,17 @@
 use solana_program::msg;
 
+use crate::controller::repeg::apply_cost_to_market;
 use crate::error::{ClearingHouseResult, ErrorCode};
 use crate::math::amm::calculate_quote_asset_amount_swapped;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::constants::PRICE_TO_PEG_PRECISION_RATIO;
-use crate::math::{amm, bn, quote_asset::*};
+use crate::math::{amm, bn, quote_asset::*, repeg};
 use crate::math_error;
-use crate::state::market::AMM;
+use crate::state::history::curve::{ExtendedCurveHistory, ExtendedCurveRecord};
+use crate::state::market::{Market, OraclePriceData, AMM};
+use std::cell::RefMut;
+
+use std::cmp::{max, min};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum SwapDirection {
@@ -89,6 +94,100 @@ pub fn move_price(
 
     amm.sqrt_k = k.integer_sqrt().try_to_u128()?;
 
+    Ok(())
+}
+
+pub fn formulaic_k(
+    market: &mut Market,
+    mark_price: u128,
+    oracle_price_data: &OraclePriceData,
+    is_oracle_valid: bool,
+    funding_imbalance_cost: i128,
+    curve_history: Option<&mut RefMut<ExtendedCurveHistory>>,
+    now: i64,
+    market_index: u64,
+    trade_record: Option<u128>,
+) -> ClearingHouseResult {
+    let peg_multiplier_before = market.amm.peg_multiplier;
+    let base_asset_reserve_before = market.amm.base_asset_reserve;
+    let quote_asset_reserve_before = market.amm.quote_asset_reserve;
+    let sqrt_k_before = market.amm.sqrt_k;
+
+    // calculate budget
+    let budget = if funding_imbalance_cost < 0 {
+        // negative cost is period revenue, give back half in k increase
+        funding_imbalance_cost
+            .checked_div(2)
+            .ok_or_else(math_error!())?
+    } else if market.amm.net_revenue_since_last_funding < (funding_imbalance_cost as i64) {
+        // cost exceeded period revenue, take back half in k decrease
+        max(0, market.amm.net_revenue_since_last_funding)
+            .checked_sub(funding_imbalance_cost as i64)
+            .ok_or_else(math_error!())?
+            .checked_div(2)
+            .ok_or_else(math_error!())? as i128
+    } else {
+        0
+    };
+
+    if budget != 0 && curve_history.is_some() {
+        let curve_history = curve_history.unwrap();
+
+        // single k scale is capped by .1% increase and .09% decrease (regardless of budget)
+        let (p_numer, p_denom) = amm::calculate_budgeted_k_scale(market, budget)?;
+
+        if p_numer > p_denom {
+            msg!("increase sqrt_k (* {:?}/{:?})", p_numer, p_denom);
+        } else if p_numer < p_denom {
+            msg!("decrease sqrt_k (* {:?}/{:?})", p_numer, p_denom);
+        }
+
+        let new_sqrt_k = market
+            .amm
+            .sqrt_k
+            .checked_mul(p_numer)
+            .ok_or_else(math_error!())?
+            .checked_div(p_denom)
+            .ok_or_else(math_error!())?;
+
+        let (adjust_k_market, adjustment_cost) =
+            amm::adjust_k_cost(market, bn::U256::from(new_sqrt_k))?;
+        let cost_applied = apply_cost_to_market(market, adjustment_cost)?;
+        if cost_applied {
+            // todo: do actual k adj here
+            amm::update_k(market, bn::U256::from(new_sqrt_k))?;
+
+            let peg_multiplier_after = market.amm.peg_multiplier;
+            let base_asset_reserve_after = market.amm.base_asset_reserve;
+            let quote_asset_reserve_after = market.amm.quote_asset_reserve;
+            let sqrt_k_after = market.amm.sqrt_k;
+
+            let record_id = curve_history.next_record_id();
+            curve_history.append(ExtendedCurveRecord {
+                ts: now,
+                record_id,
+                market_index,
+                peg_multiplier_before,
+                base_asset_reserve_before,
+                quote_asset_reserve_before,
+                sqrt_k_before,
+                peg_multiplier_after,
+                base_asset_reserve_after,
+                quote_asset_reserve_after,
+                sqrt_k_after,
+                base_asset_amount_long: market.base_asset_amount_long.unsigned_abs(),
+                base_asset_amount_short: market.base_asset_amount_short.unsigned_abs(),
+                base_asset_amount: market.base_asset_amount,
+                open_interest: market.open_interest,
+                total_fee: market.amm.total_fee,
+                total_fee_minus_distributions: market.amm.total_fee_minus_distributions,
+                adjustment_cost,
+                oracle_price: oracle_price_data.price,
+                trade_record: trade_record.unwrap_or(0),
+                padding: [0; 5],
+            });
+        }
+    }
     Ok(())
 }
 

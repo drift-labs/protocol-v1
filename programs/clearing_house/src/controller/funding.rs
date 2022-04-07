@@ -4,6 +4,9 @@ use std::cmp::{max, min};
 use anchor_lang::prelude::*;
 
 use crate::error::*;
+
+use crate::controller::amm::formulaic_k;
+
 use crate::math::amm;
 use crate::math::amm::normalise_oracle_price;
 use crate::math::casting::{cast, cast_to_i128};
@@ -14,6 +17,7 @@ use crate::math::constants::{
 use crate::math::funding::{calculate_funding_payment, calculate_funding_rate_long_short};
 use crate::math::oracle;
 use crate::math_error;
+use crate::state::history::curve::ExtendedCurveHistory;
 use crate::state::history::funding_payment::{FundingPaymentHistory, FundingPaymentRecord};
 use crate::state::history::funding_rate::{FundingRateHistory, FundingRateRecord};
 use crate::state::market::AMM;
@@ -93,6 +97,7 @@ pub fn update_funding_rate(
     now: UnixTimestamp,
     clock_slot: u64,
     funding_rate_history: &mut RefMut<FundingRateHistory>,
+    curve_history: Option<&mut RefMut<ExtendedCurveHistory>>,
     guard_rails: &OracleGuardRails,
     funding_paused: bool,
     precomputed_mark_price: Option<u128>,
@@ -101,16 +106,21 @@ pub fn update_funding_rate(
         .checked_sub(market.amm.last_funding_rate_ts)
         .ok_or_else(math_error!())?;
 
+    let mark_price = match precomputed_mark_price {
+        Some(mark_price) => mark_price,
+        None => market.amm.mark_price()?,
+    };
+
     // Pause funding if oracle is invalid or if mark/oracle spread is too divergent
     let (block_funding_rate_update, oracle_price_data) = oracle::block_operation(
         &market.amm,
         price_oracle,
         clock_slot,
         guard_rails,
-        precomputed_mark_price,
+        Some(mark_price),
     )?;
     let normalised_oracle_price =
-        normalise_oracle_price(&market.amm, &oracle_price_data, precomputed_mark_price)?;
+        normalise_oracle_price(&market.amm, &oracle_price_data, Some(mark_price))?;
 
     // round next update time to be available on the hour
     let mut next_update_wait = market.amm.funding_period;
@@ -173,6 +183,27 @@ pub fn update_funding_rate(
 
         let (funding_rate_long, funding_rate_short) =
             calculate_funding_rate_long_short(market, funding_rate)?;
+
+        // dynamic k
+        let funding_imbalance_cost = funding_rate
+            .checked_mul(market.base_asset_amount)
+            .ok_or_else(math_error!())?
+            .checked_div(
+                AMM_TO_QUOTE_PRECISION_RATIO_I128 * cast_to_i128(FUNDING_PAYMENT_PRECISION)?,
+            )
+            .ok_or_else(math_error!())?;
+
+        formulaic_k(
+            market,
+            mark_price,
+            &oracle_price_data,
+            true, // only way to have gotten here
+            funding_imbalance_cost,
+            curve_history,
+            now,
+            market_index,
+            None,
+        )?;
 
         market.amm.cumulative_funding_rate_long = market
             .amm

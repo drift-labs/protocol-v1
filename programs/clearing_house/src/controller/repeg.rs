@@ -89,9 +89,9 @@ pub fn formulaic_repeg(
 ) -> ClearingHouseResult<i128> {
     // backrun market swaps to do automatic on-chain repeg
 
-    if !is_oracle_valid || oracle_price_data.delay > 5 {
+    if !is_oracle_valid {
         msg!(
-            "invalid oracle (oracle delay = {:?})",
+            "skipping formulaic_repeg: invalid oracle (oracle delay = {:?})",
             oracle_price_data.delay
         );
         return Ok(0);
@@ -115,7 +115,7 @@ pub fn formulaic_repeg(
         terminal_quote_reserves,
         repeg_budget,
         mark_price,
-        cast_to_u128(oracle_price_data.price)?,
+        oracle_price_data,
     )?;
 
     let (
@@ -172,7 +172,7 @@ pub fn formulaic_repeg(
     Ok(adjustment_cost)
 }
 
-fn apply_cost_to_market(market: &mut Market, cost: i128) -> ClearingHouseResult<bool> {
+pub fn apply_cost_to_market(market: &mut Market, cost: i128) -> ClearingHouseResult<bool> {
     // positive cost is expense, negative cost is revenue
     // Reduce pnl to quote asset precision and take the absolute value
     if cost > 0 {
