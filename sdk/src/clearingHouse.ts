@@ -266,10 +266,17 @@ export class ClearingHouse {
 		this.wallet = newWallet;
 		this.provider = newProvider;
 		this.program = newProgram;
-		this.userAccountPublicKey = undefined;
-		this.userAccount = undefined;
-		this.userOrdersAccountPublicKey = undefined;
-		this.userOrdersExist = undefined;
+
+		// reset cached values
+		this.userAccountPublicKeyMap = new Map<number, PublicKey>();
+		this.userAccountMap = new Map<number, UserAccount>();
+		this.userOrdersAccountPublicKeyMap = new Map<number, PublicKey>();
+		this.userOrdersExistMap = new Map<number, boolean>();
+		this.userRegistryAccountPublicKey = undefined;
+	}
+
+	public updateSeed(seed: number): void {
+		this.seed = seed;
 	}
 
 	public async initializeUserAccount(): Promise<
@@ -482,65 +489,72 @@ export class ClearingHouse {
 		});
 	}
 
-	userAccountPublicKey?: PublicKey;
+	userAccountPublicKeyMap = new Map<number, PublicKey>();
 	/**
 	 * Get the address for the Clearing House User's account. NOT the user's wallet address.
 	 * @returns
 	 */
 	public async getUserAccountPublicKey(): Promise<PublicKey> {
-		if (this.userAccountPublicKey) {
-			return this.userAccountPublicKey;
+		if (this.userAccountPublicKeyMap.has(this.seed)) {
+			return this.userAccountPublicKeyMap.get(this.seed);
 		}
 
-		this.userAccountPublicKey = await getUserAccountPublicKey(
+		const userAccountPublicKey = await getUserAccountPublicKey(
 			this.program.programId,
 			this.wallet.publicKey,
 			this.seed
 		);
-		return this.userAccountPublicKey;
+		this.userAccountPublicKeyMap.set(this.seed, userAccountPublicKey);
+		return userAccountPublicKey;
 	}
 
-	userAccount?: UserAccount;
+	userAccountMap = new Map<number, UserAccount>();
 	public async getUserAccount(): Promise<UserAccount> {
-		if (this.userAccount) {
-			return this.userAccount;
+		if (this.userAccountMap.has(this.seed)) {
+			return this.userAccountMap.get(this.seed);
 		}
 
-		this.userAccount = (await this.program.account.user.fetch(
+		const userAccount = (await this.program.account.user.fetch(
 			await this.getUserAccountPublicKey()
 		)) as UserAccount;
-		return this.userAccount;
+		this.userAccountMap.set(this.seed, userAccount);
+		return userAccount;
 	}
 
-	userOrdersAccountPublicKey?: PublicKey;
+	userOrdersAccountPublicKeyMap = new Map<number, PublicKey>();
 	/**
 	 * Get the address for the Clearing House User Order's account. NOT the user's wallet address.
 	 * @returns
 	 */
 	public async getUserOrdersAccountPublicKey(): Promise<PublicKey> {
-		if (this.userOrdersAccountPublicKey) {
-			return this.userOrdersAccountPublicKey;
+		if (this.userOrdersAccountPublicKeyMap.has(this.seed)) {
+			return this.userOrdersAccountPublicKeyMap.get(this.seed);
 		}
 
-		this.userOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(
+		const userOrdersAccountPublicKey = await getUserOrdersAccountPublicKey(
 			this.program.programId,
 			await this.getUserAccountPublicKey()
 		);
-		return this.userOrdersAccountPublicKey;
+		this.userOrdersAccountPublicKeyMap.set(
+			this.seed,
+			userOrdersAccountPublicKey
+		);
+		return userOrdersAccountPublicKey;
 	}
 
-	userOrdersExist?: boolean;
+	userOrdersExistMap = new Map<number, boolean>();
 	async userOrdersAccountExists(): Promise<boolean> {
-		if (this.userOrdersExist) {
-			return this.userOrdersExist;
+		if (this.userOrdersExistMap.has(this.seed)) {
+			return this.userOrdersExistMap.get(this.seed);
 		}
 		const userOrdersAccountRPCResponse =
 			await this.connection.getParsedAccountInfo(
 				await this.getUserOrdersAccountPublicKey()
 			);
 
-		this.userOrdersExist = userOrdersAccountRPCResponse.value !== null;
-		return this.userOrdersExist;
+		const userOrdersExist = userOrdersAccountRPCResponse.value !== null;
+		this.userOrdersExistMap.set(this.seed, userOrdersExist);
+		return userOrdersExist;
 	}
 
 	userRegistryAccountPublicKey?: PublicKey;
