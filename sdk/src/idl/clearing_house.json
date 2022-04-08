@@ -1356,6 +1356,46 @@
       ]
     },
     {
+      "name": "updateMarketPriceSpreadScalar",
+      "accounts": [
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "markets",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracle",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "curveHistory",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "marketIndex",
+          "type": "u64"
+        },
+        {
+          "name": "priceSpreadScalar",
+          "type": "u32"
+        }
+      ]
+    },
+    {
       "name": "initializeUser",
       "accounts": [
         {
@@ -3229,7 +3269,7 @@
             "type": "u32"
           },
           {
-            "name": "padding0",
+            "name": "priceSpreadScalar",
             "type": "u32"
           },
           {
@@ -4381,6 +4421,11 @@
       "code": 6061,
       "name": "InvalidRepegPriceImpact",
       "msg": "AMM repeg mark price impact vs oracle too large"
+    },
+    {
+      "code": 6062,
+      "name": "InvalidSpreadUpdate",
+      "msg": "AMM price spread scalar update exceeds upper bound"
     }
   ]
 }

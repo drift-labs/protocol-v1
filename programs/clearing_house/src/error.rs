@@ -128,6 +128,8 @@ pub enum ErrorCode {
     CantExpireOrders,
     #[msg("AMM repeg mark price impact vs oracle too large")]
     InvalidRepegPriceImpact,
+    #[msg("AMM price spread scalar update exceeds upper bound")]
+    InvalidSpreadUpdate,
 }
 
 #[macro_export]

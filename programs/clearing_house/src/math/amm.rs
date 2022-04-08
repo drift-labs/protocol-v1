@@ -99,13 +99,29 @@ pub fn calculate_swap_output(
     Ok((new_output_amount, new_input_amount))
 }
 
+pub fn calculate_market_spread(
+    market: &Market,
+    mark_price: u128
+) -> ClearingHouseResult<u128> {
+
+    let base_spread_unit: u32 = 1_000_000; // 1e6 = 100% of price
+    let base_spread = market.price_spread_scalar; // 5bps (500 == .05% of price)
+    let base_spread_denom = cast_to_u128(base_spread_unit.checked_div(base_spread).ok_or_else(math_error!())?)?; // 2000
+    let spread = mark_price.checked_div(base_spread_denom).ok_or_else(math_error!())?;
+
+    Ok(spread)
+
+}
+
 pub fn calculate_spread_reserve(
-    amm: &AMM,
+    market: &Market,
     precomputed_mark_price: Option<u128>,
     direction: SwapDirection,
     asset_type: AssetType,
 ) -> ClearingHouseResult<u128> {
     // impl of https://linear.app/driftprotocol/document/formula-for-spread-reserves-f11651521d7f
+
+    let amm = market.amm;
 
     let reserve = match asset_type {
         AssetType::BASE => amm.base_asset_reserve,
@@ -118,7 +134,7 @@ pub fn calculate_spread_reserve(
     };
 
     // 5 bps
-    let spread = current_price.checked_div(2000).ok_or_else(math_error!())?;
+    let spread = calculate_market_spread(market, current_price)?;
 
     let spread_price = match direction {
         SwapDirection::Add => current_price

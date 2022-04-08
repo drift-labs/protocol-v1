@@ -49,9 +49,9 @@ pub struct Market {
     pub margin_ratio_initial: u32,
     pub margin_ratio_partial: u32,
     pub margin_ratio_maintenance: u32,
+    pub price_spread_scalar: u32,
 
     // upgrade-ability
-    pub padding0: u32,
     pub padding1: u128,
     pub padding2: u128,
     pub padding3: u128,

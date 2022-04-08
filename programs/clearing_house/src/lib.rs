@@ -309,7 +309,7 @@ pub mod clearing_house {
             margin_ratio_initial, // unit is 20% (+2 decimal places)
             margin_ratio_partial,
             margin_ratio_maintenance,
-            padding0: 0,
+            price_spread_scalar: 500, //5 bps
             padding1: 0,
             padding2: 0,
             padding3: 0,
@@ -412,7 +412,7 @@ pub mod clearing_house {
             margin_ratio_initial, // unit is 20% (+2 decimal places)
             margin_ratio_partial,
             margin_ratio_maintenance,
-            padding0: 0,
+            price_spread_scalar: 500, // default = 5 bps
             padding1: 0,
             padding2: 0,
             padding3: 0,
@@ -2084,6 +2084,28 @@ pub mod clearing_house {
         if !is_oracle_valid {
             market.amm.last_oracle_price_twap = cast_to_i128(market.amm.last_mark_price_twap)?;
             market.amm.last_oracle_price_twap_ts = now;
+        }
+
+        Ok(())
+    }
+
+    #[allow(unused_must_use)]
+    #[access_control(
+        market_initialized(&ctx.accounts.markets, market_index) &&
+        valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
+     )]
+    pub fn update_market_price_spread_scalar(ctx: Context<RepegCurve>, market_index: u64, price_spread_scalar: u32) -> ProgramResult {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+        let clock_slot = clock.slot;
+
+        let market =
+            &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
+
+        if price_spread_scalar >= 10_000 {
+            return Err(ErrorCode::InvalidSpreadUpdate.into());
+        } else {
+            market.price_spread_scalar = price_spread_scalar;
         }
 
         Ok(())
