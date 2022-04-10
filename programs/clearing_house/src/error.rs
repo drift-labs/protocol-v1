@@ -129,9 +129,7 @@ pub enum ErrorCode {
     #[msg("InvalidUserName")]
     InvalidUserName,
     #[msg("UserSeedAlreadyUsed")]
-    UserSeedAlreadyUsed,
-    #[msg("UserSeedNotUsed")]
-    UserSeedNotUsed,
+    InvalidUserSeed,
 }
 
 #[macro_export]

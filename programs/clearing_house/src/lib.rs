@@ -1899,7 +1899,18 @@ pub mod clearing_house {
     ) -> ProgramResult {
         let user_registry = &mut ctx.accounts.user_registry;
         if user_registry.is_seed_taken(user_seed) {
-            return Err(print_error!(ErrorCode::UserSeedAlreadyUsed)().into());
+            msg!("Seed already taken {}", user_seed);
+            return Err(print_error!(ErrorCode::InvalidUserSeed)().into());
+        }
+
+        // can unwrap since we know user_seed isn't token
+        let next_available_seed = user_registry.next_available_seed().unwrap();
+        if next_available_seed != user_seed {
+            msg!(
+                "User seed needs to be next available seed {}",
+                next_available_seed
+            );
+            return Err(print_error!(ErrorCode::InvalidUserSeed)().into());
         }
 
         if !is_valid_name(name) {
@@ -1928,7 +1939,8 @@ pub mod clearing_house {
     ) -> ProgramResult {
         let user_registry = &mut ctx.accounts.user_registry;
         if !user_registry.is_seed_taken(user_seed) {
-            return Err(print_error!(ErrorCode::UserSeedNotUsed)().into());
+            msg!("Seed not in use {}", user_seed);
+            return Err(print_error!(ErrorCode::InvalidUserSeed)().into());
         }
 
         if !is_valid_name(name) {

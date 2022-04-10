@@ -4488,13 +4488,8 @@
     },
     {
       "code": 6062,
-      "name": "UserSeedAlreadyUsed",
+      "name": "InvalidUserSeed",
       "msg": "UserSeedAlreadyUsed"
-    },
-    {
-      "code": 6063,
-      "name": "UserSeedNotUsed",
-      "msg": "UserSeedNotUsed"
     }
   ]
 }
