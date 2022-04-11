@@ -1,6 +1,7 @@
 import { Commitment, Connection, PublicKey } from '@solana/web3.js';
 import { v4 as uuidv4 } from 'uuid';
 import { AccountData } from './types';
+import { promiseTimeout } from '../util/promiseTimeout';
 
 type AccountToLoad = {
 	publicKey: PublicKey;
@@ -162,11 +163,16 @@ export class BulkAccountLoader {
 			{ commitment: this.commitment },
 		];
 
-		// @ts-ignore
-		const rpcResponse = await this.connection._rpcRequest(
-			'getMultipleAccounts',
-			args
+		const rpcResponse: any | null = await promiseTimeout(
+			// @ts-ignore
+			this.connection._rpcRequest('getMultipleAccounts', args),
+			10 * 1000 // 30 second timeout
 		);
+
+		if (rpcResponse === null) {
+			this.log('request to rpc timed out', true);
+			return;
+		}
 
 		const newSlot = rpcResponse.result.context.slot;
 
@@ -246,8 +252,8 @@ export class BulkAccountLoader {
 		}
 	}
 
-	public log(msg: string): void {
-		if (this.loggingEnabled) {
+	public log(msg: string, force = false): void {
+		if (this.loggingEnabled || force) {
 			console.log(msg);
 		}
 	}
