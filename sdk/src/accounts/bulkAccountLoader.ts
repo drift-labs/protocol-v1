@@ -10,7 +10,6 @@ type AccountToLoad = {
 const GET_MULTIPLE_ACCOUNTS_CHUNK_SIZE = 99;
 
 const oneMinute = 60 * 1000;
-const fiveMinutes = 5 * 60 * 1000;
 
 export class BulkAccountLoader {
 	connection: Connection;
@@ -24,7 +23,7 @@ export class BulkAccountLoader {
 	loadPromise?: Promise<void>;
 	loadPromiseResolver: () => void;
 	loggingEnabled = false;
-	lastUpdate = Date.now();
+	lastTimeLoadingPromiseCleared = Date.now();
 
 	public constructor(
 		connection: Connection,
@@ -107,12 +106,20 @@ export class BulkAccountLoader {
 
 	public async load(): Promise<void> {
 		if (this.loadPromise) {
-			this.log(`Load promise exists. Returning early`);
-			return this.loadPromise;
+			const now = Date.now();
+			if (now - this.lastTimeLoadingPromiseCleared > oneMinute) {
+				this.log(`Load promise hasnt been clearing for one minute. Clearing.`);
+				this.loadPromise = undefined;
+			} else {
+				this.log(`Load promise exists. Returning early`);
+				return this.loadPromise;
+			}
 		}
+
 		this.loadPromise = new Promise((resolver) => {
 			this.loadPromiseResolver = resolver;
 		});
+		this.lastTimeLoadingPromiseCleared = Date.now();
 
 		this.log(`Loading`);
 
@@ -139,18 +146,6 @@ export class BulkAccountLoader {
 			this.log(`resetting load promise`);
 			this.loadPromiseResolver();
 			this.loadPromise = undefined;
-
-			const now = Date.now();
-			if (now - this.lastUpdate > fiveMinutes) {
-				this.log(
-					"Haven't seen updated account in five minutes. Bulk account loader creating new Connection Object"
-				);
-				this.connection = new Connection(
-					// @ts-ignore
-					this.connection._rpcEndpoint,
-					this.connection.commitment
-				);
-			}
 		}
 	}
 
@@ -173,11 +168,6 @@ export class BulkAccountLoader {
 			args
 		);
 
-		const oneMinuteSinceLastUpdate = Date.now() - this.lastUpdate > oneMinute;
-		if (oneMinuteSinceLastUpdate) {
-			this.log('rpcResponse ' + JSON.stringify(rpcResponse));
-		}
-
 		const newSlot = rpcResponse.result.context.slot;
 
 		for (const i in accountsToLoad) {
@@ -192,10 +182,6 @@ export class BulkAccountLoader {
 				newBuffer = Buffer.from(raw, dataType);
 			}
 
-			if (oneMinuteSinceLastUpdate) {
-				this.log('oldRPCResponse' + oldRPCResponse);
-			}
-
 			if (!oldRPCResponse) {
 				this.log('No old rpc response, updating account data');
 				this.accountData.set(key, {
@@ -203,7 +189,6 @@ export class BulkAccountLoader {
 					buffer: newBuffer,
 				});
 				this.handleAccountCallbacks(accountToLoad, newBuffer);
-				this.lastUpdate = Date.now();
 				continue;
 			}
 
@@ -220,7 +205,6 @@ export class BulkAccountLoader {
 					buffer: newBuffer,
 				});
 				this.handleAccountCallbacks(accountToLoad, newBuffer);
-				this.lastUpdate = Date.now();
 			} else {
 				this.log('unable to update account for newest slot');
 				this.log('oldBuffer ' + oldBuffer);
