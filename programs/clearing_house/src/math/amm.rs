@@ -2,7 +2,7 @@ use std::cmp::{max, min};
 
 use solana_program::msg;
 
-use crate::controller::amm::SwapDirection;
+use crate::controller::amm::{AssetType, SwapDirection};
 use crate::controller::position::PositionDirection;
 use crate::error::*;
 use crate::math::bn;
@@ -17,6 +17,7 @@ use crate::math::quote_asset::{asset_to_reserve_amount, reserve_to_asset_amount}
 use crate::math_error;
 use crate::state::market::{Market, OraclePriceData, AMM};
 use crate::state::state::{PriceDivergenceGuardRails, ValidityGuardRails};
+use num_integer::Roots;
 
 pub fn calculate_price(
     quote_asset_reserve: u128,
@@ -299,6 +300,61 @@ pub fn calculate_quote_asset_amount_swapped(
     }
 
     Ok(quote_asset_amount)
+}
+
+pub fn calculate_spread_reserve(
+    amm: &AMM,
+    precomputed_mark_price: Option<u128>,
+    direction: SwapDirection,
+    asset_type: AssetType,
+) -> ClearingHouseResult<u128> {
+    let reserve = match asset_type {
+        AssetType::BASE => amm.base_asset_reserve,
+        AssetType::QUOTE => amm.quote_asset_reserve,
+    };
+
+    let current_price = match precomputed_mark_price {
+        Some(mark_price) => mark_price,
+        None => amm.mark_price()?,
+    };
+
+    // 5 bps
+    let spread = current_price.checked_div(2000).ok_or_else(math_error!())?;
+
+    let spread_price = match direction {
+        SwapDirection::Add => current_price
+            .checked_sub(spread)
+            .ok_or_else(math_error!())?,
+        SwapDirection::Remove => current_price
+            .checked_add(spread)
+            .ok_or_else(math_error!())?,
+    };
+
+    let spread_reserve_scale_1e4 = match asset_type {
+        AssetType::BASE => current_price
+            .checked_mul(100_000_000) // 1e8
+            .ok_or_else(math_error!())?
+            .checked_div(spread_price)
+            .ok_or_else(math_error!())?
+            .nth_root(2),
+        AssetType::QUOTE => spread_price
+            .checked_mul(100_000_000) // 1e8
+            .ok_or_else(math_error!())?
+            .checked_div(current_price)
+            .ok_or_else(math_error!())?
+            .nth_root(2),
+    };
+
+    // f (fraction of reserves to achieve target price)
+    let spread_reserve_1e4 = reserve
+        .checked_mul(spread_reserve_scale_1e4)
+        .ok_or_else(math_error!())?;
+
+    let spread_reserve = spread_reserve_1e4
+        .checked_div(10_000) // 1e4 = sqrt(1e8)
+        .ok_or_else(math_error!())?;
+
+    Ok(spread_reserve)
 }
 
 pub fn calculate_oracle_mark_spread(
