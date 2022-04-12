@@ -10,11 +10,19 @@ import {
 	UserRegistryAccount,
 	getUserAccountPublicKey,
 	UserAccount,
+	getWebSocketClearingHouseUserConfig,
 } from '../sdk/src';
 
 import { mockUSDCMint, mockUserUSDCAccount } from './testHelpers';
 import { decodeName, encodeName } from '../sdk/src/userRegistry/userName';
-import { getUserOrdersAccountPublicKey, UserOrdersAccount, ZERO } from '../sdk';
+import {
+	getUserOrdersAccountPublicKey,
+	getWebSocketClearingHouseConfig,
+	UserOrdersAccount,
+	ZERO,
+} from '../sdk';
+import { ClearingHouseUserGroup } from '../sdk/src/groups/clearingHouseUserGroup';
+import { ClearingHouseGroup } from '../sdk/src/groups/clearingHouseGroup';
 
 describe('user registry', () => {
 	const provider = anchor.Provider.local(undefined, {
@@ -198,5 +206,73 @@ describe('user registry', () => {
 		assert(transferOutRecord.amount.eq(usdcAmount));
 
 		await toClearingHouseUser.unsubscribe();
+	});
+
+	it('test user groups', async () => {
+		const userRegistry = await clearingHouse.getUserRegistry();
+		const userConfig = getWebSocketClearingHouseUserConfig(
+			// @ts-ignore
+			clearingHouse,
+			provider.wallet.publicKey
+		);
+
+		const userGroup = new ClearingHouseUserGroup(userConfig, userRegistry);
+		await Promise.all(userGroup.users.map((user) => user.subscribe()));
+
+		for (const [seed, user] of userGroup.users.entries()) {
+			const expectedUserAccountPublicKey = await getUserAccountPublicKey(
+				clearingHouse.program.programId,
+				provider.wallet.publicKey,
+				seed
+			);
+			assert(
+				expectedUserAccountPublicKey.equals(
+					await user.getUserAccountPublicKey()
+				)
+			);
+		}
+
+		await Promise.all(userGroup.users.map((user) => user.unsubscribe()));
+	});
+
+	it('test clearing house groups', async () => {
+		const userRegistry = await clearingHouse.getUserRegistry();
+		const clearingHouseConfig = getWebSocketClearingHouseConfig(
+			connection,
+			provider.wallet,
+			chProgram.programId
+		);
+
+		const clearingHouseGroup = new ClearingHouseGroup(
+			clearingHouseConfig,
+			userRegistry
+		);
+		await Promise.all(
+			clearingHouseGroup.clearingHouses.map((clearingHouse) =>
+				clearingHouse.subscribe()
+			)
+		);
+
+		for (const [
+			seed,
+			clearingHouse,
+		] of clearingHouseGroup.clearingHouses.entries()) {
+			const expectedUserAccountPublicKey = await getUserAccountPublicKey(
+				clearingHouse.program.programId,
+				provider.wallet.publicKey,
+				seed
+			);
+			assert(
+				expectedUserAccountPublicKey.equals(
+					await clearingHouse.getUserAccountPublicKey()
+				)
+			);
+		}
+
+		await Promise.all(
+			clearingHouseGroup.clearingHouses.map((clearingHouse) =>
+				clearingHouse.unsubscribe()
+			)
+		);
 	});
 });

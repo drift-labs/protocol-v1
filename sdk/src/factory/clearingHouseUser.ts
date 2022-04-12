@@ -21,7 +21,7 @@ type PollingClearingHouseUserConfig = BaseClearingHouseUserConfig & {
 	accountLoader: BulkAccountLoader;
 };
 
-type ClearingHouseUserConfig =
+export type ClearingHouseUserConfig =
 	| PollingClearingHouseUserConfig
 	| WebSocketClearingHouseUserConfig;
 

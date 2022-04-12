@@ -13,4 +13,12 @@ export class UserRegistry {
 	public nextAvailableSeed(): number | undefined {
 		return this.names.findIndex((name) => name !== '');
 	}
+
+	/**
+	 * Gives the set of names that have been registered by authority. The index of the name is the corresponding seed
+	 * for a UserAccount
+	 */
+	public getUserNames(): string[] {
+		return this.names.filter((name) => name !== '');
+	}
 }
