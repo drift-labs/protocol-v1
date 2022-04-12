@@ -21,6 +21,7 @@ import {
 	OrderParams,
 	Order,
 	ExtendedCurveHistoryAccount,
+	UserRegistryAccount,
 } from './types';
 import * as anchor from '@project-serum/anchor';
 import clearingHouseIDL from './idl/clearing_house.json';
@@ -60,6 +61,7 @@ import {
 	getWebSocketClearingHouseConfig,
 } from './factory/clearingHouse';
 import { ZERO } from './constants/numericConstants';
+import { UserRegistry } from './userRegistry/userRegistry';
 
 /**
  * # ClearingHouse
@@ -273,6 +275,7 @@ export class ClearingHouse {
 		this.userOrdersAccountPublicKeyMap = new Map<number, PublicKey>();
 		this.userOrdersExistMap = new Map<number, boolean>();
 		this.userRegistryAccountPublicKey = undefined;
+		this.userRegistryAccount = undefined;
 	}
 
 	public updateSeed(seed: number): void {
@@ -559,7 +562,7 @@ export class ClearingHouse {
 
 	userRegistryAccountPublicKey?: PublicKey;
 	/**
-	 * Get the address for the Clearing House User's account. NOT the user's wallet address.
+	 * Get the address for the Clearing House User Registry account.
 	 * @returns
 	 */
 	public async getUserRegistryAccountPublicKey(): Promise<PublicKey> {
@@ -572,6 +575,22 @@ export class ClearingHouse {
 			this.wallet.publicKey
 		);
 		return this.userRegistryAccountPublicKey;
+	}
+
+	userRegistryAccount?: UserRegistryAccount;
+	public async getUserRegistryAccount(): Promise<UserRegistryAccount> {
+		if (this.userRegistryAccount) {
+			return this.userRegistryAccount;
+		}
+
+		this.userRegistryAccount = (await this.program.account.userRegistry.fetch(
+			await this.getUserRegistryAccountPublicKey()
+		)) as UserRegistryAccount;
+		return this.userRegistryAccount;
+	}
+
+	public async getUserRegistry(): Promise<UserRegistry> {
+		return new UserRegistry(await this.getUserRegistryAccount());
 	}
 
 	public async depositCollateral(

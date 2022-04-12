@@ -13,7 +13,7 @@ import {
 } from '../sdk/src';
 
 import { mockUSDCMint, mockUserUSDCAccount } from './testHelpers';
-import { decodeName, encodeName } from '../sdk/src/userName';
+import { decodeName, encodeName } from '../sdk/src/userRegistry/userName';
 import { getUserOrdersAccountPublicKey, UserOrdersAccount, ZERO } from '../sdk';
 
 describe('user registry', () => {
