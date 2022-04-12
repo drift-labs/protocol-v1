@@ -14,6 +14,12 @@ pub enum SwapDirection {
     Remove,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum AssetType {
+    QUOTE,
+    BASE,
+}
+
 pub fn swap_quote_asset(
     amm: &mut AMM,
     quote_asset_amount: u128,
