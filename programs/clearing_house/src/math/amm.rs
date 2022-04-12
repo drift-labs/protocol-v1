@@ -9,7 +9,8 @@ use crate::math::bn;
 use crate::math::bn::U192;
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
 use crate::math::constants::{
-    AMM_RESERVE_PRECISION, AMM_TO_QUOTE_PRECISION_RATIO, MARK_PRICE_PRECISION, PEG_PRECISION,
+    AMM_RESERVE_PRECISION, AMM_RESERVE_PRECISION_I128, AMM_TO_QUOTE_PRECISION_RATIO,
+    K_PCT_LOWER_BOUND, K_PCT_SCALE, K_PCT_UPPER_BOUND, MARK_PRICE_PRECISION, PEG_PRECISION,
     PRICE_SPREAD_PRECISION, PRICE_SPREAD_PRECISION_U128, PRICE_TO_PEG_PRECISION_RATIO,
     QUOTE_PRECISION,
 };
@@ -463,9 +464,18 @@ pub fn calculate_budgeted_k_scale(
     let q = cast_to_i128(market.amm.peg_multiplier)?;
     let d = market.base_asset_amount;
 
-    let AMM_RESERVE_PRECISIONi128 = cast_to_i128(AMM_RESERVE_PRECISION)?;
-
     let x_d = cast_to_i128(x)?.checked_add(d).ok_or_else(math_error!())?;
+
+    msg!("x: {:?}", x);
+    msg!("x_d: {:?}", x_d);
+    msg!("c: {:?}", c);
+
+    let x_times_x_d = U192::from(x)
+        .checked_mul(U192::from(x_d))
+        .ok_or_else(math_error!())?
+        .checked_div(U192::from(AMM_RESERVE_PRECISION))
+        .ok_or_else(math_error!())?
+        .try_to_u128()?;
 
     let numer1 = cast_to_i128(y)?
         .checked_mul(d)
@@ -474,64 +484,60 @@ pub fn calculate_budgeted_k_scale(
         .ok_or_else(math_error!())?
         .checked_div(cast_to_i128(AMM_RESERVE_PRECISION * PEG_PRECISION)?)
         .ok_or_else(math_error!())?;
+
     let numer2 = c
         .checked_mul(x_d)
         .ok_or_else(math_error!())?
         .checked_div(cast_to_i128(QUOTE_PRECISION)?)
         .ok_or_else(math_error!())?;
+
     let denom1 = c
-        .checked_mul(cast_to_i128(x)?)
+        .checked_mul(cast_to_i128(x_times_x_d)?)
         .ok_or_else(math_error!())?
-        .checked_mul(x_d)
-        .ok_or_else(math_error!())?
-        .checked_div(cast_to_i128(AMM_RESERVE_PRECISION * QUOTE_PRECISION)?)
+        .checked_div(cast_to_i128(QUOTE_PRECISION)?)
         .ok_or_else(math_error!())?;
+
     let denom2 = cast_to_i128(y)?
         .checked_mul(d)
         .ok_or_else(math_error!())?
-        .checked_div(AMM_RESERVE_PRECISIONi128)
+        .checked_div(AMM_RESERVE_PRECISION_I128)
         .ok_or_else(math_error!())?
         .checked_mul(d)
         .ok_or_else(math_error!())?
-        .checked_div(AMM_RESERVE_PRECISIONi128)
+        .checked_div(AMM_RESERVE_PRECISION_I128)
         .ok_or_else(math_error!())?
         .checked_mul(q)
         .ok_or_else(math_error!())?
         .checked_div(cast_to_i128(PEG_PRECISION)?)
         .ok_or_else(math_error!())?;
 
+    msg!("numers: {:?} {:?}", numer1, numer2);
+    msg!("denoms: {:?} {:?}", denom1, denom2);
+
     let numerator = d
         .checked_mul(numer1.checked_add(numer2).ok_or_else(math_error!())?)
         .ok_or_else(math_error!())?
-        .checked_div(AMM_RESERVE_PRECISIONi128)
+        .checked_div(AMM_RESERVE_PRECISION_I128)
         .ok_or_else(math_error!())?
-        .checked_div(AMM_RESERVE_PRECISIONi128)
-        .ok_or_else(math_error!())?
+        // .checked_div(AMM_RESERVE_PRECISION_I128)
+        // .ok_or_else(math_error!())?
         .checked_div(cast_to_i128(AMM_TO_QUOTE_PRECISION_RATIO)?)
         .ok_or_else(math_error!())?;
     let denominator = denom1
         .checked_add(denom2)
         .ok_or_else(math_error!())?
-        .checked_div(AMM_RESERVE_PRECISIONi128)
-        .ok_or_else(math_error!())?
-        .checked_div(AMM_RESERVE_PRECISIONi128)
+        // .checked_div(AMM_RESERVE_PRECISION_I128)
+        // .ok_or_else(math_error!())?
+        .checked_div(AMM_RESERVE_PRECISION_I128)
         .ok_or_else(math_error!())?;
 
-    // hardcoded scale bounds for a single update (.1% increase and .09% decrease)
-    let K_PCT_SCALE = 10000;
-    let lower_bound = 9991;
-    let upper_bound = 10010;
-
-    assert!(upper_bound > K_PCT_SCALE);
-    assert!(lower_bound < K_PCT_SCALE);
-    assert!(upper_bound < (K_PCT_SCALE * 101 / 100));
-    assert!(lower_bound > (K_PCT_SCALE * 99 / 100));
+    msg!("{:?}/{:?}", numerator, denominator);
 
     let numerator_clipped = if numerator > denominator {
         min(
             numerator,
             denominator
-                .checked_mul(upper_bound)
+                .checked_mul(K_PCT_UPPER_BOUND)
                 .ok_or_else(math_error!())?
                 .checked_div(K_PCT_SCALE)
                 .ok_or_else(math_error!())?,
@@ -540,7 +546,7 @@ pub fn calculate_budgeted_k_scale(
         max(
             numerator,
             denominator
-                .checked_mul(lower_bound)
+                .checked_mul(K_PCT_LOWER_BOUND)
                 .ok_or_else(math_error!())?
                 .checked_div(K_PCT_SCALE)
                 .ok_or_else(math_error!())?,
@@ -560,7 +566,7 @@ pub fn adjust_k_cost(market: &Market, new_sqrt_k: bn::U256) -> ClearingHouseResu
     let (current_net_market_value, _) =
         _calculate_base_asset_value_and_pnl(market_clone.base_asset_amount, 0, &market_clone.amm)?;
 
-    update_k(&mut market_clone, new_sqrt_k);
+    update_k(&mut market_clone, new_sqrt_k)?;
 
     let (_new_net_market_value, cost) = _calculate_base_asset_value_and_pnl(
         market_clone.base_asset_amount,

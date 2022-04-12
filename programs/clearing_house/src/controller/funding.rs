@@ -5,14 +5,16 @@ use anchor_lang::prelude::*;
 
 use crate::error::*;
 
-use crate::controller::amm::formulaic_k;
+use crate::controller::amm::formulaic_update_k;
 
 use crate::math::amm;
 use crate::math::amm::normalise_oracle_price;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math::constants::{
-    AMM_TO_QUOTE_PRECISION_RATIO_I128, FUNDING_PAYMENT_PRECISION, ONE_HOUR, TWENTYFOUR_HOUR,
+    AMM_TO_QUOTE_PRECISION_RATIO_I128,
+    FUNDING_PAYMENT_PRECISION, ONE_HOUR, TWENTYFOUR_HOUR,
+    QUOTE_TO_BASE_AMT_FUNDING_PRECISION,
 };
 use crate::math::funding::{calculate_funding_payment, calculate_funding_rate_long_short};
 use crate::math::oracle;
@@ -169,6 +171,8 @@ pub fn update_funding_rate(
             .checked_sub(oracle_price_twap)
             .ok_or_else(math_error!())?;
 
+        msg!("ps: {:?} - {:?}", mark_price_twap, oracle_price_twap);
+
         // clamp price divergence to 3% for funding rate calculation
         let max_price_spread = oracle_price_twap
             .checked_div(33)
@@ -185,15 +189,18 @@ pub fn update_funding_rate(
             calculate_funding_rate_long_short(market, funding_rate)?;
 
         // dynamic k
+        msg!(
+            "fr: {:?}, bam: {:?}",
+            funding_rate,
+            market.base_asset_amount
+        );
         let funding_imbalance_cost = funding_rate
             .checked_mul(market.base_asset_amount)
             .ok_or_else(math_error!())?
-            .checked_div(
-                AMM_TO_QUOTE_PRECISION_RATIO_I128 * cast_to_i128(FUNDING_PAYMENT_PRECISION)?,
-            )
+            .checked_div(QUOTE_TO_BASE_AMT_FUNDING_PRECISION)
             .ok_or_else(math_error!())?;
 
-        formulaic_k(
+        formulaic_update_k(
             market,
             mark_price,
             &oracle_price_data,

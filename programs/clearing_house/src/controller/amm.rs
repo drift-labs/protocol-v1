@@ -3,7 +3,7 @@ use solana_program::msg;
 use crate::controller::repeg::apply_cost_to_market;
 use crate::error::{ClearingHouseResult, ErrorCode};
 use crate::math::amm::calculate_quote_asset_amount_swapped;
-use crate::math::casting::{cast, cast_to_i128};
+use crate::math::casting::{cast, cast_to_i128, cast_to_i64};
 use crate::math::constants::PRICE_TO_PEG_PRECISION_RATIO;
 use crate::math::{amm, bn, quote_asset::*, repeg};
 use crate::math_error;
@@ -97,7 +97,7 @@ pub fn move_price(
     Ok(())
 }
 
-pub fn formulaic_k(
+pub fn formulaic_update_k(
     market: &mut Market,
     mark_price: u128,
     oracle_price_data: &OraclePriceData,
@@ -113,19 +113,22 @@ pub fn formulaic_k(
     let quote_asset_reserve_before = market.amm.quote_asset_reserve;
     let sqrt_k_before = market.amm.sqrt_k;
 
+    let funding_imbalance_cost_i64 = cast_to_i64(funding_imbalance_cost)?;
+    msg!("funding_imbalance_cost: {:?}", funding_imbalance_cost);
+
     // calculate budget
-    let budget = if funding_imbalance_cost < 0 {
+    let budget = if funding_imbalance_cost_i64 < 0 {
         // negative cost is period revenue, give back half in k increase
-        funding_imbalance_cost
+        funding_imbalance_cost_i64
             .checked_div(2)
             .ok_or_else(math_error!())?
-    } else if market.amm.net_revenue_since_last_funding < (funding_imbalance_cost as i64) {
+    } else if market.amm.net_revenue_since_last_funding < funding_imbalance_cost_i64 {
         // cost exceeded period revenue, take back half in k decrease
         max(0, market.amm.net_revenue_since_last_funding)
-            .checked_sub(funding_imbalance_cost as i64)
+            .checked_sub(funding_imbalance_cost_i64)
             .ok_or_else(math_error!())?
             .checked_div(2)
-            .ok_or_else(math_error!())? as i128
+            .ok_or_else(math_error!())?
     } else {
         0
     };
@@ -134,28 +137,25 @@ pub fn formulaic_k(
         let curve_history = curve_history.unwrap();
 
         // single k scale is capped by .1% increase and .09% decrease (regardless of budget)
-        let (p_numer, p_denom) = amm::calculate_budgeted_k_scale(market, budget)?;
+        let (p_numer, p_denom) = amm::calculate_budgeted_k_scale(market, cast_to_i128(budget)?)?;
 
         if p_numer > p_denom {
             msg!("increase sqrt_k (* {:?}/{:?})", p_numer, p_denom);
-        } else if p_numer < p_denom {
+        } else if p_numer <= p_denom {
             msg!("decrease sqrt_k (* {:?}/{:?})", p_numer, p_denom);
         }
 
-        let new_sqrt_k = market
-            .amm
-            .sqrt_k
-            .checked_mul(p_numer)
+        let new_sqrt_k = bn::U256::from(market.amm.sqrt_k)
+            .checked_mul(bn::U256::from(p_numer))
             .ok_or_else(math_error!())?
-            .checked_div(p_denom)
+            .checked_div(bn::U256::from(p_denom))
             .ok_or_else(math_error!())?;
 
-        let (adjust_k_market, adjustment_cost) =
-            amm::adjust_k_cost(market, bn::U256::from(new_sqrt_k))?;
+        let (adjust_k_market, adjustment_cost) = amm::adjust_k_cost(market, new_sqrt_k)?;
         let cost_applied = apply_cost_to_market(market, adjustment_cost)?;
         if cost_applied {
             // todo: do actual k adj here
-            amm::update_k(market, bn::U256::from(new_sqrt_k))?;
+            amm::update_k(market, new_sqrt_k)?;
 
             let peg_multiplier_after = market.amm.peg_multiplier;
             let base_asset_reserve_after = market.amm.base_asset_reserve;

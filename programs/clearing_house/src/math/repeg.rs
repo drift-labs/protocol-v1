@@ -177,14 +177,12 @@ pub fn calculate_peg_from_target_price(
     Ok(new_peg)
 }
 
-pub fn calculate_mm_target_price(
+pub fn calculate_amm_target_price(
     amm: &AMM,
     current_price: u128,
     oracle_price_data: &OraclePriceData,
 ) -> ClearingHouseResult<u128> {
     // calculates peg_multiplier that changing to would cost no more than budget
-    let oracle_delay = oracle_price_data.delay;
-
     let oracle_price_normalised = cast_to_u128(amm::normalise_oracle_price(
         amm,
         oracle_price_data,
@@ -227,7 +225,7 @@ pub fn calculate_budgeted_peg(
     current_price: u128,
     oracle_price_data: &OraclePriceData,
 ) -> ClearingHouseResult<(u128, i128, Market)> {
-    let target_price = calculate_mm_target_price(&market.amm, current_price, oracle_price_data)?;
+    let target_price = calculate_amm_target_price(&market.amm, current_price, oracle_price_data)?;
     let optimal_peg = calculate_peg_from_target_price(
         market.amm.quote_asset_reserve,
         market.amm.base_asset_reserve,
