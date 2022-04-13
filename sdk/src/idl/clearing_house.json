@@ -3266,7 +3266,7 @@
             "type": "u128"
           },
           {
-            "name": "padding1",
+            "name": "spread",
             "type": "u64"
           },
           {
@@ -3800,6 +3800,20 @@
           },
           {
             "name": "Remove"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AssetType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Quote"
+          },
+          {
+            "name": "Base"
           }
         ]
       }

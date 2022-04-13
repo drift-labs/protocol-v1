@@ -661,6 +661,7 @@ pub fn fill_order(
             &referrer,
             filler.key() == user.key(),
             quote_asset_amount_surplus,
+            order.post_only,
         )?;
 
     // Increment the clearing house's total fee variables
@@ -853,29 +854,34 @@ pub fn execute_market_order(
     let market_position = &mut user_positions.positions[position_index];
     let market = markets.get_market_mut(market_index);
 
-    let (potentially_risk_increasing, reduce_only, base_asset_amount, quote_asset_amount, _) =
-        if order.base_asset_amount > 0 {
-            controller::position::update_position_with_base_asset_amount(
-                order.base_asset_amount,
-                order.direction,
-                market,
-                user,
-                market_position,
-                mark_price_before,
-                now,
-                None,
-            )?
-        } else {
-            controller::position::update_position_with_quote_asset_amount(
-                order.quote_asset_amount,
-                order.direction,
-                market,
-                user,
-                market_position,
-                mark_price_before,
-                now,
-            )?
-        };
+    let (
+        potentially_risk_increasing,
+        reduce_only,
+        base_asset_amount,
+        quote_asset_amount,
+        quote_asset_amount_surplus,
+    ) = if order.base_asset_amount > 0 {
+        controller::position::update_position_with_base_asset_amount(
+            order.base_asset_amount,
+            order.direction,
+            market,
+            user,
+            market_position,
+            mark_price_before,
+            now,
+            None,
+        )?
+    } else {
+        controller::position::update_position_with_quote_asset_amount(
+            order.quote_asset_amount,
+            order.direction,
+            market,
+            user,
+            market_position,
+            mark_price_before,
+            now,
+        )?
+    };
 
     if base_asset_amount < market.amm.minimum_base_asset_trade_size {
         msg!("base asset amount {}", base_asset_amount);
@@ -901,7 +907,7 @@ pub fn execute_market_order(
         base_asset_amount,
         quote_asset_amount,
         potentially_risk_increasing,
-        0_u128,
+        quote_asset_amount_surplus,
     ))
 }
 
