@@ -61,7 +61,7 @@ describe('AMM Curve', () => {
 		userUSDCAccount = await mockUserUSDCAccount(usdcMint, usdcAmount, provider);
 
 		await clearingHouse.initialize(usdcMint.publicKey, true);
-		await clearingHouse.subscribe();
+		await clearingHouse.subscribeToAll();
 
 		solUsdOracle = await createPriceFeed({
 			oracleProgram: anchor.workspace.Pyth,

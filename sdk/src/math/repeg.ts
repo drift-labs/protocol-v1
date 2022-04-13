@@ -185,6 +185,14 @@ export function calculateBudgetedK(market: Market, cost: BN): [BN, BN] {
 
 	const C = cost.mul(new BN(-1));
 
+	console.log(
+		convertToNumber(x, AMM_RESERVE_PRECISION),
+		convertToNumber(y, AMM_RESERVE_PRECISION),
+		convertToNumber(d, AMM_RESERVE_PRECISION),
+		Q.toNumber() / 1e3,
+		C.toNumber() / 1e6
+	);
+
 	const numer1 = y.mul(d).mul(Q).div(AMM_RESERVE_PRECISION).div(PEG_PRECISION);
 	const numer2 = C.mul(x.add(d)).div(QUOTE_PRECISION);
 	const denom1 = C.mul(x)
@@ -199,8 +207,11 @@ export function calculateBudgetedK(market: Market, cost: BN): [BN, BN] {
 		.div(AMM_RESERVE_PRECISION)
 		.div(PEG_PRECISION);
 
+	console.log('numers:', convertToNumber(numer1), convertToNumber(numer2));
+	console.log('denoms:', convertToNumber(denom1), convertToNumber(denom2));
+
 	const numerator = d
-		.mul(numer1.add(numer2))
+		.mul(numer1.sub(numer2))
 		.div(AMM_RESERVE_PRECISION)
 		.div(AMM_RESERVE_PRECISION)
 		.div(AMM_TO_QUOTE_PRECISION_RATIO);
@@ -211,8 +222,12 @@ export function calculateBudgetedK(market: Market, cost: BN): [BN, BN] {
 	console.log(numerator, denominator);
 	// const p = (numerator).div(denominator);
 
-	// const formulaCost = (numer21.sub(numer20).sub(numer1)).mul(market.amm.pegMultiplier).div(AMM_TIMES_PEG_TO_QUOTE_PRECISION_RATIO)
-	// console.log(convertToNumber(formulaCost, QUOTE_PRECISION))
+	// const formulaCost = numer21
+	// 	.sub(numer20)
+	// 	.sub(numer1)
+	// 	.mul(market.amm.pegMultiplier)
+	// 	.div(AMM_TIMES_PEG_TO_QUOTE_PRECISION_RATIO);
+	// console.log(convertToNumber(formulaCost, QUOTE_PRECISION));
 
 	return [numerator, denominator];
 }

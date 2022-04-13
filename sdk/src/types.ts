@@ -122,6 +122,7 @@ export type DepositRecord = {
 
 export type ExtendedCurveRecord = {
 	ts: BN;
+	adjustmentCost: BN;
 	recordId: BN;
 	marketIndex: BN;
 	pegMultiplierBefore: BN;

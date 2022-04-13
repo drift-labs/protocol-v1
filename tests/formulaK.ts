@@ -1,6 +1,6 @@
 import * as anchor from '@project-serum/anchor';
 import { assert } from 'chai';
-import { BN } from '../sdk';
+import { BN, calculateBudgetedK } from '../sdk';
 
 import { Keypair } from '@solana/web3.js';
 import { Program } from '@project-serum/anchor';
@@ -12,6 +12,7 @@ import {
 	PEG_PRECISION,
 	PositionDirection,
 	convertToNumber,
+	calculateAdjustKCost,
 } from '../sdk/src';
 
 import { Markets } from '../sdk/src/constants/markets';
@@ -20,7 +21,7 @@ import {
 	createPriceFeed,
 	mockUSDCMint,
 	mockUserUSDCAccount,
-	// setFeedPrice,
+	setFeedPrice,
 	getFeedData,
 } from './testHelpers';
 import { QUOTE_PRECISION } from '../sdk/lib';
@@ -62,7 +63,7 @@ describe('formulaic curve (k)', () => {
 			chProgram.programId
 		);
 		await clearingHouse.initialize(usdcMint.publicKey, true);
-		await clearingHouse.subscribe();
+		await clearingHouse.subscribeToAll();
 
 		const periodicity = new BN(0); // 1 HOUR
 
@@ -152,16 +153,17 @@ describe('formulaic curve (k)', () => {
 			'oldKPrice:',
 			convertToNumber(oldKPrice)
 		);
+
 		console.log(
 			'newSqrtK',
-			convertToNumber(newSqrtK),
+			convertToNumber(amm.sqrtK),
 			'newKPrice:',
 			convertToNumber(newKPrice)
 		);
 
 		assert(ammOld.sqrtK.eq(amm.sqrtK));
 		assert(newKPrice.sub(oldKPrice).abs().lt(marginOfError));
-		assert(!amm.sqrtK.eq(newSqrtK));
+		// assert(!amm.sqrtK.eq(newSqrtK));
 
 		console.log(
 			'realizedFeeOld',
@@ -180,8 +182,12 @@ describe('formulaic curve (k)', () => {
 			convertToNumber(userAccount.getTotalCollateral(), QUOTE_PRECISION)
 		);
 	});
-	it('update funding (netRevenueSinceLastFunding)', async () => {
+	it('update funding (no k change)', async () => {
 		const marketIndex = Markets[0].marketIndex;
+		const marketsOld = await clearingHouse.getMarketsAccount();
+		const marketOld = marketsOld.markets[0];
+		const ammOld = marketOld.amm;
+
 		await clearingHouse.updateFundingPaused(false);
 		await new Promise((r) => setTimeout(r, 1000)); // wait 1 second
 
@@ -194,6 +200,13 @@ describe('formulaic curve (k)', () => {
 		const markets = await clearingHouse.getMarketsAccount();
 		const market = markets.markets[0];
 		const amm = market.amm;
+
+		console.log(
+			'oldSqrtK',
+			convertToNumber(ammOld.sqrtK),
+			'newSqrtK',
+			convertToNumber(amm.sqrtK)
+		);
 
 		// await setFeedPrice(program, newPrice, priceFeedAddress);
 		const oraclePx = await getFeedData(anchor.workspace.Pyth, amm.oracle);
@@ -219,6 +232,225 @@ describe('formulaic curve (k)', () => {
 			convertToNumber(amm.totalFeeMinusDistributions, QUOTE_PRECISION),
 			'netRevenue',
 			convertToNumber(amm.netRevenueSinceLastFunding, QUOTE_PRECISION)
+		);
+
+		assert(amm.netRevenueSinceLastFunding.eq(ZERO));
+		assert(amm.sqrtK);
+	});
+
+	it('update funding (k increase by max .01%)', async () => {
+		const marketIndex = Markets[0].marketIndex;
+		const marketsOld = await clearingHouse.getMarketsAccount();
+		const marketOld = marketsOld.markets[0];
+		const ammOld = marketsOld.markets[0].amm;
+		assert(marketOld.baseAssetAmount.eq(ZERO));
+
+		console.log('taking position');
+		await clearingHouse.openPosition(
+			PositionDirection.LONG,
+			new BN(10000).mul(QUOTE_PRECISION),
+			marketIndex
+		);
+		console.log('$10000 position taken');
+		const marketsAfterPos = await clearingHouse.getMarketsAccount();
+		const marketAfterPos = marketsAfterPos.markets[0];
+		// const ammAfterPos = marketAfterPos.amm;
+		const maxAdjCost = calculateAdjustKCost(
+			marketAfterPos,
+			marketIndex,
+			new BN(10010),
+			new BN(10000)
+		);
+		const [pNumer, pDenom] = calculateBudgetedK(marketAfterPos, maxAdjCost);
+
+		console.log(
+			'max increase k cost:',
+			convertToNumber(maxAdjCost, QUOTE_PRECISION),
+			'budget k back out scale: multiply by',
+			convertToNumber(pNumer) / convertToNumber(pDenom)
+		);
+
+		await clearingHouse.updateFundingPaused(false);
+		await new Promise((r) => setTimeout(r, 1000)); // wait 1 second
+
+		const _tx = await clearingHouse.updateFundingRate(
+			solUsdOracle,
+			marketIndex
+		);
+		await new Promise((r) => setTimeout(r, 1000)); // wait 1 second
+		await clearingHouse.updateFundingPaused(true);
+
+		const markets = await clearingHouse.getMarketsAccount();
+		const market = markets.markets[0];
+		const amm = market.amm;
+
+		// await setFeedPrice(program, newPrice, priceFeedAddress);
+		const oraclePx = await getFeedData(anchor.workspace.Pyth, amm.oracle);
+
+		console.log(
+			'markPrice:',
+			convertToNumber(calculateMarkPrice(market)),
+			'oraclePrice:',
+			oraclePx.price
+		);
+
+		console.log(
+			'USER getTotalCollateral',
+			convertToNumber(userAccount.getTotalCollateral(), QUOTE_PRECISION),
+			'fundingPnL:',
+			convertToNumber(userAccount.getUnrealizedFundingPNL(), QUOTE_PRECISION)
+		);
+		console.log(
+			'fundingRate:',
+			convertToNumber(amm.lastFundingRate, MARK_PRICE_PRECISION)
+		);
+		console.log(
+			'realizedFeePostClose',
+			convertToNumber(amm.totalFeeMinusDistributions, QUOTE_PRECISION),
+			'netRevenue',
+			convertToNumber(amm.netRevenueSinceLastFunding, QUOTE_PRECISION)
+		);
+
+		console.log(
+			'oldSqrtK',
+			convertToNumber(ammOld.sqrtK),
+			'newSqrtK',
+			convertToNumber(amm.sqrtK)
+		);
+
+		// traders over traded => increase of k
+		assert(amm.sqrtK.gt(ammOld.sqrtK));
+
+		const curveHistoryAccount = clearingHouse.getCurveHistoryAccount();
+		const curveHistoryHead = curveHistoryAccount.head.toNumber();
+		assert.ok(curveHistoryHead === 1);
+		const cRecord = curveHistoryAccount.curveRecords[curveHistoryHead - 1];
+
+		console.log(
+			'curve cost:',
+			convertToNumber(cRecord.adjustmentCost, QUOTE_PRECISION)
+		);
+
+		assert(amm.netRevenueSinceLastFunding.eq(ZERO));
+	});
+	it('update funding (k decrease by max .009%)', async () => {
+		const marketIndex = Markets[0].marketIndex;
+		const marketsOld = await clearingHouse.getMarketsAccount();
+		const marketOld = marketsOld.markets[marketIndex.toNumber()];
+		const ammOld = marketOld.amm;
+		await setFeedPrice(
+			anchor.workspace.Pyth,
+			initialSOLPrice * 1.05,
+			solUsdOracle
+		);
+
+		// await setFeedPrice(program, newPrice, priceFeedAddress);
+		const oraclePxOld = await getFeedData(anchor.workspace.Pyth, ammOld.oracle);
+
+		console.log(
+			'markPrice:',
+			convertToNumber(calculateMarkPrice(marketOld)),
+			'oraclePrice:',
+			oraclePxOld.price
+		);
+
+		const maxAdjCost = calculateAdjustKCost(
+			marketsOld.markets[marketIndex.toNumber()],
+			marketIndex,
+			new BN(9991),
+			new BN(10000)
+		);
+
+		const maxAdjCostShrink100x = calculateAdjustKCost(
+			marketsOld.markets[marketIndex.toNumber()],
+			marketIndex,
+			new BN(1),
+			new BN(100)
+		);
+
+		const [pNumer, pDenom] = calculateBudgetedK(marketOld, maxAdjCost);
+
+		const [pNumer2, pDenom2] = calculateBudgetedK(marketOld, new BN(-112934)); // ~$.11
+
+		console.log(
+			'max decrease k cost:',
+			convertToNumber(maxAdjCost, QUOTE_PRECISION),
+			'budget k back out scale: multiply by',
+			convertToNumber(pNumer) / convertToNumber(pDenom),
+			'\n',
+			'1/100th k cost:',
+			convertToNumber(maxAdjCostShrink100x, QUOTE_PRECISION),
+			'budget k $-13:',
+			convertToNumber(pNumer2) / convertToNumber(pDenom2)
+		);
+
+		// console.log('taking position');
+		// await clearingHouse.openPosition(
+		// 	PositionDirection.LONG,
+		// 	new BN(10000).mul(QUOTE_PRECISION),
+		// 	marketIndex
+		// );
+		// console.log('$10000 position taken');
+
+		await clearingHouse.updateFundingPaused(false);
+		await new Promise((r) => setTimeout(r, 1000)); // wait 1 secon
+
+		const _tx = await clearingHouse.updateFundingRate(
+			solUsdOracle,
+			marketIndex
+		);
+		await new Promise((r) => setTimeout(r, 1000)); // wait 1 second
+		await clearingHouse.updateFundingPaused(true);
+
+		const markets = await clearingHouse.getMarketsAccount();
+		const market = markets.markets[0];
+		const amm = market.amm;
+
+		// await setFeedPrice(program, newPrice, priceFeedAddress);
+		const oraclePx = await getFeedData(anchor.workspace.Pyth, amm.oracle);
+
+		console.log(
+			'markPrice:',
+			convertToNumber(calculateMarkPrice(market)),
+			'oraclePrice:',
+			oraclePx.price
+		);
+
+		console.log(
+			'USER getTotalCollateral',
+			convertToNumber(userAccount.getTotalCollateral(), QUOTE_PRECISION),
+			'fundingPnL:',
+			convertToNumber(userAccount.getUnrealizedFundingPNL(), QUOTE_PRECISION)
+		);
+		console.log(
+			'fundingRate:',
+			convertToNumber(amm.lastFundingRate, MARK_PRICE_PRECISION)
+		);
+		console.log(
+			'realizedFeePostClose',
+			convertToNumber(amm.totalFeeMinusDistributions, QUOTE_PRECISION),
+			'netRevenue',
+			convertToNumber(amm.netRevenueSinceLastFunding, QUOTE_PRECISION)
+		);
+
+		console.log(
+			'oldSqrtK',
+			convertToNumber(ammOld.sqrtK),
+			'newSqrtK',
+			convertToNumber(amm.sqrtK)
+		);
+
+		// traders over traded => increase of k
+		assert(amm.sqrtK.lt(ammOld.sqrtK));
+
+		const curveHistoryAccount = clearingHouse.getCurveHistoryAccount();
+		const curveHistoryHead = curveHistoryAccount.head.toNumber();
+		assert.ok(curveHistoryHead === 2);
+		const cRecord = curveHistoryAccount.curveRecords[curveHistoryHead - 1];
+
+		console.log(
+			'curve cost:',
+			convertToNumber(cRecord.adjustmentCost, QUOTE_PRECISION)
 		);
 
 		assert(amm.netRevenueSinceLastFunding.eq(ZERO));

@@ -12,9 +12,8 @@ use crate::math::amm::normalise_oracle_price;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math::constants::{
-    AMM_TO_QUOTE_PRECISION_RATIO_I128,
-    FUNDING_PAYMENT_PRECISION, ONE_HOUR, TWENTYFOUR_HOUR,
-    QUOTE_TO_BASE_AMT_FUNDING_PRECISION,
+    AMM_TO_QUOTE_PRECISION_RATIO_I128, FUNDING_PAYMENT_PRECISION, ONE_HOUR,
+    QUOTE_TO_BASE_AMT_FUNDING_PRECISION, TWENTYFOUR_HOUR,
 };
 use crate::math::funding::{calculate_funding_payment, calculate_funding_rate_long_short};
 use crate::math::oracle;
@@ -194,7 +193,9 @@ pub fn update_funding_rate(
             funding_rate,
             market.base_asset_amount
         );
-        let funding_imbalance_cost = funding_rate
+
+        // negative since surplus to net user is cost to amm
+        let funding_imbalance_cost = -funding_rate
             .checked_mul(market.base_asset_amount)
             .ok_or_else(math_error!())?
             .checked_div(QUOTE_TO_BASE_AMT_FUNDING_PRECISION)

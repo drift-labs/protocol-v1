@@ -115,13 +115,14 @@ pub fn formulaic_update_k(
 
     let funding_imbalance_cost_i64 = cast_to_i64(funding_imbalance_cost)?;
     msg!("funding_imbalance_cost: {:?}", funding_imbalance_cost);
-
+    // assert!(false);
     // calculate budget
     let budget = if funding_imbalance_cost_i64 < 0 {
         // negative cost is period revenue, give back half in k increase
         funding_imbalance_cost_i64
             .checked_div(2)
             .ok_or_else(math_error!())?
+            .abs()
     } else if market.amm.net_revenue_since_last_funding < funding_imbalance_cost_i64 {
         // cost exceeded period revenue, take back half in k decrease
         max(0, market.amm.net_revenue_since_last_funding)
