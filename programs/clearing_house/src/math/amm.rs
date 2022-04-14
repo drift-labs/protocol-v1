@@ -606,6 +606,8 @@ pub fn adjust_k_cost(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouse
 pub fn calculate_max_base_asset_amount_to_trade(
     amm: &AMM,
     limit_price: u128,
+    swap_direction: SwapDirection,
+    use_spread: bool,
 ) -> ClearingHouseResult<(u128, PositionDirection)> {
     let invariant_sqrt_u192 = U192::from(amm.sqrt_k);
     let invariant = invariant_sqrt_u192
@@ -626,14 +628,21 @@ pub fn calculate_max_base_asset_amount_to_trade(
         .integer_sqrt()
         .try_to_u128()?;
 
-    if new_base_asset_reserve > amm.base_asset_reserve {
+    let base_asset_reserve_before = if use_spread {
+        let (spread_base_asset_reserve, _) =
+            calculate_spread_reserves(amm, swap_direction, AssetType::Base)?;
+        spread_base_asset_reserve
+    } else {
+        amm.base_asset_reserve
+    };
+
+    if new_base_asset_reserve > base_asset_reserve_before {
         let max_trade_amount = new_base_asset_reserve
-            .checked_sub(amm.base_asset_reserve)
+            .checked_sub(base_asset_reserve_before)
             .ok_or_else(math_error!())?;
         Ok((max_trade_amount, PositionDirection::Short))
     } else {
-        let max_trade_amount = amm
-            .base_asset_reserve
+        let max_trade_amount = base_asset_reserve_before
             .checked_sub(new_base_asset_reserve)
             .ok_or_else(math_error!())?;
         Ok((max_trade_amount, PositionDirection::Long))

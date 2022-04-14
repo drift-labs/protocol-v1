@@ -60,8 +60,18 @@ pub fn calculate_base_asset_amount_to_trade_for_limit(
 
     let limit_price = order.get_limit_price(valid_oracle_price)?;
 
+    let swap_direction = match order.direction {
+        PositionDirection::Long => SwapDirection::Remove,
+        PositionDirection::Short => SwapDirection::Add,
+    };
+
     let (max_trade_base_asset_amount, max_trade_direction) =
-        math::amm::calculate_max_base_asset_amount_to_trade(&market.amm, limit_price)?;
+        math::amm::calculate_max_base_asset_amount_to_trade(
+            &market.amm,
+            limit_price,
+            swap_direction,
+            !order.post_only,
+        )?;
     if max_trade_direction != order.direction || max_trade_base_asset_amount == 0 {
         return Ok(0);
     }
