@@ -9,8 +9,8 @@ use crate::math::bn;
 use crate::math::bn::U192;
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
 use crate::math::constants::{
-    BID_ASK_SPREAD_PRECISION, BID_ASK_SPREAD_PRECISION_U128, MARK_PRICE_PRECISION, PEG_PRECISION,
-    PRICE_SPREAD_PRECISION, PRICE_SPREAD_PRECISION_U128, PRICE_TO_PEG_PRECISION_RATIO,
+    BID_ASK_SPREAD_PRECISION, MARK_PRICE_PRECISION, PEG_PRECISION, PRICE_SPREAD_PRECISION,
+    PRICE_SPREAD_PRECISION_U128, PRICE_TO_PEG_PRECISION_RATIO,
 };
 use crate::math::position::_calculate_base_asset_value_and_pnl;
 use crate::math::quote_asset::{asset_to_reserve_amount, reserve_to_asset_amount};
@@ -304,41 +304,34 @@ pub fn calculate_quote_asset_amount_swapped(
 
 pub fn calculate_spread_reserves(
     amm: &AMM,
-    precomputed_mark_price: Option<u128>,
     swap_direction: SwapDirection,
     swapped_asset: AssetType,
 ) -> ClearingHouseResult<(u128, u128)> {
-    let mark_price = match precomputed_mark_price {
-        Some(mark_price) => mark_price,
-        None => amm.mark_price()?,
-    };
-
-    let spread = calculate_spread(amm, mark_price)?;
-
-    let spread_price = match swapped_asset {
+    let base_spread = amm.base_spread as u128;
+    let spread_ratio = match swapped_asset {
         AssetType::Base => match swap_direction {
-            SwapDirection::Add => mark_price.checked_sub(spread).ok_or_else(math_error!())?, // Short
-            SwapDirection::Remove => mark_price.checked_add(spread).ok_or_else(math_error!())?, // Long
+            SwapDirection::Add => BID_ASK_SPREAD_PRECISION
+                .checked_sub(base_spread)
+                .ok_or_else(math_error!())?, // Short
+            SwapDirection::Remove => BID_ASK_SPREAD_PRECISION
+                .checked_add(base_spread)
+                .ok_or_else(math_error!())?, // Long
         },
         AssetType::Quote => match swap_direction {
-            SwapDirection::Add => mark_price.checked_add(spread).ok_or_else(math_error!())?, // Long
-            SwapDirection::Remove => mark_price.checked_sub(spread).ok_or_else(math_error!())?, // Short
+            SwapDirection::Add => BID_ASK_SPREAD_PRECISION
+                .checked_add(base_spread)
+                .ok_or_else(math_error!())?, // Long
+            SwapDirection::Remove => BID_ASK_SPREAD_PRECISION
+                .checked_sub(base_spread)
+                .ok_or_else(math_error!())?, // Short
         },
     };
 
-    let base_asset_reserve = calculate_spread_reserve(
-        mark_price,
-        spread_price,
-        amm.base_asset_reserve,
-        AssetType::Base,
-    )?;
+    let base_asset_reserve =
+        calculate_spread_reserve(spread_ratio, amm.base_asset_reserve, AssetType::Base)?;
 
-    let quote_asset_reserve = calculate_spread_reserve(
-        mark_price,
-        spread_price,
-        amm.quote_asset_reserve,
-        AssetType::Quote,
-    )?;
+    let quote_asset_reserve =
+        calculate_spread_reserve(spread_ratio, amm.quote_asset_reserve, AssetType::Quote)?;
 
     Ok((base_asset_reserve, quote_asset_reserve))
 }
@@ -347,27 +340,26 @@ fn calculate_spread(amm: &AMM, mark_price: u128) -> ClearingHouseResult<u128> {
     mark_price
         .checked_mul(amm.base_spread as u128)
         .ok_or_else(math_error!())?
-        .checked_div(BID_ASK_SPREAD_PRECISION_U128)
+        .checked_div(BID_ASK_SPREAD_PRECISION)
         .ok_or_else(math_error!())
 }
 
 fn calculate_spread_reserve(
-    mark_price: u128,
-    spread_price: u128,
+    spread_ratio: u128,
     reserve: u128,
     asset_type: AssetType,
 ) -> ClearingHouseResult<u128> {
     let spread_reserve_scale_1e4 = match asset_type {
-        AssetType::Base => mark_price
+        AssetType::Base => BID_ASK_SPREAD_PRECISION
             .checked_mul(100_000_000) // 1e8
             .ok_or_else(math_error!())?
-            .checked_div(spread_price)
+            .checked_div(spread_ratio)
             .ok_or_else(math_error!())?
             .nth_root(2),
-        AssetType::Quote => spread_price
+        AssetType::Quote => spread_ratio
             .checked_mul(100_000_000) // 1e8
             .ok_or_else(math_error!())?
-            .checked_div(mark_price)
+            .checked_div(BID_ASK_SPREAD_PRECISION)
             .ok_or_else(math_error!())?
             .nth_root(2),
     };

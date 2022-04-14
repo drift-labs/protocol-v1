@@ -157,7 +157,6 @@ pub fn calculate_base_asset_amount_user_can_execute(
     order: &mut Order,
     markets: &mut RefMut<Markets>,
     market_index: u64,
-    mark_price: u128,
 ) -> ClearingHouseResult<u128> {
     let position_index = get_position_index(user_positions, market_index)?;
 
@@ -192,12 +191,7 @@ pub fn calculate_base_asset_amount_user_can_execute(
             market.amm.quote_asset_reserve,
         )
     } else {
-        calculate_spread_reserves(
-            &market.amm,
-            Some(mark_price),
-            swap_direction,
-            AssetType::Quote,
-        )?
+        calculate_spread_reserves(&market.amm, swap_direction, AssetType::Quote)?
     };
 
     let (base_asset_reserves_after, _) = calculate_swap_output(

@@ -37,12 +37,7 @@ pub fn swap_quote_asset(
         base_asset_amount,
         quote_asset_amount_surplus,
     ) = match use_spread {
-        true => calculate_quote_swap_output_with_spread(
-            amm,
-            quote_asset_amount,
-            direction,
-            precomputed_mark_price,
-        )?,
+        true => calculate_quote_swap_output_with_spread(amm, quote_asset_amount, direction)?,
         false => calculate_quote_swap_output_without_spread(amm, quote_asset_amount, direction)?,
     };
 
@@ -88,7 +83,6 @@ fn calculate_quote_swap_output_with_spread(
     amm: &mut AMM,
     quote_asset_amount: u128,
     direction: SwapDirection,
-    precomputed_mark_price: Option<u128>,
 ) -> ClearingHouseResult<(u128, u128, i128, u128)> {
     let quote_asset_reserve_amount =
         asset_to_reserve_amount(quote_asset_amount, amm.peg_multiplier)?;
@@ -99,7 +93,7 @@ fn calculate_quote_swap_output_with_spread(
 
     // first do the swap with spread reserves to figure out how much base asset is acquired
     let (base_asset_reserve_with_spread, quote_asset_reserve_with_spread) =
-        calculate_spread_reserves(amm, precomputed_mark_price, direction, AssetType::Quote)?;
+        calculate_spread_reserves(amm, direction, AssetType::Quote)?;
 
     let (new_base_asset_reserve_with_spread, new_quote_asset_reserve_with_spread) =
         amm::calculate_swap_output(
@@ -152,12 +146,7 @@ pub fn swap_base_asset(
         quote_asset_amount,
         quote_asset_amount_surplus,
     ) = match use_spread {
-        true => calculate_base_swap_output_with_spread(
-            amm,
-            base_asset_swap_amount,
-            direction,
-            precomputed_mark_price,
-        )?,
+        true => calculate_base_swap_output_with_spread(amm, base_asset_swap_amount, direction)?,
         false => calculate_base_swap_output_without_spread(amm, base_asset_swap_amount, direction)?,
     };
 
@@ -199,11 +188,10 @@ fn calculate_base_swap_output_with_spread(
     amm: &mut AMM,
     base_asset_swap_amount: u128,
     direction: SwapDirection,
-    precomputed_mark_price: Option<u128>,
 ) -> ClearingHouseResult<(u128, u128, u128, u128)> {
     // first do the swap with spread reserves to figure out how much base asset is acquired
     let (base_asset_reserve_with_spread, quote_asset_reserve_with_spread) =
-        calculate_spread_reserves(amm, precomputed_mark_price, direction, AssetType::Base)?;
+        calculate_spread_reserves(amm, direction, AssetType::Base)?;
 
     let (new_quote_asset_reserve_with_spread, _) = amm::calculate_swap_output(
         base_asset_swap_amount,

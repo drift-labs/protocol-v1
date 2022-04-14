@@ -928,7 +928,6 @@ pub fn execute_non_market_order(
         order,
         markets,
         market_index,
-        mark_price_before,
     )?;
 
     if base_asset_amount_user_can_execute == 0 {
