@@ -345,7 +345,7 @@ pub fn calculate_spread_reserves(
 
 fn calculate_spread(amm: &AMM, mark_price: u128) -> ClearingHouseResult<u128> {
     mark_price
-        .checked_mul(amm.spread as u128)
+        .checked_mul(amm.base_spread as u128)
         .ok_or_else(math_error!())?
         .checked_div(BID_ASK_SPREAD_PRECISION_U128)
         .ok_or_else(math_error!())

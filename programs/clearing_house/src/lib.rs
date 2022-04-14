@@ -339,7 +339,7 @@ pub mod clearing_house {
                 last_oracle_price_twap_ts: now,
                 last_oracle_price: oracle_price,
                 minimum_base_asset_trade_size: 10000000,
-                spread: 0,
+                base_spread: 0,
                 padding1: 0,
                 padding2: 0,
                 padding3: 0,
@@ -2389,6 +2389,20 @@ pub mod clearing_house {
         let market =
             &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
         market.amm.minimum_quote_asset_trade_size = minimum_trade_size;
+        Ok(())
+    }
+
+    #[access_control(
+        market_initialized(&ctx.accounts.markets, market_index)
+    )]
+    pub fn update_market_base_spread(
+        ctx: Context<AdminUpdateMarket>,
+        market_index: u64,
+        base_spread: u32,
+    ) -> ProgramResult {
+        let market =
+            &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
+        market.amm.base_spread = base_spread;
         Ok(())
     }
 
