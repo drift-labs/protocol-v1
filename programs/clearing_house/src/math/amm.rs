@@ -349,15 +349,15 @@ fn calculate_spread_reserve(
     reserve: u128,
     asset_type: AssetType,
 ) -> ClearingHouseResult<u128> {
-    let spread_reserve_scale_1e4 = match asset_type {
+    let spread_reserve_scale = match asset_type {
         AssetType::Base => BID_ASK_SPREAD_PRECISION
-            .checked_mul(100_000_000) // 1e8
+            .checked_shl(8) // 2^8
             .ok_or_else(math_error!())?
             .checked_div(spread_ratio)
             .ok_or_else(math_error!())?
             .nth_root(2),
         AssetType::Quote => spread_ratio
-            .checked_mul(100_000_000) // 1e8
+            .checked_shl(8) // 2^8
             .ok_or_else(math_error!())?
             .checked_div(BID_ASK_SPREAD_PRECISION)
             .ok_or_else(math_error!())?
@@ -365,12 +365,10 @@ fn calculate_spread_reserve(
     };
 
     // f (fraction of reserves to achieve target price)
-    let spread_reserve_1e4 = reserve
-        .checked_mul(spread_reserve_scale_1e4)
-        .ok_or_else(math_error!())?;
-
-    let spread_reserve = spread_reserve_1e4
-        .checked_div(10_000) // 1e4 = sqrt(1e8)
+    let spread_reserve = reserve
+        .checked_mul(spread_reserve_scale)
+        .ok_or_else(math_error!())?
+        .checked_shr(4) // 2^8
         .ok_or_else(math_error!())?;
 
     Ok(spread_reserve)
