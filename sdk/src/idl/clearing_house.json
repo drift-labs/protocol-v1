@@ -3267,7 +3267,11 @@
           },
           {
             "name": "spread",
-            "type": "u64"
+            "type": "u32"
+          },
+          {
+            "name": "padding1",
+            "type": "u32"
           },
           {
             "name": "padding2",
