@@ -19,7 +19,7 @@ use anchor_lang::Key;
 use solana_program::clock::Slot;
 use solana_program::msg;
 use std::collections::BTreeMap;
-use std::ops::{Div};
+use std::ops::Div;
 
 #[derive(Copy, Clone)]
 pub enum MarginType {
