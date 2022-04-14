@@ -5,7 +5,7 @@ use crate::math::position::{
     calculate_base_asset_value_and_pnl, calculate_base_asset_value_and_pnl_with_oracle_price,
 };
 use crate::math_error;
-use crate::state::market::{Market, Markets};
+use crate::state::market::{Markets};
 use crate::state::user::{User, UserPositions};
 use std::cell::{Ref, RefMut};
 
