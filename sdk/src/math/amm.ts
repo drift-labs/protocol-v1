@@ -107,17 +107,7 @@ export function calculateSpreadReserves(
 	baseAssetReserve: BN;
 	quoteAssetReserve: BN;
 } {
-	const baseSpread = new BN(amm.baseSpread);
-	let spreadRatio;
-	if (assetType === 'base') {
-		spreadRatio = isVariant(swapDirection, 'add')
-			? BID_ASK_SPREAD_PRECISION.sub(baseSpread)
-			: BID_ASK_SPREAD_PRECISION.add(baseSpread);
-	} else {
-		spreadRatio = isVariant(swapDirection, 'remove')
-			? BID_ASK_SPREAD_PRECISION.add(baseSpread)
-			: BID_ASK_SPREAD_PRECISION.sub(baseSpread);
-	}
+	const spreadRatio = calculateSpreadRatio(amm, swapDirection, assetType);
 
 	return {
 		baseAssetReserve: calculateSpreadReserve(
@@ -133,7 +123,34 @@ export function calculateSpreadReserves(
 	};
 }
 
-export function calculateSpreadReserve(
+export function calculateSpreadBaseAssetReserve(
+	amm: AMM,
+	swapDirection: SwapDirection
+): BN {
+	const spreadRatio = calculateSpreadRatio(amm, swapDirection, 'base');
+	return calculateSpreadReserve(spreadRatio, amm.baseAssetReserve, 'base');
+}
+
+function calculateSpreadRatio(
+	amm: AMM,
+	swapDirection: SwapDirection,
+	assetType: AssetType
+): BN {
+	const baseSpread = new BN(amm.baseSpread);
+	let spreadRatio;
+	if (assetType === 'base') {
+		spreadRatio = isVariant(swapDirection, 'add')
+			? BID_ASK_SPREAD_PRECISION.sub(baseSpread)
+			: BID_ASK_SPREAD_PRECISION.add(baseSpread);
+	} else {
+		spreadRatio = isVariant(swapDirection, 'remove')
+			? BID_ASK_SPREAD_PRECISION.add(baseSpread)
+			: BID_ASK_SPREAD_PRECISION.sub(baseSpread);
+	}
+	return spreadRatio;
+}
+
+function calculateSpreadReserve(
 	spreadRatio: BN,
 	reserve: BN,
 	assetType: AssetType
@@ -347,7 +364,9 @@ export function calculateTerminalPrice(market: Market) {
 
 export function calculateMaxBaseAssetAmountToTrade(
 	amm: AMM,
-	limit_price: BN
+	limit_price: BN,
+	swapDirection: SwapDirection,
+	useSpread: boolean
 ): [BN, PositionDirection] {
 	const invariant = amm.sqrtK.mul(amm.sqrtK);
 
@@ -359,14 +378,24 @@ export function calculateMaxBaseAssetAmountToTrade(
 
 	const newBaseAssetReserve = squareRootBN(newBaseAssetReserveSquared);
 
-	if (newBaseAssetReserve.gt(amm.baseAssetReserve)) {
+	let baseAssetReserveBefore;
+	if (useSpread) {
+		baseAssetReserveBefore = calculateSpreadBaseAssetReserve(
+			amm,
+			swapDirection
+		);
+	} else {
+		baseAssetReserveBefore = amm.baseAssetReserve;
+	}
+
+	if (newBaseAssetReserve.gt(baseAssetReserveBefore)) {
 		return [
-			newBaseAssetReserve.sub(amm.baseAssetReserve),
+			newBaseAssetReserve.sub(baseAssetReserveBefore),
 			PositionDirection.SHORT,
 		];
-	} else if (newBaseAssetReserve.lt(amm.baseAssetReserve)) {
+	} else if (newBaseAssetReserve.lt(baseAssetReserveBefore)) {
 		return [
-			amm.baseAssetReserve.sub(newBaseAssetReserve),
+			baseAssetReserveBefore.sub(newBaseAssetReserve),
 			PositionDirection.LONG,
 		];
 	} else {

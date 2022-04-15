@@ -11,6 +11,7 @@ import {
 	BN,
 	calculateAmmReservesAfterSwap,
 	calculateBaseAssetValue,
+	calculateSpreadReserves,
 	ClearingHouseUser,
 	isOrderRiskIncreasingInSameDirection,
 	TEN_THOUSAND,
@@ -202,9 +203,14 @@ export function calculateAmountToTradeForLimit(
 		limitPrice = oraclePriceData.price.add(order.oraclePriceOffset);
 	}
 
+	const swapDirection = isVariant(order.direction, 'long')
+		? SwapDirection.REMOVE
+		: SwapDirection.ADD;
 	const [maxAmountToTrade, direction] = calculateMaxBaseAssetAmountToTrade(
 		market.amm,
-		limitPrice
+		limitPrice,
+		swapDirection,
+		!order.postOnly
 	);
 
 	// Check that directions are the same
@@ -288,14 +294,34 @@ export function calculateBaseAssetAmountUserCanExecute(
 		return ZERO;
 	}
 
-	const baseAssetReservesBefore = market.amm.baseAssetReserve;
+	const swapDirection = isVariant(order.direction, 'long')
+		? SwapDirection.ADD
+		: SwapDirection.REMOVE;
+
+	const useSpread = !order.postOnly;
+	let amm: Parameters<typeof calculateAmmReservesAfterSwap>[0];
+	if (useSpread) {
+		const { baseAssetReserve, quoteAssetReserve } = calculateSpreadReserves(
+			market.amm,
+			swapDirection,
+			'quote'
+		);
+		amm = {
+			baseAssetReserve,
+			quoteAssetReserve,
+			sqrtK: market.amm.sqrtK,
+			pegMultiplier: market.amm.pegMultiplier,
+		};
+	} else {
+		amm = market.amm;
+	}
+
+	const baseAssetReservesBefore = amm.baseAssetReserve;
 	const [_, baseAssetReservesAfter] = calculateAmmReservesAfterSwap(
-		market.amm,
+		amm,
 		'quote',
 		quoteAssetAmount,
-		isVariant(order.direction, 'long')
-			? SwapDirection.ADD
-			: SwapDirection.REMOVE
+		swapDirection
 	);
 
 	return baseAssetReservesBefore.sub(baseAssetReservesAfter).abs();
