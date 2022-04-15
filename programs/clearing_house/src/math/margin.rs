@@ -73,7 +73,7 @@ pub fn meets_initial_margin_requirement(
     markets: &Ref<Markets>,
 ) -> ClearingHouseResult<bool> {
     let (mut initial_margin_requirement, total_collateral) =
-        calc_margin_requirement_and_collateral(user, user_positions, markets, MarginType::Init)?;
+        calculate_margin_requirement_and_total_collateral(user, user_positions, markets, MarginType::Init)?;
 
     initial_margin_requirement = initial_margin_requirement
         .checked_div(MARGIN_PRECISION)
@@ -88,7 +88,7 @@ pub fn meets_partial_margin_requirement(
     markets: &Ref<Markets>,
 ) -> ClearingHouseResult<bool> {
     let (mut partial_margin_requirement, total_collateral) =
-        calc_margin_requirement_and_collateral(user, user_positions, markets, MarginType::Partial)?;
+        calculate_margin_requirement_and_total_collateral(user, user_positions, markets, MarginType::Partial)?;
 
     partial_margin_requirement = partial_margin_requirement
         .checked_div(MARGIN_PRECISION)
