@@ -28,7 +28,7 @@ pub enum MarginType {
     Maint,
 }
 
-pub fn calc_margin_requirement_and_collateral(
+pub fn calculate_margin_requirement_and_total_collateral(
     user: &User,
     user_positions: &UserPositions,
     markets: &Markets,
