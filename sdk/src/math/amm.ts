@@ -7,6 +7,9 @@ import {
 	AMM_TO_QUOTE_PRECISION_RATIO,
 	QUOTE_PRECISION,
 	AMM_RESERVE_PRECISION,
+	BID_ASK_SPREAD_PRECISION,
+	TEN_MILLION,
+	TEN_THOUSAND,
 } from '../constants/numericConstants';
 import { calculateBaseAssetValue } from './position';
 import {
@@ -60,7 +63,10 @@ export type AssetType = 'quote' | 'base';
  * @returns quoteAssetReserve and baseAssetReserve after swap. : Precision AMM_RESERVE_PRECISION
  */
 export function calculateAmmReservesAfterSwap(
-	amm: AMM,
+	amm: Pick<
+		AMM,
+		'pegMultiplier' | 'quoteAssetReserve' | 'sqrtK' | 'baseAssetReserve'
+	>,
 	inputAssetType: AssetType,
 	swapAmount: BN,
 	swapDirection: SwapDirection
@@ -91,6 +97,59 @@ export function calculateAmmReservesAfterSwap(
 	}
 
 	return [newQuoteAssetReserve, newBaseAssetReserve];
+}
+
+export function calculateSpreadReserves(
+	amm: AMM,
+	swapDirection: SwapDirection,
+	assetType: AssetType
+): {
+	baseAssetReserve: BN;
+	quoteAssetReserve: BN;
+} {
+	const baseSpread = new BN(amm.baseSpread);
+	let spreadRatio;
+	if (assetType === 'base') {
+		spreadRatio = isVariant(swapDirection, 'add')
+			? BID_ASK_SPREAD_PRECISION.sub(baseSpread)
+			: BID_ASK_SPREAD_PRECISION.add(baseSpread);
+	} else {
+		spreadRatio = isVariant(swapDirection, 'remove')
+			? BID_ASK_SPREAD_PRECISION.add(baseSpread)
+			: BID_ASK_SPREAD_PRECISION.sub(baseSpread);
+	}
+
+	return {
+		baseAssetReserve: calculateSpreadReserve(
+			spreadRatio,
+			amm.baseAssetReserve,
+			'base'
+		),
+		quoteAssetReserve: calculateSpreadReserve(
+			spreadRatio,
+			amm.quoteAssetReserve,
+			'quote'
+		),
+	};
+}
+
+export function calculateSpreadReserve(
+	spreadRatio: BN,
+	reserve: BN,
+	assetType: AssetType
+): BN {
+	let spreadReserveScale;
+	if (assetType === 'base') {
+		spreadReserveScale = squareRootBN(
+			BID_ASK_SPREAD_PRECISION.mul(TEN_MILLION).div(spreadRatio)
+		);
+	} else {
+		spreadReserveScale = squareRootBN(
+			spreadRatio.mul(TEN_MILLION).div(BID_ASK_SPREAD_PRECISION)
+		);
+	}
+
+	return reserve.mul(spreadReserveScale).div(TEN_THOUSAND);
 }
 
 /**

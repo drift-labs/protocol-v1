@@ -14,6 +14,7 @@ import {
 	calculatePrice,
 	getSwapDirection,
 	AssetType,
+	calculateSpreadReserves,
 } from './amm';
 import { squareRootBN } from './utils';
 
@@ -101,6 +102,8 @@ export function calculateTradeSlippage(
  * @param direction
  * @param amount
  * @param market
+ * @param inputAssetType
+ * @param useSpread
  * @return
  * 	| 'acquiredBase' =>  positive/negative change in user's base : BN TODO-PRECISION
  * 	| 'acquiredQuote' => positive/negative change in user's quote : BN TODO-PRECISION
@@ -109,23 +112,37 @@ export function calculateTradeAcquiredAmounts(
 	direction: PositionDirection,
 	amount: BN,
 	market: Market,
-	inputAssetType: AssetType = 'quote'
+	inputAssetType: AssetType = 'quote',
+	useSpread = true
 ): [BN, BN] {
 	if (amount.eq(ZERO)) {
 		return [ZERO, ZERO];
 	}
 
 	const swapDirection = getSwapDirection(inputAssetType, direction);
-	const [newQuoteAssetReserve, newBaseAssetReserve] =
-		calculateAmmReservesAfterSwap(
-			market.amm,
-			inputAssetType,
-			amount,
-			swapDirection
-		);
 
-	const acquiredBase = market.amm.baseAssetReserve.sub(newBaseAssetReserve);
-	let acquiredQuote = market.amm.quoteAssetReserve.sub(newQuoteAssetReserve);
+	let amm: Parameters<typeof calculateAmmReservesAfterSwap>[0];
+	if (useSpread) {
+		const { baseAssetReserve, quoteAssetReserve } = calculateSpreadReserves(
+			market.amm,
+			swapDirection,
+			inputAssetType
+		);
+		amm = {
+			baseAssetReserve,
+			quoteAssetReserve,
+			sqrtK: market.amm.sqrtK,
+			pegMultiplier: market.amm.pegMultiplier,
+		};
+	} else {
+		amm = market.amm;
+	}
+
+	const [newQuoteAssetReserve, newBaseAssetReserve] =
+		calculateAmmReservesAfterSwap(amm, inputAssetType, amount, swapDirection);
+
+	const acquiredBase = amm.baseAssetReserve.sub(newBaseAssetReserve);
+	let acquiredQuote = amm.quoteAssetReserve.sub(newQuoteAssetReserve);
 	if (inputAssetType === 'base' && isVariant(swapDirection, 'remove')) {
 		acquiredQuote = acquiredQuote.sub(ONE);
 	}

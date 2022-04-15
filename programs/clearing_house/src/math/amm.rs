@@ -336,14 +336,6 @@ pub fn calculate_spread_reserves(
     Ok((base_asset_reserve, quote_asset_reserve))
 }
 
-fn calculate_spread(amm: &AMM, mark_price: u128) -> ClearingHouseResult<u128> {
-    mark_price
-        .checked_mul(amm.base_spread as u128)
-        .ok_or_else(math_error!())?
-        .checked_div(BID_ASK_SPREAD_PRECISION)
-        .ok_or_else(math_error!())
-}
-
 fn calculate_spread_reserve(
     spread_ratio: u128,
     reserve: u128,
