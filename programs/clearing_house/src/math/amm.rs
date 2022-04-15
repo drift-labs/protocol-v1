@@ -343,13 +343,13 @@ fn calculate_spread_reserve(
 ) -> ClearingHouseResult<u128> {
     let spread_reserve_scale = match asset_type {
         AssetType::Base => BID_ASK_SPREAD_PRECISION
-            .checked_shl(8) // 2^8
+            .checked_mul(10_000_000_u128) // 2^8
             .ok_or_else(math_error!())?
             .checked_div(spread_ratio)
             .ok_or_else(math_error!())?
             .nth_root(2),
         AssetType::Quote => spread_ratio
-            .checked_shl(8) // 2^8
+            .checked_mul(10_000_000_u128) // 2^8
             .ok_or_else(math_error!())?
             .checked_div(BID_ASK_SPREAD_PRECISION)
             .ok_or_else(math_error!())?
@@ -360,7 +360,7 @@ fn calculate_spread_reserve(
     let spread_reserve = reserve
         .checked_mul(spread_reserve_scale)
         .ok_or_else(math_error!())?
-        .checked_shr(4) // 2^8
+        .checked_div(10_000_u128) // 2^8
         .ok_or_else(math_error!())?;
 
     Ok(spread_reserve)

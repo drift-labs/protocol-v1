@@ -181,8 +181,9 @@ pub fn increase_with_base_asset_amount(
         swap_direction,
         now,
         precomputed_mark_price,
-        precomputed_mark_price.is_none(),
+        true,
     )?;
+    msg!("quote_asset_swapped {}", quote_asset_swapped);
 
     let (quote_asset_amount, quote_asset_amount_surplus) = match maker_limit_price {
         Some(limit_price) => calculate_quote_asset_amount_surplus(
