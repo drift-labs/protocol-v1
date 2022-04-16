@@ -307,10 +307,13 @@ pub fn calculate_spread_reserves(
     direction: PositionDirection,
 ) -> ClearingHouseResult<(u128, u128)> {
     let base_spread = amm.base_spread as u128;
-    let quote_asset_reserve_delta = amm
-        .quote_asset_reserve
-        .checked_div(BID_ASK_SPREAD_PRECISION / (base_spread / 2))
-        .ok_or_else(math_error!())?;
+    let quote_asset_reserve_delta = if base_spread > 0 {
+        amm.quote_asset_reserve
+            .checked_div(BID_ASK_SPREAD_PRECISION / (base_spread / 2))
+            .ok_or_else(math_error!())?
+    } else {
+        0_128
+    };
 
     let quote_asset_reserve = match direction {
         PositionDirection::Long => amm
