@@ -38,7 +38,10 @@ const enumsAreEqual = (
 };
 
 describe('market order', () => {
-	const provider = anchor.Provider.local();
+	const provider = anchor.Provider.local(undefined, {
+		commitment: 'confirmed',
+		preflightCommitment: 'confirmed',
+	});
 	const connection = provider.connection;
 	anchor.setProvider(provider);
 	const chProgram = anchor.workspace.ClearingHouse as Program;
@@ -211,8 +214,13 @@ describe('market order', () => {
 		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
 
+		console.log(
+			'unrealized pnl',
+			clearingHouseUser.getUnrealizedPNL().toString()
+		);
+
 		const market = clearingHouse.getMarket(marketIndex);
-		const expectedFeeToMarket = new BN(1000);
+		const expectedFeeToMarket = new BN(1001);
 		assert(market.amm.totalFee.eq(expectedFeeToMarket));
 
 		const userPositionsAccount = clearingHouseUser.getUserPositionsAccount();
@@ -304,6 +312,11 @@ describe('market order', () => {
 		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
 
+		console.log(
+			'unrealized pnl',
+			clearingHouseUser.getUnrealizedPNL().toString()
+		);
+
 		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
 		const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[2];
 
@@ -379,6 +392,11 @@ describe('market order', () => {
 		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
 
+		console.log(
+			'unrealized pnl',
+			clearingHouseUser.getUnrealizedPNL().toString()
+		);
+
 		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
 		const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[4];
 
@@ -393,6 +411,12 @@ describe('market order', () => {
 		assert(orderRecord.order.fee.eq(expectedFee));
 
 		await clearingHouse.closePosition(marketIndex);
+		await clearingHouseUser.fetchAccounts();
+		console.log(
+			clearingHouseUser
+				.getUserPositionsAccount()
+				.positions[0].baseAssetAmount.toString()
+		);
 	});
 
 	it('short market order quote', async () => {
@@ -421,6 +445,7 @@ describe('market order', () => {
 			'expected base with spread',
 			tradeAcquiredAmountsWithSpread[0].abs().toString()
 		);
+
 		const expectedBaseAssetAmount = tradeAcquiredAmountsWithSpread[0].abs();
 
 		const orderParams = getMarketOrderParams(
@@ -446,6 +471,11 @@ describe('market order', () => {
 
 		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
+
+		console.log(
+			'unrealized pnl',
+			clearingHouseUser.getUnrealizedPNL().toString()
+		);
 
 		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
 		const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[6];
