@@ -8,8 +8,6 @@ import {
 	QUOTE_PRECISION,
 	AMM_RESERVE_PRECISION,
 	BID_ASK_SPREAD_PRECISION,
-	TEN_MILLION,
-	TEN_THOUSAND,
 } from '../constants/numericConstants';
 import { calculateBaseAssetValue } from './position';
 import {
@@ -101,72 +99,27 @@ export function calculateAmmReservesAfterSwap(
 
 export function calculateSpreadReserves(
 	amm: AMM,
-	swapDirection: SwapDirection,
-	assetType: AssetType
+	direction: PositionDirection
 ): {
 	baseAssetReserve: BN;
 	quoteAssetReserve: BN;
 } {
-	const spreadRatio = calculateSpreadRatio(amm, swapDirection, assetType);
+	const quoteAsserReserveDelta = amm.quoteAssetReserve.div(
+		BID_ASK_SPREAD_PRECISION.div(new BN(amm.baseSpread / 2))
+	);
 
+	let quoteAssetReserve;
+	if (isVariant(direction, 'long')) {
+		quoteAssetReserve = amm.quoteAssetReserve.add(quoteAsserReserveDelta);
+	} else {
+		quoteAssetReserve = amm.quoteAssetReserve.sub(quoteAsserReserveDelta);
+	}
+
+	const baseAssetReserve = amm.sqrtK.mul(amm.sqrtK).div(quoteAssetReserve);
 	return {
-		baseAssetReserve: calculateSpreadReserve(
-			spreadRatio,
-			amm.baseAssetReserve,
-			'base'
-		),
-		quoteAssetReserve: calculateSpreadReserve(
-			spreadRatio,
-			amm.quoteAssetReserve,
-			'quote'
-		),
+		baseAssetReserve,
+		quoteAssetReserve,
 	};
-}
-
-export function calculateSpreadBaseAssetReserve(
-	amm: AMM,
-	swapDirection: SwapDirection
-): BN {
-	const spreadRatio = calculateSpreadRatio(amm, swapDirection, 'base');
-	return calculateSpreadReserve(spreadRatio, amm.baseAssetReserve, 'base');
-}
-
-function calculateSpreadRatio(
-	amm: AMM,
-	swapDirection: SwapDirection,
-	assetType: AssetType
-): BN {
-	const baseSpread = new BN(amm.baseSpread);
-	let spreadRatio;
-	if (assetType === 'base') {
-		spreadRatio = isVariant(swapDirection, 'add')
-			? BID_ASK_SPREAD_PRECISION.sub(baseSpread)
-			: BID_ASK_SPREAD_PRECISION.add(baseSpread);
-	} else {
-		spreadRatio = isVariant(swapDirection, 'remove')
-			? BID_ASK_SPREAD_PRECISION.add(baseSpread)
-			: BID_ASK_SPREAD_PRECISION.sub(baseSpread);
-	}
-	return spreadRatio;
-}
-
-function calculateSpreadReserve(
-	spreadRatio: BN,
-	reserve: BN,
-	assetType: AssetType
-): BN {
-	let spreadReserveScale;
-	if (assetType === 'base') {
-		spreadReserveScale = squareRootBN(
-			BID_ASK_SPREAD_PRECISION.mul(TEN_MILLION).div(spreadRatio)
-		);
-	} else {
-		spreadReserveScale = squareRootBN(
-			spreadRatio.mul(TEN_MILLION).div(BID_ASK_SPREAD_PRECISION)
-		);
-	}
-
-	return reserve.mul(spreadReserveScale).div(TEN_THOUSAND);
 }
 
 /**
@@ -380,10 +333,12 @@ export function calculateMaxBaseAssetAmountToTrade(
 
 	let baseAssetReserveBefore;
 	if (useSpread) {
-		baseAssetReserveBefore = calculateSpreadBaseAssetReserve(
+		baseAssetReserveBefore = calculateSpreadReserves(
 			amm,
-			swapDirection
-		);
+			isVariant(swapDirection, 'remove')
+				? PositionDirection.LONG
+				: PositionDirection.SHORT
+		).baseAssetReserve;
 	} else {
 		baseAssetReserveBefore = amm.baseAssetReserve;
 	}

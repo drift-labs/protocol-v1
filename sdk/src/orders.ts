@@ -303,8 +303,7 @@ export function calculateBaseAssetAmountUserCanExecute(
 	if (useSpread) {
 		const { baseAssetReserve, quoteAssetReserve } = calculateSpreadReserves(
 			market.amm,
-			swapDirection,
-			'quote'
+			order.direction
 		);
 		amm = {
 			baseAssetReserve,

@@ -167,8 +167,8 @@ describe('market order', () => {
 			'base',
 			true
 		);
-		console.log(tradeAcquiredAmountsNoSpread[1].toString());
-		console.log(tradeAcquiredAmountsWithSpread[1].toString());
+		console.log(tradeAcquiredAmountsNoSpread[1].abs().toString());
+		console.log(tradeAcquiredAmountsWithSpread[1].abs().toString());
 
 		const orderParams = getMarketOrderParams(
 			marketIndex,
