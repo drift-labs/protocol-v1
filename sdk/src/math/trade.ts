@@ -6,7 +6,6 @@ import {
 	PEG_PRECISION,
 	AMM_TO_QUOTE_PRECISION_RATIO,
 	ZERO,
-	ONE,
 } from '../constants/numericConstants';
 import { calculateMarkPrice } from './market';
 import {
@@ -143,7 +142,7 @@ export function calculateTradeAcquiredAmounts(
 	const acquiredBase = amm.baseAssetReserve.sub(newBaseAssetReserve);
 	let acquiredQuote = amm.quoteAssetReserve.sub(newQuoteAssetReserve);
 	if (inputAssetType === 'base' && isVariant(swapDirection, 'remove')) {
-		acquiredQuote = acquiredQuote.sub(ONE);
+		acquiredQuote = acquiredQuote.sub(AMM_TO_QUOTE_PRECISION_RATIO);
 	}
 
 	return [acquiredBase, acquiredQuote];

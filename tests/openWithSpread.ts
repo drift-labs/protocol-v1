@@ -23,6 +23,7 @@ import {
 } from './testHelpers';
 import {
 	AMM_RESERVE_PRECISION,
+	AMM_TO_QUOTE_PRECISION_RATIO,
 	calculateTradeAcquiredAmounts,
 	FeeStructure,
 	QUOTE_PRECISION,
@@ -167,8 +168,24 @@ describe('market order', () => {
 			'base',
 			true
 		);
-		console.log(tradeAcquiredAmountsNoSpread[1].abs().toString());
-		console.log(tradeAcquiredAmountsWithSpread[1].abs().toString());
+
+		console.log(
+			'expected quote with out spread',
+			tradeAcquiredAmountsNoSpread[1]
+				.abs()
+				.div(AMM_TO_QUOTE_PRECISION_RATIO)
+				.toString()
+		);
+		console.log(
+			'expected quote with spread',
+			tradeAcquiredAmountsWithSpread[1]
+				.abs()
+				.div(AMM_TO_QUOTE_PRECISION_RATIO)
+				.toString()
+		);
+		const expectedQuoteAssetAmount = tradeAcquiredAmountsWithSpread[1]
+			.div(AMM_TO_QUOTE_PRECISION_RATIO)
+			.abs();
 
 		const orderParams = getMarketOrderParams(
 			marketIndex,
@@ -202,7 +219,6 @@ describe('market order', () => {
 		const firstPosition = userPositionsAccount.positions[0];
 		assert(firstPosition.baseAssetAmount.eq(baseAssetAmount));
 
-		const expectedQuoteAssetAmount = new BN(1000503);
 		assert(firstPosition.quoteAssetAmount.eq(expectedQuoteAssetAmount));
 
 		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
@@ -232,11 +248,37 @@ describe('market order', () => {
 		assert(orderRecord.quoteAssetAmountFilled.eq(expectedQuoteAssetAmount));
 		assert(orderRecord.fillerReward.eq(ZERO));
 		assert(orderRecord.tradeRecordId.eq(expectedTradeRecordId));
+
+		await clearingHouse.closePosition(marketIndex);
 	});
 
 	it('Long market order quote', async () => {
 		const direction = PositionDirection.LONG;
 		const quoteAssetAmount = new BN(QUOTE_PRECISION);
+
+		const tradeAcquiredAmountsNoSpread = calculateTradeAcquiredAmounts(
+			direction,
+			quoteAssetAmount,
+			clearingHouse.getMarket(0),
+			'quote',
+			false
+		);
+		const tradeAcquiredAmountsWithSpread = calculateTradeAcquiredAmounts(
+			direction,
+			quoteAssetAmount,
+			clearingHouse.getMarket(0),
+			'quote',
+			true
+		);
+		console.log(
+			'expected base with out spread',
+			tradeAcquiredAmountsNoSpread[0].abs().toString()
+		);
+		console.log(
+			'expected base with spread',
+			tradeAcquiredAmountsWithSpread[0].abs().toString()
+		);
+		const expectedBaseAssetAmount = tradeAcquiredAmountsWithSpread[0].abs();
 
 		const orderParams = getMarketOrderParams(
 			marketIndex,
@@ -262,19 +304,159 @@ describe('market order', () => {
 		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
 
-		const market = clearingHouse.getMarket(marketIndex);
-		const expectedTotalFee = new BN(2000);
-		assert(market.amm.totalFee.eq(expectedTotalFee));
 		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
-		const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[1];
+		const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[2];
 
-		const expectedBaseAssetAmount = new BN(9994981889408);
 		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(expectedBaseAssetAmount));
 		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(quoteAssetAmount));
 
 		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
 		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[3];
 		const expectedFee = new BN(500);
+		assert(orderRecord.fee.eq(expectedFee));
+		assert(orderRecord.order.fee.eq(expectedFee));
+
+		await clearingHouse.closePosition(marketIndex);
+	});
+
+	it('short market order base', async () => {
+		const direction = PositionDirection.SHORT;
+		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
+
+		const tradeAcquiredAmountsNoSpread = calculateTradeAcquiredAmounts(
+			direction,
+			baseAssetAmount,
+			clearingHouse.getMarket(0),
+			'base',
+			false
+		);
+		const tradeAcquiredAmountsWithSpread = calculateTradeAcquiredAmounts(
+			direction,
+			baseAssetAmount,
+			clearingHouse.getMarket(0),
+			'base',
+			true
+		);
+		console.log(
+			'expected quote with out spread',
+			tradeAcquiredAmountsNoSpread[1]
+				.abs()
+				.div(AMM_TO_QUOTE_PRECISION_RATIO)
+				.toString()
+		);
+		console.log(
+			'expected quote with spread',
+			tradeAcquiredAmountsWithSpread[1]
+				.abs()
+				.div(AMM_TO_QUOTE_PRECISION_RATIO)
+				.toString()
+		);
+		const expectedQuoteAssetAmount = tradeAcquiredAmountsWithSpread[1]
+			.abs()
+			.div(AMM_TO_QUOTE_PRECISION_RATIO);
+
+		const orderParams = getMarketOrderParams(
+			marketIndex,
+			direction,
+			ZERO,
+			baseAssetAmount,
+			false
+		);
+		const txSig = await clearingHouse.placeAndFillOrder(orderParams);
+		const computeUnits = await findComputeUnitConsumption(
+			clearingHouse.program.programId,
+			connection,
+			txSig,
+			'confirmed'
+		);
+		console.log('compute units', computeUnits);
+		console.log(
+			'tx logs',
+			(await connection.getTransaction(txSig, { commitment: 'confirmed' })).meta
+				.logMessages
+		);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
+		const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[4];
+
+		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(baseAssetAmount));
+		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(expectedQuoteAssetAmount));
+		const expectedFee = new BN(499);
+		assert.ok(tradeHistoryRecord.fee.eq(expectedFee));
+
+		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
+		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[5];
+		assert(orderRecord.fee.eq(expectedFee));
+		assert(orderRecord.order.fee.eq(expectedFee));
+
+		await clearingHouse.closePosition(marketIndex);
+	});
+
+	it('short market order quote', async () => {
+		const direction = PositionDirection.SHORT;
+		const quoteAssetAmount = new BN(QUOTE_PRECISION);
+
+		const tradeAcquiredAmountsNoSpread = calculateTradeAcquiredAmounts(
+			direction,
+			quoteAssetAmount,
+			clearingHouse.getMarket(0),
+			'quote',
+			false
+		);
+		const tradeAcquiredAmountsWithSpread = calculateTradeAcquiredAmounts(
+			direction,
+			quoteAssetAmount,
+			clearingHouse.getMarket(0),
+			'quote',
+			true
+		);
+		console.log(
+			'expected base with out spread',
+			tradeAcquiredAmountsNoSpread[0].abs().toString()
+		);
+		console.log(
+			'expected base with spread',
+			tradeAcquiredAmountsWithSpread[0].abs().toString()
+		);
+		const expectedBaseAssetAmount = tradeAcquiredAmountsWithSpread[0].abs();
+
+		const orderParams = getMarketOrderParams(
+			marketIndex,
+			direction,
+			quoteAssetAmount,
+			ZERO,
+			false
+		);
+		const txSig = await clearingHouse.placeAndFillOrder(orderParams);
+		const computeUnits = await findComputeUnitConsumption(
+			clearingHouse.program.programId,
+			connection,
+			txSig,
+			'confirmed'
+		);
+		console.log('compute units', computeUnits);
+		console.log(
+			'tx logs',
+			(await connection.getTransaction(txSig, { commitment: 'confirmed' })).meta
+				.logMessages
+		);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
+		const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[6];
+
+		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(expectedBaseAssetAmount));
+		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(quoteAssetAmount));
+		const expectedFee = new BN(500);
+		assert.ok(tradeHistoryRecord.fee.eq(expectedFee));
+
+		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
+		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[7];
 		assert(orderRecord.fee.eq(expectedFee));
 		assert(orderRecord.order.fee.eq(expectedFee));
 	});
