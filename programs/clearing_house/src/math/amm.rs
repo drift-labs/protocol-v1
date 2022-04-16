@@ -304,71 +304,36 @@ pub fn calculate_quote_asset_amount_swapped(
 
 pub fn calculate_spread_reserves(
     amm: &AMM,
-    swap_direction: SwapDirection,
-    swapped_asset: AssetType,
+    direction: PositionDirection,
 ) -> ClearingHouseResult<(u128, u128)> {
     let base_spread = amm.base_spread as u128;
-    let spread_ratio = match swapped_asset {
-        AssetType::Base => match swap_direction {
-            SwapDirection::Add => BID_ASK_SPREAD_PRECISION
-                .checked_sub(base_spread)
-                .ok_or_else(math_error!())?, // Short
-            SwapDirection::Remove => BID_ASK_SPREAD_PRECISION
-                .checked_add(base_spread)
-                .ok_or_else(math_error!())?, // Long
-        },
-        AssetType::Quote => match swap_direction {
-            SwapDirection::Add => BID_ASK_SPREAD_PRECISION
-                .checked_add(base_spread)
-                .ok_or_else(math_error!())?, // Long
-            SwapDirection::Remove => BID_ASK_SPREAD_PRECISION
-                .checked_sub(base_spread)
-                .ok_or_else(math_error!())?, // Short
-        },
-    };
-
-    let base_asset_reserve =
-        calculate_spread_reserve(spread_ratio, amm.base_asset_reserve, AssetType::Base)?;
-
-    let quote_asset_reserve =
-        calculate_spread_reserve(spread_ratio, amm.quote_asset_reserve, AssetType::Quote)?;
-
-    Ok((base_asset_reserve, quote_asset_reserve))
-}
-
-fn calculate_spread_reserve(
-    spread_ratio: u128,
-    reserve: u128,
-    asset_type: AssetType,
-) -> ClearingHouseResult<u128> {
-    let spread_reserve_scale = match asset_type {
-        AssetType::Base => BID_ASK_SPREAD_PRECISION
-            .checked_mul(1_000_000_000_000_u128) // 2^8
-            .ok_or_else(math_error!())?
-            .checked_div(spread_ratio)
-            .ok_or_else(math_error!())?
-            .nth_root(2),
-        AssetType::Quote => spread_ratio
-            .checked_mul(1_000_000_000_000_u128) // 2^8
-            .ok_or_else(math_error!())?
-            .checked_div(BID_ASK_SPREAD_PRECISION)
-            .ok_or_else(math_error!())?
-            .nth_root(2),
-    };
-
-    msg!("reserve {}", reserve);
-    msg!("spread_reserve_scale {}", spread_reserve_scale);
-
-    // f (fraction of reserves to achieve target price)
-    let spread_reserve = reserve
-        .checked_mul(spread_reserve_scale)
-        .ok_or_else(math_error!())?
-        .checked_div(1_000_000_u128) // 2^8
+    let quote_asset_reserve_delta = amm
+        .quote_asset_reserve
+        .checked_div(BID_ASK_SPREAD_PRECISION / (base_spread / 2))
         .ok_or_else(math_error!())?;
 
-    msg!("spread_reserve {}", spread_reserve);
+    let quote_asset_reserve = match direction {
+        PositionDirection::Long => amm
+            .quote_asset_reserve
+            .checked_add(quote_asset_reserve_delta)
+            .ok_or_else(math_error!())?,
+        PositionDirection::Short => amm
+            .quote_asset_reserve
+            .checked_sub(quote_asset_reserve_delta)
+            .ok_or_else(math_error!())?,
+    };
 
-    Ok(spread_reserve)
+    let invariant_sqrt_u192 = U192::from(amm.sqrt_k);
+    let invariant = invariant_sqrt_u192
+        .checked_mul(invariant_sqrt_u192)
+        .ok_or_else(math_error!())?;
+
+    let base_asset_reserve = invariant
+        .checked_div(U192::from(quote_asset_reserve))
+        .ok_or_else(math_error!())?
+        .try_to_u128()?;
+
+    Ok((base_asset_reserve, quote_asset_reserve))
 }
 
 pub fn calculate_oracle_mark_spread(
@@ -601,7 +566,7 @@ pub fn adjust_k_cost(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouse
 pub fn calculate_max_base_asset_amount_to_trade(
     amm: &AMM,
     limit_price: u128,
-    swap_direction: SwapDirection,
+    direction: PositionDirection,
     use_spread: bool,
 ) -> ClearingHouseResult<(u128, PositionDirection)> {
     let invariant_sqrt_u192 = U192::from(amm.sqrt_k);
@@ -624,8 +589,7 @@ pub fn calculate_max_base_asset_amount_to_trade(
         .try_to_u128()?;
 
     let base_asset_reserve_before = if use_spread {
-        let (spread_base_asset_reserve, _) =
-            calculate_spread_reserves(amm, swap_direction, AssetType::Base)?;
+        let (spread_base_asset_reserve, _) = calculate_spread_reserves(amm, direction)?;
         spread_base_asset_reserve
     } else {
         amm.base_asset_reserve

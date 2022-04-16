@@ -15,10 +15,17 @@ import {
 	findComputeUnitConsumption,
 } from '../sdk/src';
 
-import { mockOracle, mockUSDCMint, mockUserUSDCAccount } from './testHelpers';
+import {
+	mockOracle,
+	mockUSDCMint,
+	mockUserUSDCAccount,
+	setFeedPrice,
+} from './testHelpers';
 import {
 	AMM_RESERVE_PRECISION,
 	calculateTradeAcquiredAmounts,
+	FeeStructure,
+	QUOTE_PRECISION,
 	ZERO,
 } from '../sdk';
 
@@ -62,7 +69,10 @@ describe('market order', () => {
 		clearingHouse = Admin.from(
 			connection,
 			provider.wallet,
-			chProgram.programId
+			chProgram.programId,
+			{
+				commitment: 'confirmed',
+			}
 		);
 		await clearingHouse.initialize(usdcMint.publicKey, true);
 		await clearingHouse.subscribeToAll();
@@ -78,8 +88,40 @@ describe('market order', () => {
 			periodicity
 		);
 
-		await clearingHouse.updateMarketBaseSpread(marketIndex, 1000);
-		console.log(clearingHouse.getMarket(0).amm.baseSpread);
+		await clearingHouse.updateMarketBaseSpread(marketIndex, 500);
+		const feeStructure: FeeStructure = {
+			feeNumerator: new BN(5), // 5bps
+			feeDenominator: new BN(10000),
+			discountTokenTiers: {
+				firstTier: {
+					minimumBalance: new BN(1),
+					discountNumerator: new BN(1),
+					discountDenominator: new BN(1),
+				},
+				secondTier: {
+					minimumBalance: new BN(1),
+					discountNumerator: new BN(1),
+					discountDenominator: new BN(1),
+				},
+				thirdTier: {
+					minimumBalance: new BN(1),
+					discountNumerator: new BN(1),
+					discountDenominator: new BN(1),
+				},
+				fourthTier: {
+					minimumBalance: new BN(1),
+					discountNumerator: new BN(1),
+					discountDenominator: new BN(1),
+				},
+			},
+			referralDiscount: {
+				referrerRewardNumerator: new BN(1),
+				referrerRewardDenominator: new BN(1),
+				refereeDiscountNumerator: new BN(1),
+				refereeDiscountDenominator: new BN(1),
+			},
+		};
+		await clearingHouse.updateFee(feeStructure);
 
 		await clearingHouse.initializeUserAccountAndDepositCollateral(
 			usdcAmount,
@@ -93,12 +135,21 @@ describe('market order', () => {
 		await clearingHouseUser.subscribe();
 	});
 
+	beforeEach(async () => {
+		await clearingHouse.moveAmmPrice(
+			ammInitialBaseAssetReserve,
+			ammInitialQuoteAssetReserve,
+			ZERO
+		);
+		await setFeedPrice(anchor.workspace.Pyth, 1, solUsd);
+	});
+
 	after(async () => {
 		await clearingHouse.unsubscribe();
 		await clearingHouseUser.unsubscribe();
 	});
 
-	it('Long market order', async () => {
+	it('Long market order base', async () => {
 		const direction = PositionDirection.LONG;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
 
@@ -140,27 +191,18 @@ describe('market order', () => {
 				.logMessages
 		);
 
-		const orderIndex = new BN(0);
-
 		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
-
-		const userOrdersAccount = clearingHouseUser.getUserOrdersAccount();
-		const order = userOrdersAccount.orders[orderIndex.toString()];
 
 		const market = clearingHouse.getMarket(marketIndex);
 		const expectedFeeToMarket = new BN(1000);
 		assert(market.amm.totalFee.eq(expectedFeeToMarket));
 
-		assert(order.baseAssetAmount.eq(new BN(0)));
-		assert(order.price.eq(new BN(0)));
-		assert(order.marketIndex.eq(new BN(0)));
-
 		const userPositionsAccount = clearingHouseUser.getUserPositionsAccount();
 		const firstPosition = userPositionsAccount.positions[0];
 		assert(firstPosition.baseAssetAmount.eq(baseAssetAmount));
 
-		const expectedQuoteAssetAmount = new BN(1000003);
+		const expectedQuoteAssetAmount = new BN(1000503);
 		assert(firstPosition.quoteAssetAmount.eq(expectedQuoteAssetAmount));
 
 		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
@@ -175,7 +217,7 @@ describe('market order', () => {
 		const expectedRecordId = new BN(2);
 		const expectedOrderId = new BN(1);
 		const expectedTradeRecordId = new BN(1);
-		const expectedFee = new BN(1000);
+		const expectedFee = new BN(500);
 		assert(orderRecord.recordId.eq(expectedRecordId));
 		assert(orderRecord.ts.gt(ZERO));
 		assert(orderRecord.order.orderId.eq(expectedOrderId));
@@ -190,5 +232,50 @@ describe('market order', () => {
 		assert(orderRecord.quoteAssetAmountFilled.eq(expectedQuoteAssetAmount));
 		assert(orderRecord.fillerReward.eq(ZERO));
 		assert(orderRecord.tradeRecordId.eq(expectedTradeRecordId));
+	});
+
+	it('Long market order quote', async () => {
+		const direction = PositionDirection.LONG;
+		const quoteAssetAmount = new BN(QUOTE_PRECISION);
+
+		const orderParams = getMarketOrderParams(
+			marketIndex,
+			direction,
+			quoteAssetAmount,
+			ZERO,
+			false
+		);
+		const txSig = await clearingHouse.placeAndFillOrder(orderParams);
+		const computeUnits = await findComputeUnitConsumption(
+			clearingHouse.program.programId,
+			connection,
+			txSig,
+			'confirmed'
+		);
+		console.log('compute units', computeUnits);
+		console.log(
+			'tx logs',
+			(await connection.getTransaction(txSig, { commitment: 'confirmed' })).meta
+				.logMessages
+		);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		const market = clearingHouse.getMarket(marketIndex);
+		const expectedTotalFee = new BN(2000);
+		assert(market.amm.totalFee.eq(expectedTotalFee));
+		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
+		const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[1];
+
+		const expectedBaseAssetAmount = new BN(9994981889408);
+		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(expectedBaseAssetAmount));
+		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(quoteAssetAmount));
+
+		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
+		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[3];
+		const expectedFee = new BN(500);
+		assert(orderRecord.fee.eq(expectedFee));
+		assert(orderRecord.order.fee.eq(expectedFee));
 	});
 });
