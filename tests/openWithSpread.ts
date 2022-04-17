@@ -227,6 +227,9 @@ describe('market order', () => {
 		assert.ok(tradeHistoryAccount.head.toNumber() === 1);
 		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(baseAssetAmount));
 		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(expectedQuoteAssetAmount));
+		assert.ok(
+			tradeHistoryRecord.quoteAssetAmountSurplus.eq(unrealizedPnl.abs())
+		);
 
 		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
 		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[1];
@@ -307,6 +310,9 @@ describe('market order', () => {
 
 		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(expectedBaseAssetAmount));
 		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(quoteAssetAmount));
+		assert.ok(
+			tradeHistoryRecord.quoteAssetAmountSurplus.eq(unrealizedPnl.abs())
+		);
 
 		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
 		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[3];
@@ -403,6 +409,11 @@ describe('market order', () => {
 
 		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(baseAssetAmount));
 		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(expectedQuoteAssetAmount));
+		assert.ok(
+			tradeHistoryRecord.quoteAssetAmountSurplus.eq(
+				unrealizedPnl.abs().sub(ONE)
+			)
+		);
 
 		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
 		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[5];
@@ -495,6 +506,11 @@ describe('market order', () => {
 
 		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(expectedBaseAssetAmount));
 		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(quoteAssetAmount));
+		assert.ok(
+			tradeHistoryRecord.quoteAssetAmountSurplus.eq(
+				unrealizedPnl.abs().sub(ONE)
+			)
+		);
 
 		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
 		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[7];

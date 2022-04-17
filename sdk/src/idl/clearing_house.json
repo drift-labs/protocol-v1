@@ -3619,7 +3619,7 @@
             "type": "u128"
           },
           {
-            "name": "referrerReward",
+            "name": "quoteAssetAmountSurplus",
             "type": "u128"
           },
           {
