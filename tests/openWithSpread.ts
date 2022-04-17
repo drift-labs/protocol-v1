@@ -10,7 +10,6 @@ import {
 	PositionDirection,
 	ClearingHouseUser,
 	OrderRecord,
-	OrderAction,
 	getMarketOrderParams,
 	findComputeUnitConsumption,
 } from '../sdk/src';
@@ -26,16 +25,10 @@ import {
 	AMM_TO_QUOTE_PRECISION_RATIO,
 	calculateTradeAcquiredAmounts,
 	FeeStructure,
+	ONE,
 	QUOTE_PRECISION,
 	ZERO,
 } from '../sdk';
-
-const enumsAreEqual = (
-	actual: Record<string, unknown>,
-	expected: Record<string, unknown>
-): boolean => {
-	return JSON.stringify(actual) === JSON.stringify(expected);
-};
 
 describe('market order', () => {
 	const provider = anchor.Provider.local(undefined, {
@@ -94,7 +87,7 @@ describe('market order', () => {
 
 		await clearingHouse.updateMarketBaseSpread(marketIndex, 500);
 		const feeStructure: FeeStructure = {
-			feeNumerator: new BN(5), // 5bps
+			feeNumerator: new BN(0), // 5bps
 			feeDenominator: new BN(10000),
 			discountTokenTiers: {
 				firstTier: {
@@ -154,6 +147,7 @@ describe('market order', () => {
 	});
 
 	it('Long market order base', async () => {
+		const initialCollateral = clearingHouseUser.getUserAccount().collateral;
 		const direction = PositionDirection.LONG;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
 
@@ -214,13 +208,11 @@ describe('market order', () => {
 		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
 
-		console.log(
-			'unrealized pnl',
-			clearingHouseUser.getUnrealizedPNL().toString()
-		);
+		const unrealizedPnl = clearingHouseUser.getUnrealizedPNL();
+		console.log('unrealized pnl', unrealizedPnl.toString());
 
 		const market = clearingHouse.getMarket(marketIndex);
-		const expectedFeeToMarket = new BN(1001);
+		const expectedFeeToMarket = new BN(unrealizedPnl.abs());
 		assert(market.amm.totalFee.eq(expectedFeeToMarket));
 
 		const userPositionsAccount = clearingHouseUser.getUserPositionsAccount();
@@ -238,29 +230,24 @@ describe('market order', () => {
 
 		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
 		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[1];
-		const expectedRecordId = new BN(2);
-		const expectedOrderId = new BN(1);
-		const expectedTradeRecordId = new BN(1);
-		const expectedFee = new BN(500);
-		assert(orderRecord.recordId.eq(expectedRecordId));
-		assert(orderRecord.ts.gt(ZERO));
-		assert(orderRecord.order.orderId.eq(expectedOrderId));
-		assert(orderRecord.fee.eq(expectedFee));
-		assert(orderRecord.order.fee.eq(expectedFee));
-		assert(enumsAreEqual(orderRecord.action, OrderAction.FILL));
-		assert(
-			orderRecord.user.equals(await clearingHouseUser.getUserAccountPublicKey())
-		);
-		assert(orderRecord.authority.equals(clearingHouseUser.authority));
-		assert(orderRecord.baseAssetAmountFilled.eq(baseAssetAmount));
-		assert(orderRecord.quoteAssetAmountFilled.eq(expectedQuoteAssetAmount));
-		assert(orderRecord.fillerReward.eq(ZERO));
-		assert(orderRecord.tradeRecordId.eq(expectedTradeRecordId));
+		assert(orderRecord.quoteAssetAmountSurplus.eq(unrealizedPnl.abs()));
 
 		await clearingHouse.closePosition(marketIndex);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		const pnl = clearingHouseUser
+			.getUserAccount()
+			.collateral.sub(initialCollateral);
+		console.log(pnl.toString());
+		console.log(clearingHouse.getMarket(0).amm.totalFee.toString());
+		assert(clearingHouse.getMarket(0).amm.totalFee.eq(pnl.abs()));
 	});
 
 	it('Long market order quote', async () => {
+		const initialCollateral = clearingHouseUser.getUserAccount().collateral;
+		const initialAmmTotalFee = clearingHouse.getMarket(0).amm.totalFee;
 		const direction = PositionDirection.LONG;
 		const quoteAssetAmount = new BN(QUOTE_PRECISION);
 
@@ -312,10 +299,8 @@ describe('market order', () => {
 		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
 
-		console.log(
-			'unrealized pnl',
-			clearingHouseUser.getUnrealizedPNL().toString()
-		);
+		const unrealizedPnl = clearingHouseUser.getUnrealizedPNL();
+		console.log('unrealized pnl', unrealizedPnl.toString());
 
 		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
 		const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[2];
@@ -325,14 +310,32 @@ describe('market order', () => {
 
 		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
 		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[3];
-		const expectedFee = new BN(500);
-		assert(orderRecord.fee.eq(expectedFee));
-		assert(orderRecord.order.fee.eq(expectedFee));
+		assert(orderRecord.quoteAssetAmountSurplus.eq(unrealizedPnl.abs()));
 
 		await clearingHouse.closePosition(marketIndex);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		const pnl = clearingHouseUser
+			.getUserAccount()
+			.collateral.sub(initialCollateral);
+		console.log(pnl.toString());
+		console.log(
+			clearingHouse.getMarket(0).amm.totalFee.sub(initialAmmTotalFee).toString()
+		);
+		assert(
+			clearingHouse
+				.getMarket(0)
+				.amm.totalFee.sub(initialAmmTotalFee)
+				.eq(pnl.abs())
+		);
 	});
 
 	it('short market order base', async () => {
+		const initialCollateral = clearingHouseUser.getUserAccount().collateral;
+		const initialAmmTotalFee = clearingHouse.getMarket(0).amm.totalFee;
+
 		const direction = PositionDirection.SHORT;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
 
@@ -392,34 +395,46 @@ describe('market order', () => {
 		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
 
-		console.log(
-			'unrealized pnl',
-			clearingHouseUser.getUnrealizedPNL().toString()
-		);
+		const unrealizedPnl = clearingHouseUser.getUnrealizedPNL();
+		console.log('unrealized pnl', unrealizedPnl.toString());
 
 		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
 		const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[4];
 
 		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(baseAssetAmount));
 		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(expectedQuoteAssetAmount));
-		const expectedFee = new BN(499);
-		assert.ok(tradeHistoryRecord.fee.eq(expectedFee));
 
 		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
 		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[5];
-		assert(orderRecord.fee.eq(expectedFee));
-		assert(orderRecord.order.fee.eq(expectedFee));
+		console.log(orderRecord.quoteAssetAmountSurplus.toString());
+		assert(
+			orderRecord.quoteAssetAmountSurplus.eq(unrealizedPnl.abs().sub(ONE))
+		);
 
 		await clearingHouse.closePosition(marketIndex);
+
+		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
+
+		const pnl = clearingHouseUser
+			.getUserAccount()
+			.collateral.sub(initialCollateral);
+		console.log(pnl.toString());
 		console.log(
-			clearingHouseUser
-				.getUserPositionsAccount()
-				.positions[0].baseAssetAmount.toString()
+			clearingHouse.getMarket(0).amm.totalFee.sub(initialAmmTotalFee).toString()
+		);
+		assert(
+			clearingHouse
+				.getMarket(0)
+				.amm.totalFee.sub(initialAmmTotalFee)
+				.eq(pnl.abs())
 		);
 	});
 
 	it('short market order quote', async () => {
+		const initialCollateral = clearingHouseUser.getUserAccount().collateral;
+		const initialAmmTotalFee = clearingHouse.getMarket(0).amm.totalFee;
+
 		const direction = PositionDirection.SHORT;
 		const quoteAssetAmount = new BN(QUOTE_PRECISION);
 
@@ -472,22 +487,39 @@ describe('market order', () => {
 		await clearingHouse.fetchAccounts();
 		await clearingHouseUser.fetchAccounts();
 
-		console.log(
-			'unrealized pnl',
-			clearingHouseUser.getUnrealizedPNL().toString()
-		);
+		const unrealizedPnl = clearingHouseUser.getUnrealizedPNL();
+		console.log('unrealized pnl', unrealizedPnl.toString());
 
 		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
 		const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[6];
 
 		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(expectedBaseAssetAmount));
 		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(quoteAssetAmount));
-		const expectedFee = new BN(500);
-		assert.ok(tradeHistoryRecord.fee.eq(expectedFee));
 
 		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
 		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[7];
-		assert(orderRecord.fee.eq(expectedFee));
-		assert(orderRecord.order.fee.eq(expectedFee));
+		console.log(orderRecord.quoteAssetAmountSurplus.toString());
+		assert(
+			orderRecord.quoteAssetAmountSurplus.eq(unrealizedPnl.abs().sub(ONE))
+		);
+
+		await clearingHouse.closePosition(marketIndex);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		const pnl = clearingHouseUser
+			.getUserAccount()
+			.collateral.sub(initialCollateral);
+		console.log(pnl.toString());
+		console.log(
+			clearingHouse.getMarket(0).amm.totalFee.sub(initialAmmTotalFee).toString()
+		);
+		assert(
+			clearingHouse
+				.getMarket(0)
+				.amm.totalFee.sub(initialAmmTotalFee)
+				.eq(pnl.abs())
+		);
 	});
 });

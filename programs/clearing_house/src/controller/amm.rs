@@ -120,25 +120,20 @@ fn calculate_quote_swap_output_with_spread(
         amm.sqrt_k,
     )?;
 
-    let (quote_asset_reserve_after_close, _) = amm::calculate_swap_output(
+    let (quote_asset_reserve_if_close, _) = amm::calculate_swap_output(
         base_asset_amount_with_spread.unsigned_abs(),
         new_base_asset_reserve,
         direction,
         amm.sqrt_k,
     )?;
 
-    let new_quote_asset_amount = calculate_quote_asset_amount_swapped(
+    let quote_asset_amount_surplus = calculate_quote_asset_amount_surplus(
         new_quote_asset_reserve,
-        quote_asset_reserve_after_close,
+        quote_asset_reserve_if_close,
         direction,
         amm.peg_multiplier,
+        quote_asset_amount,
     )?;
-
-    let quote_asset_amount_surplus = if quote_asset_amount > new_quote_asset_amount {
-        quote_asset_amount - new_quote_asset_amount
-    } else {
-        new_quote_asset_amount - quote_asset_amount
-    };
 
     Ok((
         new_base_asset_reserve,
@@ -146,6 +141,35 @@ fn calculate_quote_swap_output_with_spread(
         base_asset_amount_with_spread,
         quote_asset_amount_surplus,
     ))
+}
+
+fn calculate_quote_asset_amount_surplus(
+    quote_asset_reserve_before: u128,
+    quote_asset_reserve_after: u128,
+    swap_direction: SwapDirection,
+    peg_multiplier: u128,
+    initial_quote_asset_amount: u128,
+) -> ClearingHouseResult<u128> {
+    let quote_asset_reserve_change = match swap_direction {
+        SwapDirection::Add => quote_asset_reserve_before
+            .checked_sub(quote_asset_reserve_after)
+            .ok_or_else(math_error!())?,
+
+        SwapDirection::Remove => quote_asset_reserve_after
+            .checked_sub(quote_asset_reserve_before)
+            .ok_or_else(math_error!())?,
+    };
+
+    let mut actual_quote_asset_amount =
+        reserve_to_asset_amount(quote_asset_reserve_change, peg_multiplier)?;
+
+    let quote_asset_amount_surplus = if actual_quote_asset_amount > initial_quote_asset_amount {
+        actual_quote_asset_amount - initial_quote_asset_amount
+    } else {
+        initial_quote_asset_amount - actual_quote_asset_amount
+    };
+
+    Ok(quote_asset_amount_surplus)
 }
 
 pub fn swap_base_asset(
@@ -224,7 +248,7 @@ fn calculate_base_swap_output_with_spread(
         amm.sqrt_k,
     )?;
 
-    let quote_asset_amount_with_spread = calculate_quote_asset_amount_swapped(
+    let quote_asset_amount = calculate_quote_asset_amount_swapped(
         quote_asset_reserve_with_spread,
         new_quote_asset_reserve_with_spread,
         direction,
@@ -238,7 +262,7 @@ fn calculate_base_swap_output_with_spread(
         amm.sqrt_k,
     )?;
 
-    let quote_asset_amount_without_spread = calculate_quote_asset_amount_swapped(
+    let quote_asset_amount_surplus = calculate_quote_asset_amount_surplus(
         new_quote_asset_reserve,
         amm.quote_asset_reserve,
         match direction {
@@ -246,19 +270,13 @@ fn calculate_base_swap_output_with_spread(
             SwapDirection::Add => SwapDirection::Remove,
         },
         amm.peg_multiplier,
+        quote_asset_amount,
     )?;
-
-    let quote_asset_amount_surplus =
-        if quote_asset_amount_with_spread > quote_asset_amount_without_spread {
-            quote_asset_amount_with_spread - quote_asset_amount_without_spread
-        } else {
-            quote_asset_amount_without_spread - quote_asset_amount_with_spread
-        };
 
     Ok((
         new_base_asset_reserve,
         new_quote_asset_reserve,
-        quote_asset_amount_with_spread,
+        quote_asset_amount,
         quote_asset_amount_surplus,
     ))
 }
