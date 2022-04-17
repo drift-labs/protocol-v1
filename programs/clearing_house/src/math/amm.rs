@@ -309,7 +309,7 @@ pub fn calculate_spread_reserves(
     let base_spread = amm.base_spread as u128;
     let quote_asset_reserve_delta = if base_spread > 0 {
         amm.quote_asset_reserve
-            .checked_div(BID_ASK_SPREAD_PRECISION / (base_spread / 2))
+            .checked_div(BID_ASK_SPREAD_PRECISION / (base_spread / 4))
             .ok_or_else(math_error!())?
     } else {
         0_128

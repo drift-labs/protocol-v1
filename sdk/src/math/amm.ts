@@ -105,7 +105,7 @@ export function calculateSpreadReserves(
 	quoteAssetReserve: BN;
 } {
 	const quoteAsserReserveDelta = amm.quoteAssetReserve.div(
-		BID_ASK_SPREAD_PRECISION.div(new BN(amm.baseSpread / 2))
+		BID_ASK_SPREAD_PRECISION.div(new BN(amm.baseSpread / 4))
 	);
 
 	let quoteAssetReserve;
