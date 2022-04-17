@@ -745,7 +745,7 @@ pub fn fill_order(
         mark_price_after,
         fee: user_fee,
         token_discount,
-        referrer_reward,
+        quote_asset_amount_surplus,
         referee_discount,
         liquidation: false,
         market_index,
