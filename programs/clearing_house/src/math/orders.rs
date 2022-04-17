@@ -190,14 +190,15 @@ pub fn calculate_base_asset_amount_user_can_execute(
         asset_to_reserve_amount(quote_asset_amount, market.amm.peg_multiplier)?,
     );
 
-    let (base_asset_reserves_before, quote_asset_reserves_before) = if order.post_only {
-        (
-            market.amm.base_asset_reserve,
-            market.amm.quote_asset_reserve,
-        )
-    } else {
-        calculate_spread_reserves(&market.amm, order.direction)?
-    };
+    let (base_asset_reserves_before, quote_asset_reserves_before) =
+        if order.post_only || market.amm.base_spread == 0 {
+            (
+                market.amm.base_asset_reserve,
+                market.amm.quote_asset_reserve,
+            )
+        } else {
+            calculate_spread_reserves(&market.amm, order.direction)?
+        };
 
     let (base_asset_reserves_after, _) = calculate_swap_output(
         quote_asset_reserve_amount,

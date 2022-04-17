@@ -121,7 +121,7 @@ export function calculateTradeAcquiredAmounts(
 	const swapDirection = getSwapDirection(inputAssetType, direction);
 
 	let amm: Parameters<typeof calculateAmmReservesAfterSwap>[0];
-	if (useSpread) {
+	if (useSpread && market.amm.baseSpread > 0) {
 		const { baseAssetReserve, quoteAssetReserve } = calculateSpreadReserves(
 			market.amm,
 			direction

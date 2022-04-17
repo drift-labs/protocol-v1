@@ -36,7 +36,7 @@ pub fn swap_quote_asset(
         new_quote_asset_reserve,
         base_asset_amount,
         quote_asset_amount_surplus,
-    ) = match use_spread {
+    ) = match use_spread && amm.base_spread > 0 {
         true => calculate_quote_swap_output_with_spread(amm, quote_asset_amount, direction)?,
         false => calculate_quote_swap_output_without_spread(amm, quote_asset_amount, direction)?,
     };
@@ -187,7 +187,7 @@ pub fn swap_base_asset(
         new_quote_asset_reserve,
         quote_asset_amount,
         quote_asset_amount_surplus,
-    ) = match use_spread {
+    ) = match use_spread && amm.base_spread > 0 {
         true => calculate_base_swap_output_with_spread(amm, base_asset_swap_amount, direction)?,
         false => calculate_base_swap_output_without_spread(amm, base_asset_swap_amount, direction)?,
     };

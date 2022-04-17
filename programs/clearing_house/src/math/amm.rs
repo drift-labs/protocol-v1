@@ -591,7 +591,7 @@ pub fn calculate_max_base_asset_amount_to_trade(
         .integer_sqrt()
         .try_to_u128()?;
 
-    let base_asset_reserve_before = if use_spread {
+    let base_asset_reserve_before = if use_spread && amm.base_spread > 0 {
         let (spread_base_asset_reserve, _) = calculate_spread_reserves(amm, direction)?;
         spread_base_asset_reserve
     } else {

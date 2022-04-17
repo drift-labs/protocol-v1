@@ -104,6 +104,13 @@ export function calculateSpreadReserves(
 	baseAssetReserve: BN;
 	quoteAssetReserve: BN;
 } {
+	if (amm.baseSpread === 0) {
+		return {
+			baseAssetReserve: amm.baseAssetReserve,
+			quoteAssetReserve: amm.quoteAssetReserve,
+		};
+	}
+
 	const quoteAsserReserveDelta = amm.quoteAssetReserve.div(
 		BID_ASK_SPREAD_PRECISION.div(new BN(amm.baseSpread / 4))
 	);
