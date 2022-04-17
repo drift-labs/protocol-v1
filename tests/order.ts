@@ -37,6 +37,7 @@ import {
 } from './testHelpers';
 import {
 	AMM_RESERVE_PRECISION,
+	AMM_TO_QUOTE_PRECISION_RATIO,
 	calculateMarkPrice,
 	findComputeUnitConsumption,
 	TEN_THOUSAND,
@@ -1231,7 +1232,7 @@ describe('orders', () => {
 			baseAssetAmount,
 			market,
 			'base'
-		)[3].sub(new BN(1000)); // tiny residual liquidity would be remaining if filled up to price
+		)[3].sub(AMM_TO_QUOTE_PRECISION_RATIO); // tiny residual liquidity would be remaining if filled up to price
 
 		//long 50 base amount at $1 with ~$10 collateral (max leverage = 5x)
 
