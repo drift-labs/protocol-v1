@@ -818,7 +818,6 @@ pub fn fill_order(
 
         // if market_index >= 12 {
         // todo for soft launch
-
         controller::repeg::formulaic_repeg(
             market,
             mark_price_after,

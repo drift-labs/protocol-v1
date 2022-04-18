@@ -4,8 +4,10 @@ use crate::math::amm;
 use crate::math::bn;
 use crate::math::casting::{cast_to_i128, cast_to_u128};
 use crate::math::constants::{
-    AMM_TO_QUOTE_PRECISION_RATIO, FUNDING_EXCESS_TO_QUOTE_RATIO, MARK_PRICE_PRECISION, ONE_HOUR,
-    PEG_PRECISION, PRICE_SPREAD_PRECISION, PRICE_TO_PEG_PRECISION_RATIO, QUOTE_PRECISION,
+    AMM_RESERVE_PRECISION, AMM_RESERVE_PRECISION_I128, AMM_TO_QUOTE_PRECISION_RATIO,
+    AMM_TO_QUOTE_PRECISION_RATIO_I128, FUNDING_EXCESS_TO_QUOTE_RATIO, MARK_PRICE_PRECISION,
+    MARK_PRICE_PRECISION_I128, ONE_HOUR, PEG_PRECISION, PRICE_SPREAD_PRECISION,
+    PRICE_SPREAD_PRECISION_U128, PRICE_TO_PEG_PRECISION_RATIO, QUOTE_PRECISION,
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR,
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR, TWENTYFOUR_HOUR,
 };
@@ -24,7 +26,7 @@ pub fn calculate_repeg_validity_from_oracle_account(
     terminal_price_before: u128,
     clock_slot: u64,
     oracle_guard_rails: &OracleGuardRails,
-) -> ClearingHouseResult<(bool, bool, bool, bool, i128)> {
+) -> ClearingHouseResult<(bool, bool, bool, bool)> {
     let oracle_price_data = market
         .amm
         .get_oracle_price(oracle_account_info, clock_slot)?;
@@ -34,25 +36,19 @@ pub fn calculate_repeg_validity_from_oracle_account(
         &oracle_guard_rails.validity,
     )?;
 
-    let (
-        oracle_is_valid,
-        direction_valid,
-        profitability_valid,
-        price_impact_valid,
-        oracle_terminal_divergence_pct_after,
-    ) = calculate_repeg_validity(
-        market,
-        &oracle_price_data,
-        oracle_is_valid,
-        terminal_price_before,
-    )?;
+    let (oracle_is_valid, direction_valid, profitability_valid, price_impact_valid) =
+        calculate_repeg_validity(
+            market,
+            &oracle_price_data,
+            oracle_is_valid,
+            terminal_price_before,
+        )?;
 
     Ok((
         oracle_is_valid,
         direction_valid,
         profitability_valid,
         price_impact_valid,
-        oracle_terminal_divergence_pct_after,
     ))
 }
 
@@ -61,7 +57,7 @@ pub fn calculate_repeg_validity(
     oracle_price_data: &OraclePriceData,
     oracle_is_valid: bool,
     terminal_price_before: u128,
-) -> ClearingHouseResult<(bool, bool, bool, bool, i128)> {
+) -> ClearingHouseResult<(bool, bool, bool, bool)> {
     let OraclePriceData {
         price: oracle_price,
         confidence: oracle_conf,
@@ -73,14 +69,6 @@ pub fn calculate_repeg_validity(
 
     let (terminal_price_after, _terminal_quote_reserves, _terminal_base_reserves) =
         amm::calculate_terminal_price_and_reserves(market)?;
-    let oracle_terminal_spread_after = oracle_price
-        .checked_sub(cast_to_i128(terminal_price_after)?)
-        .ok_or_else(math_error!())?;
-    let oracle_terminal_divergence_pct_after = oracle_terminal_spread_after
-        .checked_mul(PRICE_SPREAD_PRECISION)
-        .ok_or_else(math_error!())?
-        .checked_div(oracle_price)
-        .ok_or_else(math_error!())?;
 
     let mut direction_valid = true;
     let mut price_impact_valid = true;
@@ -157,7 +145,6 @@ pub fn calculate_repeg_validity(
         direction_valid,
         profitability_valid,
         price_impact_valid,
-        oracle_terminal_divergence_pct_after,
     ))
 }
 
@@ -387,13 +374,19 @@ pub fn calculate_expected_excess_funding_payment(
             .ok_or_else(math_error!())?,
     )?;
 
-    let expected_excess_funding_payment = market
+    let base_asset_amount = market
         .base_asset_amount
-        .checked_mul(expected_excess_funding)
-        .ok_or_else(math_error!())?
+        .checked_div(AMM_TO_QUOTE_PRECISION_RATIO_I128)
+        .ok_or_else(math_error!())?;
+
+    let adjusted_excess_funding = expected_excess_funding
         .checked_div(period_adjustment)
         .ok_or_else(math_error!())?
-        .checked_div(FUNDING_EXCESS_TO_QUOTE_RATIO)
+        .checked_div(MARK_PRICE_PRECISION_I128)
+        .ok_or_else(math_error!())?;
+
+    let expected_excess_funding_payment = base_asset_amount
+        .checked_mul(adjusted_excess_funding)
         .ok_or_else(math_error!())?;
 
     Ok(expected_excess_funding_payment)

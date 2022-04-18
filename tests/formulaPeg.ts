@@ -73,6 +73,18 @@ async function formRepegHelper(
 		orderParams
 		// discountTokenAccount.address
 	);
+	const computeUnits = await findComputeUnitConsumption(
+		clearingHouse.program.programId,
+		connection,
+		txSig,
+		'confirmed'
+	);
+	console.log('compute units', computeUnits);
+	console.log(
+		'tx logs',
+		(await connection.getTransaction(txSig, { commitment: 'confirmed' })).meta
+			.logMessages
+	);
 
 	await clearingHouse.fetchAccounts();
 	await userAccount.fetchAccounts();
@@ -185,7 +197,11 @@ describe('formulaic curve (repeg)', () => {
 		clearingHouse = Admin.from(
 			connection,
 			provider.wallet,
-			chProgram.programId
+			chProgram.programId,
+			{
+				commitment: 'confirmed',
+				preflightCommitment: 'confirmed',
+			}
 		);
 		await clearingHouse.initialize(usdcMint.publicKey, true);
 		await clearingHouse.subscribe();

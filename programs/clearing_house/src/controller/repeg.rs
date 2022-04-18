@@ -31,19 +31,14 @@ pub fn repeg(
 
     let (repegged_market, adjustment_cost) = repeg::adjust_peg_cost(market, new_peg_candidate)?;
 
-    let (
-        oracle_is_valid,
-        direction_valid,
-        profitability_valid,
-        price_impact_valid,
-        _oracle_terminal_divergence,
-    ) = repeg::calculate_repeg_validity_from_oracle_account(
-        &repegged_market,
-        price_oracle,
-        terminal_price_before,
-        clock_slot,
-        oracle_guard_rails,
-    )?;
+    let (oracle_is_valid, direction_valid, profitability_valid, price_impact_valid) =
+        repeg::calculate_repeg_validity_from_oracle_account(
+            &repegged_market,
+            price_oracle,
+            terminal_price_before,
+            clock_slot,
+            oracle_guard_rails,
+        )?;
 
     // cannot repeg if oracle is invalid
     if !oracle_is_valid {
@@ -118,18 +113,13 @@ pub fn formulaic_repeg(
         oracle_price_data,
     )?;
 
-    let (
-        oracle_valid,
-        _direction_valid,
-        profitability_valid,
-        price_impact_valid,
-        _oracle_terminal_divergence_pct_after,
-    ) = repeg::calculate_repeg_validity(
-        &repegged_market,
-        oracle_price_data,
-        is_oracle_valid,
-        terminal_price_before,
-    )?;
+    let (oracle_valid, _direction_valid, profitability_valid, price_impact_valid) =
+        repeg::calculate_repeg_validity(
+            &repegged_market,
+            oracle_price_data,
+            is_oracle_valid,
+            terminal_price_before,
+        )?;
 
     // any budgeted direction valid for formulaic
     if oracle_valid && profitability_valid && price_impact_valid {
