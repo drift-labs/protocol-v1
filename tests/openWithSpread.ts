@@ -25,7 +25,6 @@ import {
 	AMM_TO_QUOTE_PRECISION_RATIO,
 	calculateTradeAcquiredAmounts,
 	FeeStructure,
-	ONE,
 	QUOTE_PRECISION,
 	ZERO,
 } from '../sdk';
@@ -212,7 +211,8 @@ describe('market order', () => {
 		console.log('unrealized pnl', unrealizedPnl.toString());
 
 		const market = clearingHouse.getMarket(marketIndex);
-		const expectedFeeToMarket = new BN(unrealizedPnl.abs());
+		const expectedFeeToMarket = new BN(250);
+		console.log(market.amm.totalFee.toString());
 		assert(market.amm.totalFee.eq(expectedFeeToMarket));
 
 		const userPositionsAccount = clearingHouseUser.getUserPositionsAccount();
@@ -228,12 +228,16 @@ describe('market order', () => {
 		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(baseAssetAmount));
 		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(expectedQuoteAssetAmount));
 		assert.ok(
-			tradeHistoryRecord.quoteAssetAmountSurplus.eq(unrealizedPnl.abs())
+			tradeHistoryRecord.quoteAssetAmountSurplus.eq(expectedFeeToMarket)
+		);
+		console.log(
+			'surplus',
+			tradeHistoryRecord.quoteAssetAmountSurplus.toString()
 		);
 
 		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
 		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[1];
-		assert(orderRecord.quoteAssetAmountSurplus.eq(unrealizedPnl.abs()));
+		assert(orderRecord.quoteAssetAmountSurplus.eq(expectedFeeToMarket));
 
 		await clearingHouse.closePosition(marketIndex);
 
@@ -245,7 +249,7 @@ describe('market order', () => {
 			.collateral.sub(initialCollateral);
 		console.log(pnl.toString());
 		console.log(clearingHouse.getMarket(0).amm.totalFee.toString());
-		assert(clearingHouse.getMarket(0).amm.totalFee.eq(pnl.abs()));
+		assert(clearingHouse.getMarket(0).amm.totalFee.eq(new BN(500)));
 	});
 
 	it('Long market order quote', async () => {
@@ -310,13 +314,15 @@ describe('market order', () => {
 
 		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(expectedBaseAssetAmount));
 		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(quoteAssetAmount));
-		assert.ok(
-			tradeHistoryRecord.quoteAssetAmountSurplus.eq(unrealizedPnl.abs())
+		assert.ok(tradeHistoryRecord.quoteAssetAmountSurplus.eq(new BN(250)));
+		console.log(
+			'surplus',
+			tradeHistoryRecord.quoteAssetAmountSurplus.toString()
 		);
 
 		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
 		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[3];
-		assert(orderRecord.quoteAssetAmountSurplus.eq(unrealizedPnl.abs()));
+		assert(orderRecord.quoteAssetAmountSurplus.eq(new BN(250)));
 
 		await clearingHouse.closePosition(marketIndex);
 
@@ -334,7 +340,7 @@ describe('market order', () => {
 			clearingHouse
 				.getMarket(0)
 				.amm.totalFee.sub(initialAmmTotalFee)
-				.eq(pnl.abs())
+				.eq(new BN(500))
 		);
 	});
 
@@ -409,18 +415,16 @@ describe('market order', () => {
 
 		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(baseAssetAmount));
 		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(expectedQuoteAssetAmount));
-		assert.ok(
-			tradeHistoryRecord.quoteAssetAmountSurplus.eq(
-				unrealizedPnl.abs().sub(ONE)
-			)
+		assert.ok(tradeHistoryRecord.quoteAssetAmountSurplus.eq(new BN(250)));
+		console.log(
+			'surplus',
+			tradeHistoryRecord.quoteAssetAmountSurplus.toString()
 		);
 
 		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
 		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[5];
 		console.log(orderRecord.quoteAssetAmountSurplus.toString());
-		assert(
-			orderRecord.quoteAssetAmountSurplus.eq(unrealizedPnl.abs().sub(ONE))
-		);
+		assert(orderRecord.quoteAssetAmountSurplus.eq(new BN(250)));
 
 		await clearingHouse.closePosition(marketIndex);
 
@@ -438,7 +442,7 @@ describe('market order', () => {
 			clearingHouse
 				.getMarket(0)
 				.amm.totalFee.sub(initialAmmTotalFee)
-				.eq(pnl.abs())
+				.eq(new BN(500))
 		);
 	});
 
@@ -506,18 +510,16 @@ describe('market order', () => {
 
 		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(expectedBaseAssetAmount));
 		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(quoteAssetAmount));
-		assert.ok(
-			tradeHistoryRecord.quoteAssetAmountSurplus.eq(
-				unrealizedPnl.abs().sub(ONE)
-			)
+		assert.ok(tradeHistoryRecord.quoteAssetAmountSurplus.eq(new BN(250)));
+		console.log(
+			'surplus',
+			tradeHistoryRecord.quoteAssetAmountSurplus.toString()
 		);
 
 		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
 		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[7];
 		console.log(orderRecord.quoteAssetAmountSurplus.toString());
-		assert(
-			orderRecord.quoteAssetAmountSurplus.eq(unrealizedPnl.abs().sub(ONE))
-		);
+		assert(orderRecord.quoteAssetAmountSurplus.eq(new BN(250)));
 
 		await clearingHouse.closePosition(marketIndex);
 
@@ -535,7 +537,7 @@ describe('market order', () => {
 			clearingHouse
 				.getMarket(0)
 				.amm.totalFee.sub(initialAmmTotalFee)
-				.eq(pnl.abs())
+				.eq(new BN(500))
 		);
 	});
 });

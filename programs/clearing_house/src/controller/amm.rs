@@ -133,6 +133,7 @@ fn calculate_quote_swap_output_with_spread(
         direction,
         amm.peg_multiplier,
         quote_asset_amount,
+        false,
     )?;
 
     Ok((
@@ -149,6 +150,7 @@ fn calculate_quote_asset_amount_surplus(
     swap_direction: SwapDirection,
     peg_multiplier: u128,
     initial_quote_asset_amount: u128,
+    round_down: bool,
 ) -> ClearingHouseResult<u128> {
     let quote_asset_reserve_change = match swap_direction {
         SwapDirection::Add => quote_asset_reserve_before
@@ -162,6 +164,13 @@ fn calculate_quote_asset_amount_surplus(
 
     let mut actual_quote_asset_amount =
         reserve_to_asset_amount(quote_asset_reserve_change, peg_multiplier)?;
+
+    // Compensate for +1 quote asset amount added when removing base asset
+    if round_down {
+        actual_quote_asset_amount = actual_quote_asset_amount
+            .checked_add(1)
+            .ok_or_else(math_error!())?;
+    }
 
     let quote_asset_amount_surplus = if actual_quote_asset_amount > initial_quote_asset_amount {
         actual_quote_asset_amount - initial_quote_asset_amount
@@ -271,6 +280,7 @@ fn calculate_base_swap_output_with_spread(
         },
         amm.peg_multiplier,
         quote_asset_amount,
+        direction == SwapDirection::Remove,
     )?;
 
     Ok((
