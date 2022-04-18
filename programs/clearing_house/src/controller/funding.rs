@@ -12,7 +12,8 @@ use crate::math::amm::normalise_oracle_price;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math::constants::{
-    AMM_TO_QUOTE_PRECISION_RATIO_I128, FUNDING_PAYMENT_PRECISION, ONE_HOUR,
+    AMM_RESERVE_PRECISION_I128, AMM_TO_QUOTE_PRECISION_RATIO, AMM_TO_QUOTE_PRECISION_RATIO_I128,
+    FUNDING_PAYMENT_PRECISION, FUNDING_RATE_PRECISION_I128, ONE_HOUR,
     QUOTE_TO_BASE_AMT_FUNDING_PRECISION, TWENTYFOUR_HOUR,
 };
 use crate::math::funding::{calculate_funding_payment, calculate_funding_rate_long_short};
@@ -26,6 +27,7 @@ use crate::state::market::{Market, Markets};
 use crate::state::state::OracleGuardRails;
 use crate::state::user::{User, UserPositions};
 use solana_program::clock::UnixTimestamp;
+use solana_program::log::sol_log_compute_units;
 use solana_program::msg;
 
 /// Funding payments are settled lazily. The amm tracks its cumulative funding rate (for longs and shorts)
@@ -170,8 +172,6 @@ pub fn update_funding_rate(
             .checked_sub(oracle_price_twap)
             .ok_or_else(math_error!())?;
 
-        msg!("ps: {:?} - {:?}", mark_price_twap, oracle_price_twap);
-
         // clamp price divergence to 3% for funding rate calculation
         let max_price_spread = oracle_price_twap
             .checked_div(33)
@@ -184,28 +184,12 @@ pub fn update_funding_rate(
             .checked_div(cast(period_adjustment)?)
             .ok_or_else(math_error!())?;
 
-        let (funding_rate_long, funding_rate_short) =
+        let (funding_rate_long, funding_rate_short, funding_imbalance_cost) =
             calculate_funding_rate_long_short(market, funding_rate)?;
-
-        // dynamic k
-        msg!(
-            "fr: {:?}, bam: {:?}",
-            funding_rate,
-            market.base_asset_amount
-        );
-
-        // negative since surplus to net user is cost to amm
-        let funding_imbalance_cost = -funding_rate
-            .checked_mul(market.base_asset_amount)
-            .ok_or_else(math_error!())?
-            .checked_div(QUOTE_TO_BASE_AMT_FUNDING_PRECISION)
-            .ok_or_else(math_error!())?;
 
         formulaic_update_k(
             market,
-            mark_price,
             &oracle_price_data,
-            true, // only way to have gotten here
             funding_imbalance_cost,
             curve_history,
             now,

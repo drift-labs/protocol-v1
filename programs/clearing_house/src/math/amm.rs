@@ -458,51 +458,47 @@ pub fn calculate_budgeted_k_scale(
     market: &mut Market,
     budget: i128,
 ) -> ClearingHouseResult<(u128, u128)> {
-    let y = market.amm.quote_asset_reserve;
-    let x = market.amm.base_asset_reserve;
-    let c = -budget;
-    let q = cast_to_i128(market.amm.peg_multiplier)?;
-    let d = market.base_asset_amount;
+    let y = market.amm.quote_asset_reserve; // 1e6
+    let x = market.amm.base_asset_reserve; //1e6
+    let c = -budget; // 1e6
+    let q = cast_to_i128(market.amm.peg_multiplier)?; // 1e3
+    let d = market.base_asset_amount; // 1e6
 
     let x_d = cast_to_i128(x)?.checked_add(d).ok_or_else(math_error!())?;
 
-    msg!("x: {:?}", x);
-    msg!("x_d: {:?}", x_d);
-    msg!("c: {:?}", c);
-
-    let x_times_x_d = U192::from(x)
+    let x_times_x_d = U192::from(x) // 1e13
         .checked_mul(U192::from(x_d))
         .ok_or_else(math_error!())?
         .checked_div(U192::from(AMM_RESERVE_PRECISION))
         .ok_or_else(math_error!())?
         .try_to_u128()?;
 
-    let pegged_quote_times_d = U192::from(y)
+    let pegged_quote_times_d = U192::from(y) // 1e13
         .checked_mul(U192::from(q))
         .ok_or_else(math_error!())?
         .checked_div(U192::from(PEG_PRECISION))
         .ok_or_else(math_error!())?
         .try_to_u128()?;
 
-    let numer1 = cast_to_i128(pegged_quote_times_d)?
+    let numer1 = cast_to_i128(pegged_quote_times_d)? // 1e13
         .checked_mul(d)
         .ok_or_else(math_error!())?
         .checked_div(AMM_RESERVE_PRECISION_I128)
         .ok_or_else(math_error!())?;
 
-    let numer2 = c
+    let numer2 = c // 1e13
         .checked_mul(x_d)
         .ok_or_else(math_error!())?
         .checked_div(cast_to_i128(QUOTE_PRECISION)?)
         .ok_or_else(math_error!())?;
 
-    let denom1 = c
+    let denom1 = c // 1e13
         .checked_mul(cast_to_i128(x_times_x_d)?)
         .ok_or_else(math_error!())?
         .checked_div(cast_to_i128(QUOTE_PRECISION)?)
         .ok_or_else(math_error!())?;
 
-    let denom2 = cast_to_i128(y)?
+    let denom2 = cast_to_i128(y)? //1e13
         .checked_mul(d)
         .ok_or_else(math_error!())?
         .checked_div(AMM_RESERVE_PRECISION_I128)
@@ -519,14 +515,14 @@ pub fn calculate_budgeted_k_scale(
     msg!("numers: {:?} {:?}", numer1, numer2);
     msg!("denoms: {:?} {:?}", denom1, denom2);
 
-    let numerator = d
+    let numerator = d // 1e0
         .checked_mul(numer1.checked_sub(numer2).ok_or_else(math_error!())?)
         .ok_or_else(math_error!())?
         .checked_div(AMM_RESERVE_PRECISION_I128)
         .ok_or_else(math_error!())?
         .checked_div(AMM_TO_QUOTE_PRECISION_RATIO_I128)
         .ok_or_else(math_error!())?;
-    let denominator = denom1
+    let denominator = denom1 // 1e0
         .checked_add(denom2)
         .ok_or_else(math_error!())?
         .checked_div(AMM_TO_QUOTE_PRECISION_RATIO_I128)

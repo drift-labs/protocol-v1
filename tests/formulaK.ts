@@ -13,6 +13,7 @@ import {
 	PositionDirection,
 	convertToNumber,
 	calculateAdjustKCost,
+	findComputeUnitConsumption,
 } from '../sdk/src';
 
 import { Markets } from '../sdk/src/constants/markets';
@@ -60,7 +61,11 @@ describe('formulaic curve (k)', () => {
 		clearingHouse = Admin.from(
 			connection,
 			provider.wallet,
-			chProgram.programId
+			chProgram.programId,
+			{
+				commitment: 'confirmed',
+				preflightCommitment: 'confirmed',
+			}
 		);
 		await clearingHouse.initialize(usdcMint.publicKey, true);
 		await clearingHouse.subscribeToAll();
@@ -273,10 +278,23 @@ describe('formulaic curve (k)', () => {
 		await clearingHouse.updateFundingPaused(false);
 		await new Promise((r) => setTimeout(r, 1000)); // wait 1 second
 
-		const _tx = await clearingHouse.updateFundingRate(
+		const txSig = await clearingHouse.updateFundingRate(
 			solUsdOracle,
 			marketIndex
 		);
+		const computeUnits = await findComputeUnitConsumption(
+			clearingHouse.program.programId,
+			connection,
+			txSig,
+			'confirmed'
+		);
+		console.log('compute units', computeUnits);
+		console.log(
+			'tx logs',
+			(await connection.getTransaction(txSig, { commitment: 'confirmed' })).meta
+				.logMessages
+		);
+
 		await new Promise((r) => setTimeout(r, 1000)); // wait 1 second
 		await clearingHouse.updateFundingPaused(true);
 

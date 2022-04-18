@@ -18,7 +18,7 @@ use std::cmp::max;
 pub fn calculate_funding_rate_long_short(
     market: &mut Market,
     funding_rate: i128,
-) -> ClearingHouseResult<(i128, i128)> {
+) -> ClearingHouseResult<(i128, i128, i128)> {
     // Calculate the funding payment owed by the net_market_position if funding is not capped
     // If the net market position owes funding payment, the clearing house receives payment
     let net_market_position = market.base_asset_amount;
@@ -38,7 +38,11 @@ pub fn calculate_funding_rate_long_short(
             .net_revenue_since_last_funding
             .checked_add(uncapped_funding_pnl as i64)
             .ok_or_else(math_error!())?;
-        return Ok((funding_rate, funding_rate));
+        return Ok((
+            funding_rate,
+            funding_rate,
+            net_market_position_funding_payment,
+        ));
     }
 
     let (capped_funding_rate, capped_funding_pnl) =
@@ -79,7 +83,11 @@ pub fn calculate_funding_rate_long_short(
         funding_rate
     };
 
-    Ok((funding_rate_long, funding_rate_short))
+    Ok((
+        funding_rate_long,
+        funding_rate_short,
+        net_market_position_funding_payment,
+    ))
 }
 
 fn calculate_capped_funding_rate(

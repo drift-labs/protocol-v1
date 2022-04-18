@@ -99,9 +99,7 @@ pub fn move_price(
 
 pub fn formulaic_update_k(
     market: &mut Market,
-    mark_price: u128,
     oracle_price_data: &OraclePriceData,
-    is_oracle_valid: bool,
     funding_imbalance_cost: i128,
     curve_history: Option<&mut RefMut<ExtendedCurveHistory>>,
     now: i64,
