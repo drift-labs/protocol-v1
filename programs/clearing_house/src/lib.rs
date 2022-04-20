@@ -769,7 +769,7 @@ pub mod clearing_house {
                 None,
                 &ctx.accounts.state.oracle_guard_rails,
                 ctx.accounts.state.funding_paused,
-                Some(mark_price_before),
+                Some(mark_price_after),
                 Some(record_id),
             )?;
         }
@@ -965,7 +965,7 @@ pub mod clearing_house {
             None,
             &ctx.accounts.state.oracle_guard_rails,
             ctx.accounts.state.funding_paused,
-            Some(mark_price_before),
+            Some(mark_price_after),
             Some(record_id),
         )?;
 

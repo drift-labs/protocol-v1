@@ -160,9 +160,17 @@ pub fn update_funding_rate(
     }
 
     if !funding_paused && !block_funding_rate_update && time_since_last_update >= next_update_wait {
-        let oracle_price_twap =
-            amm::update_oracle_price_twap(&mut market.amm, now, normalised_oracle_price)?;
-        let mark_price_twap = amm::update_mark_twap(&mut market.amm, now, None)?;
+        let oracle_price_twap = if market.amm.last_oracle_price_twap_ts != now {
+            amm::update_oracle_price_twap(&mut market.amm, now, normalised_oracle_price)?
+        } else {
+            market.amm.last_oracle_price_twap
+        };
+
+        let mark_price_twap = if market.amm.last_mark_price_twap_ts != now {
+            amm::update_mark_twap(&mut market.amm, now, Some(mark_price))?
+        } else {
+            market.amm.last_mark_price_twap
+        };
 
         let period_adjustment = TWENTYFOUR_HOUR
             .checked_div(max(ONE_HOUR, market.amm.funding_period))

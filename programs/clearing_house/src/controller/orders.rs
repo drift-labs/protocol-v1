@@ -813,7 +813,7 @@ pub fn fill_order(
             Some(extended_curve_history),
             &state.oracle_guard_rails,
             state.funding_paused,
-            Some(mark_price_before),
+            Some(mark_price_after),
             Some(trade_record_id),
         )?;
 
