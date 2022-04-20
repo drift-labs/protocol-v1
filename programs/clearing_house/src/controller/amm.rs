@@ -146,8 +146,10 @@ pub fn formulaic_update_k(
             .checked_div(bn::U256::from(p_denom))
             .ok_or_else(math_error!())?;
 
-        let (adjust_k_market, adjustment_cost) = amm::adjust_k_cost(market, new_sqrt_k)?;
+        let adjustment_cost = amm::adjust_k_cost(market, new_sqrt_k)?;
+
         let cost_applied = apply_cost_to_market(market, adjustment_cost)?;
+
         if cost_applied {
             // todo: do actual k adj here
             amm::update_k(market, new_sqrt_k)?;

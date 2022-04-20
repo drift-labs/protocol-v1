@@ -2134,8 +2134,7 @@ pub mod clearing_house {
 
         let new_sqrt_k_u256 = bn::U256::from(sqrt_k);
 
-        let (mut adjust_k_market, adjustment_cost) =
-            math::amm::adjust_k_cost(market, new_sqrt_k_u256)?;
+        let adjustment_cost = math::amm::adjust_k_cost(market, new_sqrt_k_u256)?;
 
         math::amm::update_k(market, new_sqrt_k_u256);
 

@@ -134,3 +134,48 @@ impl U192 {
 
 impl_borsh_deserialize_for_bn!(U192);
 impl_borsh_serialize_for_bn!(U192);
+
+construct_uint! {
+    /// 128-bit unsigned integer.
+    pub struct U128(2);
+}
+
+impl U128 {
+    /// Convert u192 to u64
+    pub fn to_u64(self) -> Option<u64> {
+        self.try_to_u64().map_or_else(|_| None, Some)
+    }
+
+    /// Convert u192 to u64
+    pub fn try_to_u64(self) -> ClearingHouseResult<u64> {
+        self.try_into().map_err(|_| BnConversionError)
+    }
+
+    /// Convert u192 to u128
+    pub fn to_u128(self) -> Option<u128> {
+        self.try_to_u128().map_or_else(|_| None, Some)
+    }
+
+    /// Convert u192 to u128
+    pub fn try_to_u128(self) -> ClearingHouseResult<u128> {
+        self.try_into().map_err(|_| BnConversionError)
+    }
+
+    /// Convert from little endian bytes
+    pub fn from_le_bytes(bytes: [u8; 24]) -> Self {
+        U128::from_little_endian(&bytes)
+    }
+
+    /// Convert to little endian bytes
+    pub fn to_le_bytes(self) -> [u8; 24] {
+        let mut buf: Vec<u8> = Vec::with_capacity(size_of::<Self>());
+        self.to_little_endian(buf.borrow_mut());
+
+        let mut bytes: [u8; 24] = [0u8; 24];
+        bytes.copy_from_slice(buf.as_slice());
+        bytes
+    }
+}
+
+impl_borsh_deserialize_for_bn!(U128);
+impl_borsh_serialize_for_bn!(U128);

@@ -1,5 +1,6 @@
 pub mod amm;
 pub mod bn;
+pub mod bn_operations;
 pub mod casting;
 pub mod collateral;
 pub mod constants;

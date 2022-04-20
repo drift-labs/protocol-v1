@@ -7,6 +7,7 @@ use crate::controller::position::PositionDirection;
 use crate::error::*;
 use crate::math::bn;
 use crate::math::bn::U192;
+use crate::math::bn_operations::{multiply_i128, multiply_u128};
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
 use crate::math::constants::{
     AMM_RESERVE_PRECISION, AMM_RESERVE_PRECISION_I128, AMM_TO_QUOTE_PRECISION_RATIO,
@@ -485,8 +486,7 @@ pub fn calculate_budgeted_k_scale(
         .checked_sub(one_div_net_position)
         .ok_or_else(math_error!())?
         .checked_sub(
-            base_asset_reserve
-                .checked_mul(one_div_net_position)
+            multiply_i128(base_asset_reserve, one_div_net_position)
                 .ok_or_else(math_error!())?
                 .checked_div(net_position)
                 .ok_or_else(math_error!())?,
@@ -505,14 +505,12 @@ pub fn calculate_budgeted_k_scale(
     }
 
     let (numerator, denominator) = if numerator > denominator {
-        let current_pct_change = numerator
-            .checked_mul(100)
+        let current_pct_change = multiply_i128(numerator, 1000)
             .ok_or_else(math_error!())?
             .checked_div(denominator)
             .ok_or_else(math_error!())?;
 
-        let maximum_pct_change = K_PCT_UPPER_BOUND
-            .checked_mul(100)
+        let maximum_pct_change = multiply_i128(K_PCT_UPPER_BOUND, 1000)
             .ok_or_else(math_error!())?
             .checked_div(K_PCT_SCALE)
             .ok_or_else(math_error!())?;
@@ -523,14 +521,12 @@ pub fn calculate_budgeted_k_scale(
             (numerator, denominator)
         }
     } else {
-        let current_pct_change = numerator
-            .checked_mul(100)
+        let current_pct_change = multiply_i128(numerator, 1000)
             .ok_or_else(math_error!())?
             .checked_div(denominator)
             .ok_or_else(math_error!())?;
 
-        let maximum_pct_change = K_PCT_LOWER_BOUND
-            .checked_mul(100)
+        let maximum_pct_change = multiply_i128(K_PCT_LOWER_BOUND, 1000)
             .ok_or_else(math_error!())?
             .checked_div(K_PCT_SCALE)
             .ok_or_else(math_error!())?;
@@ -548,7 +544,7 @@ pub fn calculate_budgeted_k_scale(
 /// To find the cost of adjusting k, compare the the net market value before and after adjusting k
 /// Increasing k costs the protocol money because it reduces slippage and improves the exit price for net market position
 /// Decreasing k costs the protocol money because it increases slippage and hurts the exit price for net market position
-pub fn adjust_k_cost(market: &Market, new_sqrt_k: bn::U256) -> ClearingHouseResult<(Market, i128)> {
+pub fn adjust_k_cost(market: &Market, new_sqrt_k: bn::U256) -> ClearingHouseResult<i128> {
     let mut market_clone = *market;
 
     // Find the net market value before adjusting k
@@ -562,7 +558,7 @@ pub fn adjust_k_cost(market: &Market, new_sqrt_k: bn::U256) -> ClearingHouseResu
         current_net_market_value,
         &market_clone.amm,
     )?;
-    Ok((market_clone, cost))
+    Ok(cost)
 }
 
 pub fn update_k(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouseResult {
