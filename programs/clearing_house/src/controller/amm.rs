@@ -147,7 +147,6 @@ pub fn formulaic_update_k(
             .ok_or_else(math_error!())?;
 
         let (adjust_k_market, adjustment_cost) = amm::adjust_k_cost(market, new_sqrt_k)?;
-        sol_log_compute_units();
         let cost_applied = apply_cost_to_market(market, adjustment_cost)?;
         if cost_applied {
             // todo: do actual k adj here

@@ -481,7 +481,6 @@ pub fn calculate_budgeted_k_scale(
         )
         .ok_or_else(math_error!())?;
 
-    sol_log_compute_units();
     let mut denominator = mark_div_budget
         .checked_sub(one_div_net_position)
         .ok_or_else(math_error!())?
