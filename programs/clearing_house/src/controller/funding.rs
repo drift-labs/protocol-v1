@@ -104,6 +104,7 @@ pub fn update_funding_rate(
     guard_rails: &OracleGuardRails,
     funding_paused: bool,
     precomputed_mark_price: Option<u128>,
+    trade_record_id: Option<u128>,
 ) -> ClearingHouseResult {
     let time_since_last_update = now
         .checked_sub(market.amm.last_funding_rate_ts)
@@ -194,7 +195,7 @@ pub fn update_funding_rate(
             curve_history,
             now,
             market_index,
-            None,
+            trade_record_id,
             mark_price,
         )?;
 

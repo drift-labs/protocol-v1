@@ -814,6 +814,7 @@ pub fn fill_order(
             &state.oracle_guard_rails,
             state.funding_paused,
             Some(mark_price_before),
+            Some(trade_record_id),
         )?;
 
         // if market_index >= 12 {

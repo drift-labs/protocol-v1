@@ -770,6 +770,7 @@ pub mod clearing_house {
                 &ctx.accounts.state.oracle_guard_rails,
                 ctx.accounts.state.funding_paused,
                 Some(mark_price_before),
+                Some(record_id),
             )?;
         }
 
@@ -965,6 +966,7 @@ pub mod clearing_house {
             &ctx.accounts.state.oracle_guard_rails,
             ctx.accounts.state.funding_paused,
             Some(mark_price_before),
+            Some(record_id),
         )?;
 
         Ok(())
@@ -2098,6 +2100,7 @@ pub mod clearing_house {
             Some(extended_curve_history),
             &ctx.accounts.state.oracle_guard_rails,
             ctx.accounts.state.funding_paused,
+            None,
             None,
         )?;
 
