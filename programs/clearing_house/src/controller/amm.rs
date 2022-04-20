@@ -11,6 +11,7 @@ use crate::state::history::curve::{ExtendedCurveHistory, ExtendedCurveRecord};
 use crate::state::market::{Market, OraclePriceData, AMM};
 use std::cell::RefMut;
 
+use solana_program::log::sol_log_compute_units;
 use std::cmp::{max, min};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -105,6 +106,7 @@ pub fn formulaic_update_k(
     now: i64,
     market_index: u64,
     trade_record: Option<u128>,
+    mark_price: u128,
 ) -> ClearingHouseResult {
     let peg_multiplier_before = market.amm.peg_multiplier;
     let base_asset_reserve_before = market.amm.base_asset_reserve;
@@ -112,8 +114,7 @@ pub fn formulaic_update_k(
     let sqrt_k_before = market.amm.sqrt_k;
 
     let funding_imbalance_cost_i64 = cast_to_i64(funding_imbalance_cost)?;
-    msg!("funding_imbalance_cost: {:?}", funding_imbalance_cost);
-    // assert!(false);
+
     // calculate budget
     let budget = if funding_imbalance_cost_i64 < 0 {
         // negative cost is period revenue, give back half in k increase
@@ -136,13 +137,8 @@ pub fn formulaic_update_k(
         let curve_history = curve_history.unwrap();
 
         // single k scale is capped by .1% increase and .09% decrease (regardless of budget)
-        let (p_numer, p_denom) = amm::calculate_budgeted_k_scale(market, cast_to_i128(budget)?)?;
-
-        if p_numer > p_denom {
-            msg!("increase sqrt_k (* {:?}/{:?})", p_numer, p_denom);
-        } else if p_numer <= p_denom {
-            msg!("decrease sqrt_k (* {:?}/{:?})", p_numer, p_denom);
-        }
+        let (p_numer, p_denom) =
+            amm::calculate_budgeted_k_scale(market, cast_to_i128(budget)?, mark_price)?;
 
         let new_sqrt_k = bn::U256::from(market.amm.sqrt_k)
             .checked_mul(bn::U256::from(p_numer))
@@ -151,6 +147,7 @@ pub fn formulaic_update_k(
             .ok_or_else(math_error!())?;
 
         let (adjust_k_market, adjustment_cost) = amm::adjust_k_cost(market, new_sqrt_k)?;
+        sol_log_compute_units();
         let cost_applied = apply_cost_to_market(market, adjustment_cost)?;
         if cost_applied {
             // todo: do actual k adj here

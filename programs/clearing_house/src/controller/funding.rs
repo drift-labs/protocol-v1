@@ -195,6 +195,7 @@ pub fn update_funding_rate(
             now,
             market_index,
             None,
+            mark_price,
         )?;
 
         market.amm.cumulative_funding_rate_long = market
