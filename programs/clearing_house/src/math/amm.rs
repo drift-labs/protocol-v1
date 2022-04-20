@@ -365,8 +365,7 @@ pub fn calculate_oracle_mark_spread_pct(
     let (oracle_price, price_spread) =
         calculate_oracle_mark_spread(amm, oracle_price_data, precomputed_mark_price)?;
 
-    price_spread
-        .checked_mul(PRICE_SPREAD_PRECISION)
+    multiply_i128(price_spread, PRICE_SPREAD_PRECISION)
         .ok_or_else(math_error!())?
         .checked_div(oracle_price)
         .ok_or_else(math_error!())
