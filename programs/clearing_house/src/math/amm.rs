@@ -544,14 +544,17 @@ pub fn calculate_budgeted_k_scale(
 /// To find the cost of adjusting k, compare the the net market value before and after adjusting k
 /// Increasing k costs the protocol money because it reduces slippage and improves the exit price for net market position
 /// Decreasing k costs the protocol money because it increases slippage and hurts the exit price for net market position
-pub fn adjust_k_cost(market: &Market, new_sqrt_k: bn::U256) -> ClearingHouseResult<i128> {
+pub fn adjust_k_cost(
+    market: &Market,
+    update_k_result: &UpdateKResult,
+) -> ClearingHouseResult<i128> {
     let mut market_clone = *market;
 
     // Find the net market value before adjusting k
     let (current_net_market_value, _) =
         _calculate_base_asset_value_and_pnl(market_clone.base_asset_amount, 0, &market_clone.amm)?;
 
-    update_k(&mut market_clone, new_sqrt_k)?;
+    update_k(&mut market_clone, update_k_result)?;
 
     let (_new_net_market_value, cost) = _calculate_base_asset_value_and_pnl(
         market_clone.base_asset_amount,
@@ -561,7 +564,16 @@ pub fn adjust_k_cost(market: &Market, new_sqrt_k: bn::U256) -> ClearingHouseResu
     Ok(cost)
 }
 
-pub fn update_k(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouseResult {
+pub struct UpdateKResult {
+    pub sqrt_k: u128,
+    pub base_asset_reserve: u128,
+    pub quote_asset_reserve: u128,
+}
+
+pub fn get_update_k_result(
+    market: &Market,
+    new_sqrt_k: bn::U256,
+) -> ClearingHouseResult<UpdateKResult> {
     let mark_price_precision = bn::U256::from(MARK_PRICE_PRECISION);
 
     let sqrt_k_ratio = new_sqrt_k
@@ -581,26 +593,35 @@ pub fn update_k(market: &mut Market, new_sqrt_k: bn::U256) -> ClearingHouseResul
         return Err(ErrorCode::InvalidUpdateK);
     }
 
-    market.amm.sqrt_k = new_sqrt_k.try_to_u128().unwrap();
-    market.amm.base_asset_reserve = bn::U256::from(market.amm.base_asset_reserve)
+    let sqrt_k = new_sqrt_k.try_to_u128().unwrap();
+    let base_asset_reserve = bn::U256::from(market.amm.base_asset_reserve)
         .checked_mul(sqrt_k_ratio)
         .ok_or_else(math_error!())?
         .checked_div(mark_price_precision)
         .ok_or_else(math_error!())?
-        .try_to_u128()
-        .unwrap();
+        .try_to_u128()?;
 
-    let invariant_sqrt_u192 = U192::from(market.amm.sqrt_k);
+    let invariant_sqrt_u192 = U192::from(sqrt_k);
     let invariant = invariant_sqrt_u192
         .checked_mul(invariant_sqrt_u192)
         .ok_or_else(math_error!())?;
 
-    market.amm.quote_asset_reserve = invariant
-        .checked_div(U192::from(market.amm.base_asset_reserve))
+    let quote_asset_reserve = invariant
+        .checked_div(U192::from(base_asset_reserve))
         .ok_or_else(math_error!())?
-        .try_to_u128()
-        .unwrap();
+        .try_to_u128()?;
 
+    Ok(UpdateKResult {
+        sqrt_k,
+        base_asset_reserve,
+        quote_asset_reserve,
+    })
+}
+
+pub fn update_k(market: &mut Market, update_k_result: &UpdateKResult) -> ClearingHouseResult {
+    market.amm.sqrt_k = update_k_result.sqrt_k;
+    market.amm.base_asset_reserve = update_k_result.base_asset_reserve;
+    market.amm.quote_asset_reserve = update_k_result.quote_asset_reserve;
     Ok(())
 }
 

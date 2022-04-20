@@ -2,7 +2,7 @@ use solana_program::msg;
 
 use crate::controller::repeg::apply_cost_to_market;
 use crate::error::{ClearingHouseResult, ErrorCode};
-use crate::math::amm::calculate_quote_asset_amount_swapped;
+use crate::math::amm::{calculate_quote_asset_amount_swapped, get_update_k_result};
 use crate::math::casting::{cast, cast_to_i128, cast_to_i64};
 use crate::math::constants::PRICE_TO_PEG_PRECISION_RATIO;
 use crate::math::{amm, bn, quote_asset::*, repeg};
@@ -146,13 +146,15 @@ pub fn formulaic_update_k(
             .checked_div(bn::U256::from(p_denom))
             .ok_or_else(math_error!())?;
 
-        let adjustment_cost = amm::adjust_k_cost(market, new_sqrt_k)?;
+        let update_k_result = get_update_k_result(market, new_sqrt_k)?;
+
+        let adjustment_cost = amm::adjust_k_cost(market, &update_k_result)?;
 
         let cost_applied = apply_cost_to_market(market, adjustment_cost)?;
 
         if cost_applied {
             // todo: do actual k adj here
-            amm::update_k(market, new_sqrt_k)?;
+            amm::update_k(market, &update_k_result)?;
 
             let peg_multiplier_after = market.amm.peg_multiplier;
             let base_asset_reserve_after = market.amm.base_asset_reserve;

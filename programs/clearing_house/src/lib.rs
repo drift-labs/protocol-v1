@@ -46,7 +46,8 @@ pub mod clearing_house {
     use super::*;
     use crate::margin_validation::validate_margin;
     use crate::math::amm::{
-        calculate_mark_twap_spread_pct, is_oracle_mark_too_divergent, normalise_oracle_price,
+        calculate_mark_twap_spread_pct, get_update_k_result, is_oracle_mark_too_divergent,
+        normalise_oracle_price,
     };
     use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
     use crate::math::slippage::{calculate_slippage, calculate_slippage_pct};
@@ -2134,9 +2135,11 @@ pub mod clearing_house {
 
         let new_sqrt_k_u256 = bn::U256::from(sqrt_k);
 
-        let adjustment_cost = math::amm::adjust_k_cost(market, new_sqrt_k_u256)?;
+        let update_k_result = get_update_k_result(market, new_sqrt_k_u256)?;
 
-        math::amm::update_k(market, new_sqrt_k_u256);
+        let adjustment_cost = math::amm::adjust_k_cost(market, &update_k_result)?;
+
+        math::amm::update_k(market, &update_k_result);
 
         if adjustment_cost > 0 {
             let max_cost = market
