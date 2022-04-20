@@ -2133,9 +2133,9 @@ pub mod clearing_house {
         let quote_asset_reserve_before = market.amm.quote_asset_reserve;
         let sqrt_k_before = market.amm.sqrt_k;
 
-        let new_sqrt_k_u256 = bn::U256::from(sqrt_k);
+        let new_sqrt_k_u192 = bn::U192::from(sqrt_k);
 
-        let update_k_result = get_update_k_result(market, new_sqrt_k_u256)?;
+        let update_k_result = get_update_k_result(market, new_sqrt_k_u192)?;
 
         let adjustment_cost = math::amm::adjust_k_cost(market, &update_k_result)?;
 

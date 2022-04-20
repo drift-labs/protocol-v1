@@ -572,32 +572,27 @@ pub struct UpdateKResult {
 
 pub fn get_update_k_result(
     market: &Market,
-    new_sqrt_k: bn::U256,
+    new_sqrt_k: bn::U192,
 ) -> ClearingHouseResult<UpdateKResult> {
-    let mark_price_precision = bn::U256::from(MARK_PRICE_PRECISION);
+    let sqrt_k_ratio_precision = bn::U192::from(10_000);
 
+    let old_sqrt_k = bn::U192::from(market.amm.sqrt_k);
     let sqrt_k_ratio = new_sqrt_k
-        .checked_mul(mark_price_precision)
+        .checked_mul(sqrt_k_ratio_precision)
         .ok_or_else(math_error!())?
-        .checked_div(bn::U256::from(market.amm.sqrt_k))
+        .checked_div(old_sqrt_k)
         .ok_or_else(math_error!())?;
 
     // if decreasing k, max decrease ratio for single transaction is 2.5%
-    if sqrt_k_ratio
-        < mark_price_precision
-            .checked_mul(bn::U256::from(975))
-            .ok_or_else(math_error!())?
-            .checked_div(bn::U256::from(1000))
-            .ok_or_else(math_error!())?
-    {
+    if sqrt_k_ratio < U192::from(9750) {
         return Err(ErrorCode::InvalidUpdateK);
     }
 
     let sqrt_k = new_sqrt_k.try_to_u128().unwrap();
-    let base_asset_reserve = bn::U256::from(market.amm.base_asset_reserve)
+    let base_asset_reserve = bn::U192::from(market.amm.base_asset_reserve)
         .checked_mul(sqrt_k_ratio)
         .ok_or_else(math_error!())?
-        .checked_div(mark_price_precision)
+        .checked_div(sqrt_k_ratio_precision)
         .ok_or_else(math_error!())?
         .try_to_u128()?;
 

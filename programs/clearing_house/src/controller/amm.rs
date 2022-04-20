@@ -137,13 +137,13 @@ pub fn formulaic_update_k(
         let curve_history = curve_history.unwrap();
 
         // single k scale is capped by .1% increase and .09% decrease (regardless of budget)
-        let (p_numer, p_denom) =
+        let (k_scale_numerator, k_scale_denominator) =
             amm::calculate_budgeted_k_scale(market, cast_to_i128(budget)?, mark_price)?;
 
-        let new_sqrt_k = bn::U256::from(market.amm.sqrt_k)
-            .checked_mul(bn::U256::from(p_numer))
+        let new_sqrt_k = bn::U192::from(market.amm.sqrt_k)
+            .checked_mul(bn::U192::from(k_scale_numerator))
             .ok_or_else(math_error!())?
-            .checked_div(bn::U256::from(p_denom))
+            .checked_div(bn::U192::from(k_scale_denominator))
             .ok_or_else(math_error!())?;
 
         let update_k_result = get_update_k_result(market, new_sqrt_k)?;
