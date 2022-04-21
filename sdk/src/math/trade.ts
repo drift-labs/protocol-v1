@@ -140,11 +140,7 @@ export function calculateTradeAcquiredAmounts(
 		calculateAmmReservesAfterSwap(amm, inputAssetType, amount, swapDirection);
 
 	const acquiredBase = amm.baseAssetReserve.sub(newBaseAssetReserve);
-	let acquiredQuote = amm.quoteAssetReserve.sub(newQuoteAssetReserve);
-	if (inputAssetType === 'base' && isVariant(swapDirection, 'remove')) {
-		acquiredQuote = acquiredQuote.sub(AMM_TO_QUOTE_PRECISION_RATIO);
-	}
-
+	const acquiredQuote = amm.quoteAssetReserve.sub(newQuoteAssetReserve);
 	return [acquiredBase, acquiredQuote];
 }
 

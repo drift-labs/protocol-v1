@@ -8,6 +8,7 @@ import {
 	QUOTE_PRECISION,
 	AMM_RESERVE_PRECISION,
 	BID_ASK_SPREAD_PRECISION,
+	ONE,
 } from '../constants/numericConstants';
 import { calculateBaseAssetValue } from './position';
 import {
@@ -447,4 +448,20 @@ export function calculateBudgetedPeg(market: Market, cost: BN): BN {
 	);
 
 	return newPeg;
+}
+
+export function calculateQuoteAssetAmountSwapped(
+	quoteAssetReserves: BN,
+	pegMultiplier: BN,
+	swapDirection: SwapDirection
+): BN {
+	let quoteAssetAmount = quoteAssetReserves
+		.mul(pegMultiplier)
+		.div(AMM_TIMES_PEG_TO_QUOTE_PRECISION_RATIO);
+
+	if (isVariant(swapDirection, 'remove')) {
+		quoteAssetAmount = quoteAssetAmount.add(ONE);
+	}
+
+	return quoteAssetAmount;
 }
