@@ -1642,6 +1642,36 @@
       "args": []
     },
     {
+      "name": "updateFormulaicUpdateIntensity",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "markets",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "marketIndex",
+          "type": "u64"
+        },
+        {
+          "name": "updateIntensity",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "updateMarginRatio",
       "accounts": [
         {
@@ -3301,11 +3331,27 @@
             "type": "i64"
           },
           {
+            "name": "updateIntensity",
+            "type": "u8"
+          },
+          {
             "name": "padding2",
-            "type": "u128"
+            "type": "u8"
           },
           {
             "name": "padding3",
+            "type": "u16"
+          },
+          {
+            "name": "padding4",
+            "type": "u32"
+          },
+          {
+            "name": "padding5",
+            "type": "u64"
+          },
+          {
+            "name": "padding6",
             "type": "u128"
           }
         ]

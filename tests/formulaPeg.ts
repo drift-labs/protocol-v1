@@ -226,6 +226,7 @@ describe('formulaic curve (repeg)', () => {
 			periodicity,
 			new BN(initialSOLPrice * PEG_PRECISION.toNumber())
 		);
+		await clearingHouse.updateFormulaicUpdateIntensity(marketIndex, 100);
 
 		await clearingHouse.initializeMarket(
 			marketIndex.add(new BN(1)),
@@ -234,6 +235,11 @@ describe('formulaic curve (repeg)', () => {
 			ammInitialQuoteAssetReserve,
 			periodicity,
 			new BN(110)
+		);
+
+		await clearingHouse.updateFormulaicUpdateIntensity(
+			marketIndex.add(new BN(1)),
+			100
 		);
 
 		await clearingHouse.initializeUserAccount();

@@ -2,12 +2,14 @@ use crate::controller::amm::SwapDirection;
 use crate::error::*;
 use crate::math::amm;
 use crate::math::bn;
+use crate::math::bn_operations::{multiply_i128, multiply_u128};
 use crate::math::casting::{cast_to_i128, cast_to_u128};
 use crate::math::constants::{
     AMM_RESERVE_PRECISION, AMM_RESERVE_PRECISION_I128, AMM_TO_QUOTE_PRECISION_RATIO,
     AMM_TO_QUOTE_PRECISION_RATIO_I128, FUNDING_EXCESS_TO_QUOTE_RATIO, MARK_PRICE_PRECISION,
-    MARK_PRICE_PRECISION_I128, ONE_HOUR, PEG_PRECISION, PRICE_SPREAD_PRECISION,
-    PRICE_SPREAD_PRECISION_U128, PRICE_TO_PEG_PRECISION_RATIO, QUOTE_PRECISION,
+    MARK_PRICE_PRECISION_I128, ONE_HOUR, PEG_BPS_DECREASE_MAX, PEG_BPS_INCREASE_MAX,
+    PEG_BPS_UPDATE_SCALE, PEG_PRECISION, PRICE_SPREAD_PRECISION, PRICE_SPREAD_PRECISION_U128,
+    PRICE_TO_PEG_PRECISION_RATIO, QUOTE_PRECISION,
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_DENOMINATOR,
     SHARE_OF_FEES_ALLOCATED_TO_CLEARING_HOUSE_NUMERATOR, TWENTYFOUR_HOUR,
 };
@@ -178,29 +180,48 @@ pub fn calculate_amm_target_price(
 
     let weight_denom = 100_u128;
 
+    let delay_penalty = max(
+        0,
+        oracle_price_data
+            .delay
+            .checked_mul(max(
+                1,
+                oracle_price_data
+                    .delay
+                    .checked_div(2)
+                    .ok_or_else(math_error!())?,
+            ))
+            .ok_or_else(math_error!())?,
+    );
+
     let oracle_price_weight: u128 = cast_to_u128(max(
         0,
         50_i64
-            .checked_sub(max(0, oracle_price_data.delay))
+            .checked_sub(delay_penalty)
             .ok_or_else(math_error!())?,
     ))?;
-    let current_price_weight: u128 = weight_denom
-        .checked_sub(oracle_price_weight)
-        .ok_or_else(math_error!())?;
 
-    let target_price = oracle_price_normalised
-        .checked_mul(oracle_price_weight)
-        .ok_or_else(math_error!())?
-        .checked_div(weight_denom)
-        .ok_or_else(math_error!())?
-        .checked_add(
-            current_price
-                .checked_mul(current_price_weight)
-                .ok_or_else(math_error!())?
-                .checked_div(weight_denom)
-                .ok_or_else(math_error!())?,
-        )
-        .ok_or_else(math_error!())?;
+    let target_price = if oracle_price_weight > 0 {
+        let current_price_weight: u128 = weight_denom
+            .checked_sub(oracle_price_weight)
+            .ok_or_else(math_error!())?;
+
+        oracle_price_normalised
+            .checked_mul(oracle_price_weight)
+            .ok_or_else(math_error!())?
+            .checked_div(weight_denom)
+            .ok_or_else(math_error!())?
+            .checked_add(
+                current_price
+                    .checked_mul(current_price_weight)
+                    .ok_or_else(math_error!())?
+                    .checked_div(weight_denom)
+                    .ok_or_else(math_error!())?,
+            )
+            .ok_or_else(math_error!())?
+    } else {
+        current_price
+    };
 
     Ok(target_price)
 }
@@ -218,6 +239,14 @@ pub fn calculate_budgeted_peg(
         market.amm.base_asset_reserve,
         target_price,
     )?;
+
+    // 0-100
+    let update_intensity = cast_to_i128(min(market.amm.update_intensity, 100_u8))?;
+
+    // return early
+    if optimal_peg == market.amm.peg_multiplier || update_intensity == 0 {
+        return Ok((market.amm.peg_multiplier, 0, *market));
+    }
 
     let delta_peg_sign = if market.amm.quote_asset_reserve > terminal_quote_reserves {
         1
@@ -289,9 +318,37 @@ pub fn calculate_budgeted_peg(
         full_budget_peg
     };
 
-    let (repegged_market, candidate_cost) = adjust_peg_cost(market, candidate_peg)?;
+    // add bounds to single update
+    let capped_candidate_peg = if candidate_peg > market.amm.peg_multiplier {
+        let peg_upper_bound = market
+            .amm
+            .peg_multiplier
+            .checked_add(
+                multiply_u128(market.amm.peg_multiplier, PEG_BPS_INCREASE_MAX)
+                    .ok_or_else(math_error!())?
+                    .checked_div(PEG_BPS_UPDATE_SCALE)
+                    .ok_or_else(math_error!())?,
+            )
+            .ok_or_else(math_error!())?;
+        min(candidate_peg, peg_upper_bound)
+    } else {
+        let peg_lower_bound = market
+            .amm
+            .peg_multiplier
+            .checked_sub(
+                multiply_u128(market.amm.peg_multiplier, PEG_BPS_DECREASE_MAX)
+                    .ok_or_else(math_error!())?
+                    .checked_div(PEG_BPS_UPDATE_SCALE)
+                    .ok_or_else(math_error!())?,
+            )
+            .ok_or_else(math_error!())?;
 
-    Ok((candidate_peg, candidate_cost, repegged_market))
+        max(candidate_peg, peg_lower_bound)
+    };
+
+    let (repegged_market, candidate_cost) = adjust_peg_cost(market, capped_candidate_peg)?;
+
+    Ok((capped_candidate_peg, candidate_cost, repegged_market))
 }
 
 pub fn adjust_peg_cost(

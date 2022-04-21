@@ -86,6 +86,11 @@ describe('formulaic curve (k)', () => {
 			new BN(initialSOLPrice * PEG_PRECISION.toNumber())
 		);
 
+		await clearingHouse.updateFormulaicUpdateIntensity(
+			Markets[0].marketIndex,
+			100
+		);
+
 		await clearingHouse.initializeUserAccount();
 		userAccount = ClearingHouseUser.from(
 			clearingHouse,

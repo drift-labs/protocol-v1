@@ -467,6 +467,23 @@ export class Admin extends ClearingHouse {
 		});
 	}
 
+	public async updateFormulaicUpdateIntensity(
+		marketIndex: BN,
+		updateIntensity: number
+	): Promise<TransactionSignature> {
+		return await this.program.rpc.updateFormulaicUpdateIntensity(
+			marketIndex,
+			updateIntensity,
+			{
+				accounts: {
+					admin: this.wallet.publicKey,
+					state: await this.getStatePublicKey(),
+					markets: this.getStateAccount().markets,
+				},
+			}
+		);
+	}
+
 	public async updateMarginRatio(
 		marketIndex: BN,
 		marginRatioInitial: number,

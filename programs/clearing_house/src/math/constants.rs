@@ -70,8 +70,12 @@ pub const MAXIMUM_MARGIN_RATIO: u32 = MARGIN_PRECISION as u32;
 pub const MINIMUM_MARGIN_RATIO: u32 = MARGIN_PRECISION as u32 / 50;
 
 // FORMULAIC REPEG / K
-pub const K_PCT_SCALE: i128 = 10000; // expo = -4
+pub const K_BPS_UPDATE_SCALE: i128 = 1_000_000; // expo = -6 (represents 100%)
+                                                // hardcoded scale bounds for a single k update (.1% increase and .09% decrease). scaled by market update_intensity
+pub const K_BPS_DECREASE_MAX: i128 = 900; // 9 bps decrease (900/K_BPS_UPDATE_SCALE)
+pub const K_BPS_INCREASE_MAX: i128 = 1000; // 10 bps increase
 
-// hardcoded scale bounds for a single update (.1% increase and .09% decrease)
-pub const K_PCT_LOWER_BOUND: i128 = 9991;
-pub const K_PCT_UPPER_BOUND: i128 = 10010;
+pub const PEG_BPS_UPDATE_SCALE: u128 = 1_000_000; // expo = -6 (represents 100%)
+                                                  // hardcoded scale bounds for a single repeg update. scaled by market update_intensity
+pub const PEG_BPS_DECREASE_MAX: u128 = 1000; // 10 bps decrease
+pub const PEG_BPS_INCREASE_MAX: u128 = 1000; // 10 bps increase

@@ -11,7 +11,7 @@ use crate::math::bn_operations::{multiply_i128, multiply_u128};
 use crate::math::casting::{cast, cast_to_i128, cast_to_u128};
 use crate::math::constants::{
     AMM_RESERVE_PRECISION, AMM_RESERVE_PRECISION_I128, AMM_TO_QUOTE_PRECISION_RATIO,
-    AMM_TO_QUOTE_PRECISION_RATIO_I128, K_PCT_LOWER_BOUND, K_PCT_SCALE, K_PCT_UPPER_BOUND,
+    AMM_TO_QUOTE_PRECISION_RATIO_I128, K_BPS_DECREASE_MAX, K_BPS_INCREASE_MAX, K_BPS_UPDATE_SCALE,
     MARK_PRICE_PRECISION, MARK_PRICE_PRECISION_I128,
     MARK_PRICE_TIMES_AMM_TO_QUOTE_PRECISION_RATIO_I128, PEG_PRECISION, PRICE_SPREAD_PRECISION,
     PRICE_SPREAD_PRECISION_U128, PRICE_TO_PEG_PRECISION_RATIO, QUOTE_PRECISION,
@@ -461,6 +461,13 @@ pub fn calculate_budgeted_k_scale(
     budget: i128,
     mark_price: u128,
 ) -> ClearingHouseResult<(u128, u128)> {
+    // 0 - 100
+    let update_intensity = cast_to_i128(min(market.amm.update_intensity, 100_u8))?;
+
+    if update_intensity == 0 {
+        return Ok((1, 1));
+    }
+
     let mark_div_budget = cast_to_i128(mark_price)?
         .checked_div(budget)
         .ok_or_else(math_error!())?;
@@ -504,34 +511,38 @@ pub fn calculate_budgeted_k_scale(
     }
 
     let (numerator, denominator) = if numerator > denominator {
+        let k_pct_upper_bound = K_BPS_UPDATE_SCALE + (K_BPS_INCREASE_MAX * update_intensity / 100);
+
         let current_pct_change = multiply_i128(numerator, 1000)
             .ok_or_else(math_error!())?
             .checked_div(denominator)
             .ok_or_else(math_error!())?;
 
-        let maximum_pct_change = multiply_i128(K_PCT_UPPER_BOUND, 1000)
+        let maximum_pct_change = multiply_i128(k_pct_upper_bound, 1000)
             .ok_or_else(math_error!())?
-            .checked_div(K_PCT_SCALE)
+            .checked_div(K_BPS_UPDATE_SCALE)
             .ok_or_else(math_error!())?;
 
         if current_pct_change > maximum_pct_change {
-            (K_PCT_UPPER_BOUND, K_PCT_SCALE)
+            (k_pct_upper_bound, K_BPS_UPDATE_SCALE)
         } else {
             (numerator, denominator)
         }
     } else {
+        let k_pct_lower_bound = K_BPS_UPDATE_SCALE - (K_BPS_DECREASE_MAX * update_intensity / 100);
+
         let current_pct_change = multiply_i128(numerator, 1000)
             .ok_or_else(math_error!())?
             .checked_div(denominator)
             .ok_or_else(math_error!())?;
 
-        let maximum_pct_change = multiply_i128(K_PCT_LOWER_BOUND, 1000)
+        let maximum_pct_change = multiply_i128(k_pct_lower_bound, 1000)
             .ok_or_else(math_error!())?
-            .checked_div(K_PCT_SCALE)
+            .checked_div(K_BPS_UPDATE_SCALE)
             .ok_or_else(math_error!())?;
 
         if current_pct_change < maximum_pct_change {
-            (K_PCT_LOWER_BOUND, K_PCT_SCALE)
+            (k_pct_lower_bound, K_BPS_UPDATE_SCALE)
         } else {
             (numerator, denominator)
         }
