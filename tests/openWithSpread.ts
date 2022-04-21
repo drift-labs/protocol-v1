@@ -24,12 +24,14 @@ import {
 	AMM_RESERVE_PRECISION,
 	AMM_TO_QUOTE_PRECISION_RATIO,
 	calculateTradeAcquiredAmounts,
+	convertToNumber,
 	FeeStructure,
+	PEG_PRECISION,
 	QUOTE_PRECISION,
 	ZERO,
 } from '../sdk';
 
-describe('market order', () => {
+describe('amm spread: market order', () => {
 	const provider = anchor.Provider.local(undefined, {
 		commitment: 'confirmed',
 		preflightCommitment: 'confirmed',
@@ -538,6 +540,195 @@ describe('market order', () => {
 				.getMarket(0)
 				.amm.totalFee.sub(initialAmmTotalFee)
 				.eq(new BN(500))
+		);
+	});
+
+	it('Long market order base w/ variable reduce/close', async () => {
+		const marketIndex2Num = 1;
+		const marketIndex2 = new BN(marketIndex2Num);
+		const peg = 40000;
+		const btcUsd = await mockOracle(peg);
+
+		const periodicity = new BN(60 * 60); // 1 HOUR
+		const mantissaSqrtScale = new BN(
+			Math.sqrt(MARK_PRICE_PRECISION.toNumber())
+		);
+		const ammInitialQuoteAssetReserve = new anchor.BN(5 * 10 ** 15).mul(
+			mantissaSqrtScale
+		);
+		const ammInitialBaseAssetReserve = new anchor.BN(5 * 10 ** 15).mul(
+			mantissaSqrtScale
+		);
+
+		await clearingHouse.initializeMarket(
+			marketIndex2,
+			btcUsd,
+			ammInitialBaseAssetReserve,
+			ammInitialQuoteAssetReserve,
+			periodicity,
+			new BN(peg * 1e3)
+		);
+
+		await clearingHouse.updateMarketBaseSpread(marketIndex2, 500);
+		const feeStructure: FeeStructure = {
+			feeNumerator: new BN(0), // 5bps
+			feeDenominator: new BN(10000),
+			discountTokenTiers: {
+				firstTier: {
+					minimumBalance: new BN(1),
+					discountNumerator: new BN(1),
+					discountDenominator: new BN(1),
+				},
+				secondTier: {
+					minimumBalance: new BN(1),
+					discountNumerator: new BN(1),
+					discountDenominator: new BN(1),
+				},
+				thirdTier: {
+					minimumBalance: new BN(1),
+					discountNumerator: new BN(1),
+					discountDenominator: new BN(1),
+				},
+				fourthTier: {
+					minimumBalance: new BN(1),
+					discountNumerator: new BN(1),
+					discountDenominator: new BN(1),
+				},
+			},
+			referralDiscount: {
+				referrerRewardNumerator: new BN(1),
+				referrerRewardDenominator: new BN(1),
+				refereeDiscountNumerator: new BN(1),
+				refereeDiscountDenominator: new BN(1),
+			},
+		};
+		await clearingHouse.updateFee(feeStructure);
+
+		const initialCollateral = clearingHouseUser.getUserAccount().collateral;
+		const direction = PositionDirection.LONG;
+		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION.toNumber() / 10000); // ~$4 of btc
+		const market2 = clearingHouse.getMarket(marketIndex2Num);
+
+		const tradeAcquiredAmountsNoSpread = calculateTradeAcquiredAmounts(
+			direction,
+			baseAssetAmount,
+			market2,
+			'base',
+			false
+		);
+		const tradeAcquiredAmountsWithSpread = calculateTradeAcquiredAmounts(
+			direction,
+			baseAssetAmount,
+			market2,
+			'base',
+			true
+		);
+
+		console.log(
+			'expected quote with out spread',
+			tradeAcquiredAmountsNoSpread[1]
+				.abs()
+				.mul(market2.amm.pegMultiplier)
+				.div(PEG_PRECISION)
+				.div(AMM_TO_QUOTE_PRECISION_RATIO)
+				.toString()
+		);
+		const expectedQuoteAssetAmount = tradeAcquiredAmountsWithSpread[1]
+			.abs()
+			.mul(market2.amm.pegMultiplier)
+			.div(PEG_PRECISION)
+			.div(AMM_TO_QUOTE_PRECISION_RATIO);
+		console.log(
+			'expected quote with spread',
+			expectedQuoteAssetAmount.toString()
+		);
+
+		const orderParams = getMarketOrderParams(
+			marketIndex2,
+			direction,
+			ZERO,
+			baseAssetAmount,
+			false
+		);
+		const txSig = await clearingHouse.placeAndFillOrder(orderParams);
+		const computeUnits = await findComputeUnitConsumption(
+			clearingHouse.program.programId,
+			connection,
+			txSig,
+			'confirmed'
+		);
+		console.log('compute units', computeUnits);
+		console.log(
+			'tx logs',
+			(await connection.getTransaction(txSig, { commitment: 'confirmed' })).meta
+				.logMessages
+		);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		const unrealizedPnl = clearingHouseUser.getUnrealizedPNL();
+		console.log('unrealized pnl', unrealizedPnl.toString());
+
+		const market = clearingHouse.getMarket(marketIndex2);
+		const expectedFeeToMarket = new BN(250);
+		console.log(market.amm.totalFee.toString());
+		// assert(market.amm.totalFee.eq(expectedFeeToMarket));
+
+		const userPositionsAccount = clearingHouseUser.getUserPositionsAccount();
+		const firstPosition = userPositionsAccount.positions[0];
+		assert(firstPosition.baseAssetAmount.eq(baseAssetAmount));
+		console.log(
+			convertToNumber(firstPosition.quoteAssetAmount),
+			convertToNumber(expectedQuoteAssetAmount)
+		);
+		assert(firstPosition.quoteAssetAmount.eq(expectedQuoteAssetAmount)); //todo
+
+		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
+		const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[0];
+
+		assert.ok(tradeHistoryAccount.head.toNumber() === 1);
+		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(baseAssetAmount));
+		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(expectedQuoteAssetAmount));
+		assert.ok(
+			tradeHistoryRecord.quoteAssetAmountSurplus.eq(expectedFeeToMarket)
+		);
+		console.log(
+			'surplus',
+			tradeHistoryRecord.quoteAssetAmountSurplus.toString()
+		);
+
+		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
+		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[1];
+		assert(orderRecord.quoteAssetAmountSurplus.eq(expectedFeeToMarket));
+
+		const numCloses = 10;
+		const directionToClose = PositionDirection.SHORT;
+
+		for (let i = numCloses; i > 0; i--) {
+			const orderParams = getMarketOrderParams(
+				marketIndex2,
+				directionToClose,
+				ZERO,
+				baseAssetAmount.div(new BN(numCloses * i)), // variable sized close
+				false
+			);
+			await clearingHouse.placeAndFillOrder(orderParams);
+		}
+		await clearingHouse.closePosition(marketIndex2); // close rest
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		const pnl = clearingHouseUser
+			.getUserAccount()
+			.collateral.sub(initialCollateral);
+		console.log(pnl.toString());
+		console.log(
+			clearingHouse.getMarket(marketIndex2Num).amm.totalFee.toString()
+		);
+		assert(
+			clearingHouse.getMarket(marketIndex2Num).amm.totalFee.eq(new BN(500))
 		);
 	});
 });
