@@ -29,7 +29,13 @@ import {
 	mockUserUSDCAccount,
 	setFeedPrice,
 } from './testHelpers';
-import { getSwapDirection } from '../sdk';
+import {
+	BASE_PRECISION,
+	calculateBaseAssetAmountMarketCanExecute,
+	calculateMarkPrice,
+	getLimitOrderParams,
+	getSwapDirection,
+} from '../sdk';
 
 describe('amm spread: market order', () => {
 	const provider = anchor.Provider.local(undefined, {
@@ -224,7 +230,6 @@ describe('amm spread: market order', () => {
 		const userPositionsAccount = clearingHouseUser.getUserPositionsAccount();
 		const firstPosition = userPositionsAccount.positions[0];
 		assert(firstPosition.baseAssetAmount.eq(baseAssetAmount));
-
 		assert(firstPosition.quoteAssetAmount.eq(expectedQuoteAssetAmount));
 
 		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
@@ -551,6 +556,238 @@ describe('amm spread: market order', () => {
 		);
 	});
 
+	it('unable to fill bid between mark and ask price', async () => {
+		const direction = PositionDirection.LONG;
+		const baseAssetAmount = AMM_RESERVE_PRECISION;
+		const limitPrice = calculateMarkPrice(clearingHouse.getMarket(0)).add(
+			MARK_PRICE_PRECISION.div(new BN(10000))
+		); // limit price plus 1bp
+
+		const orderParams = getLimitOrderParams(
+			marketIndex,
+			direction,
+			baseAssetAmount,
+			limitPrice,
+			false,
+			undefined,
+			false,
+			1
+		);
+		await clearingHouse.placeOrder(orderParams);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		const unfilledOrder = clearingHouseUser.getUserOrdersAccount().orders[0];
+		const expectedBaseAssetAmount = calculateBaseAssetAmountMarketCanExecute(
+			clearingHouse.getMarket(0),
+			unfilledOrder
+		);
+		assert(expectedBaseAssetAmount, ZERO);
+
+		// fill should fail because nothing to fill
+		try {
+			await clearingHouse.fillOrder(
+				await clearingHouseUser.getUserAccountPublicKey(),
+				await clearingHouseUser.getUserOrdersAccountPublicKey(),
+				unfilledOrder
+			);
+			assert(false);
+		} catch (e) {
+			// good
+		}
+
+		await clearingHouse.cancelOrderByUserId(1);
+	});
+
+	it('unable to fill ask between mark and bid price', async () => {
+		const direction = PositionDirection.SHORT;
+		const baseAssetAmount = AMM_RESERVE_PRECISION;
+		const limitPrice = calculateMarkPrice(clearingHouse.getMarket(0)).add(
+			MARK_PRICE_PRECISION.sub(new BN(10000))
+		); // limit price plus 1bp
+
+		const orderParams = getLimitOrderParams(
+			marketIndex,
+			direction,
+			baseAssetAmount,
+			limitPrice,
+			false,
+			undefined,
+			false,
+			1
+		);
+		await clearingHouse.placeOrder(orderParams);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		const unfilledOrder = clearingHouseUser.getUserOrdersAccount().orders[0];
+		const expectedBaseAssetAmount = calculateBaseAssetAmountMarketCanExecute(
+			clearingHouse.getMarket(0),
+			unfilledOrder
+		);
+		assert(expectedBaseAssetAmount, ZERO);
+
+		// fill should fail because nothing to fill
+		try {
+			await clearingHouse.fillOrder(
+				await clearingHouseUser.getUserAccountPublicKey(),
+				await clearingHouseUser.getUserOrdersAccountPublicKey(),
+				unfilledOrder
+			);
+			assert(false);
+		} catch (e) {
+			// good
+		}
+
+		await clearingHouse.cancelOrderByUserId(1);
+	});
+
+	it('fill limit order above ask', async () => {
+		const initialAmmTotalFee = clearingHouse.getMarket(0).amm.totalFee;
+
+		const direction = PositionDirection.LONG;
+		const baseAssetAmount = AMM_RESERVE_PRECISION;
+		const limitPrice = calculateMarkPrice(clearingHouse.getMarket(0)).add(
+			MARK_PRICE_PRECISION.div(new BN(1000))
+		); // limit price plus 10bp
+
+		const orderParams = getLimitOrderParams(
+			marketIndex,
+			direction,
+			baseAssetAmount,
+			limitPrice,
+			false,
+			undefined,
+			false,
+			1
+		);
+		await clearingHouse.placeOrder(orderParams);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		const order = clearingHouseUser.getUserOrdersAccount().orders[0];
+		const expectedBaseAssetAmount = calculateBaseAssetAmountMarketCanExecute(
+			clearingHouse.getMarket(0),
+			order
+		);
+		assert(expectedBaseAssetAmount, AMM_RESERVE_PRECISION);
+
+		const tradeAcquiredAmountsWithSpread = calculateTradeAcquiredAmounts(
+			direction,
+			baseAssetAmount,
+			clearingHouse.getMarket(0),
+			'base',
+			true
+		);
+
+		const expectedQuoteAssetAmount = calculateQuoteAssetAmountSwapped(
+			tradeAcquiredAmountsWithSpread[1].abs(),
+			clearingHouse.getMarket(marketIndex).amm.pegMultiplier,
+			getSwapDirection('base', direction)
+		);
+
+		await clearingHouse.fillOrder(
+			await clearingHouseUser.getUserAccountPublicKey(),
+			await clearingHouseUser.getUserOrdersAccountPublicKey(),
+			order
+		);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		const userPositionsAccount = clearingHouseUser.getUserPositionsAccount();
+		const firstPosition = userPositionsAccount.positions[0];
+		assert(firstPosition.baseAssetAmount.eq(baseAssetAmount));
+		assert(firstPosition.quoteAssetAmount.eq(expectedQuoteAssetAmount));
+
+		await clearingHouse.closePosition(marketIndex);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		assert(
+			clearingHouse
+				.getMarket(0)
+				.amm.totalFee.sub(initialAmmTotalFee)
+				.eq(new BN(500))
+		);
+	});
+
+	it('fill limit order below bid', async () => {
+		const initialAmmTotalFee = clearingHouse.getMarket(0).amm.totalFee;
+
+		const direction = PositionDirection.SHORT;
+		const baseAssetAmount = AMM_RESERVE_PRECISION;
+		const limitPrice = calculateMarkPrice(clearingHouse.getMarket(0)).sub(
+			MARK_PRICE_PRECISION.div(new BN(1000))
+		); // limit price minus 10bp
+
+		const orderParams = getLimitOrderParams(
+			marketIndex,
+			direction,
+			baseAssetAmount,
+			limitPrice,
+			false,
+			undefined,
+			false,
+			1
+		);
+		await clearingHouse.placeOrder(orderParams);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		const order = clearingHouseUser.getUserOrdersAccount().orders[0];
+		const expectedBaseAssetAmount = calculateBaseAssetAmountMarketCanExecute(
+			clearingHouse.getMarket(0),
+			order
+		);
+		assert(expectedBaseAssetAmount, AMM_RESERVE_PRECISION);
+
+		const tradeAcquiredAmountsWithSpread = calculateTradeAcquiredAmounts(
+			direction,
+			baseAssetAmount,
+			clearingHouse.getMarket(0),
+			'base',
+			true
+		);
+
+		const expectedQuoteAssetAmount = calculateQuoteAssetAmountSwapped(
+			tradeAcquiredAmountsWithSpread[1].abs(),
+			clearingHouse.getMarket(marketIndex).amm.pegMultiplier,
+			getSwapDirection('base', direction)
+		);
+
+		await clearingHouse.fillOrder(
+			await clearingHouseUser.getUserAccountPublicKey(),
+			await clearingHouseUser.getUserOrdersAccountPublicKey(),
+			order
+		);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		const userPositionsAccount = clearingHouseUser.getUserPositionsAccount();
+		const firstPosition = userPositionsAccount.positions[0];
+		assert(firstPosition.baseAssetAmount.abs().eq(baseAssetAmount));
+		assert(firstPosition.quoteAssetAmount.eq(expectedQuoteAssetAmount));
+
+		await clearingHouse.closePosition(marketIndex);
+
+		await clearingHouse.fetchAccounts();
+		await clearingHouseUser.fetchAccounts();
+
+		assert(
+			clearingHouse
+				.getMarket(0)
+				.amm.totalFee.sub(initialAmmTotalFee)
+				.eq(new BN(500))
+		);
+	});
+
 	it('Long market order base w/ variable reduce/close', async () => {
 		const marketIndex2Num = 1;
 		const marketIndex2 = new BN(marketIndex2Num);
@@ -658,7 +895,8 @@ describe('amm spread: market order', () => {
 		assert(firstPosition.quoteAssetAmount.eq(expectedQuoteAssetAmount)); //todo
 
 		const tradeHistoryAccount = clearingHouse.getTradeHistoryAccount();
-		const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[8];
+		console.log(tradeHistoryAccount.head.toString());
+		const tradeHistoryRecord = tradeHistoryAccount.tradeRecords[12];
 
 		assert.ok(tradeHistoryRecord.baseAssetAmount.eq(baseAssetAmount));
 		assert.ok(tradeHistoryRecord.quoteAssetAmount.eq(expectedQuoteAssetAmount));
@@ -671,7 +909,7 @@ describe('amm spread: market order', () => {
 		);
 
 		const orderHistoryAccount = clearingHouse.getOrderHistoryAccount();
-		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[9];
+		const orderRecord: OrderRecord = orderHistoryAccount.orderRecords[17];
 		assert(orderRecord.quoteAssetAmountSurplus.eq(expectedFeeToMarket));
 
 		const numCloses = 10;
