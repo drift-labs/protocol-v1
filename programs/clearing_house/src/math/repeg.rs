@@ -241,10 +241,10 @@ pub fn calculate_budgeted_peg(
     )?;
 
     // 0-100
-    let update_intensity = cast_to_i128(min(market.amm.update_intensity, 100_u8))?;
+    let curve_update_intensity = cast_to_i128(min(market.amm.curve_update_intensity, 100_u8))?;
 
     // return early
-    if optimal_peg == market.amm.peg_multiplier || update_intensity == 0 {
+    if optimal_peg == market.amm.peg_multiplier || curve_update_intensity == 0 {
         return Ok((market.amm.peg_multiplier, 0, *market));
     }
 

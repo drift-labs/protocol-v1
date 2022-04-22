@@ -341,7 +341,7 @@ pub mod clearing_house {
                 last_oracle_price: oracle_price,
                 minimum_base_asset_trade_size: 10000000,
                 net_revenue_since_last_funding: 0,
-                update_intensity: 0,
+                curve_update_intensity: 0,
                 padding2: 0,
                 padding3: 0,
                 padding4: 0,
@@ -2297,14 +2297,14 @@ pub mod clearing_house {
     #[access_control(
         market_initialized(&ctx.accounts.markets, market_index)
     )]
-    pub fn update_formulaic_update_intensity(
+    pub fn update_curve_update_intensity(
         ctx: Context<AdminUpdateMarket>,
         market_index: u64,
-        update_intensity: u8,
+        curve_update_intensity: u8,
     ) -> ProgramResult {
         let market =
             &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
-        market.amm.update_intensity = update_intensity;
+        market.amm.curve_update_intensity = curve_update_intensity;
         Ok(())
     }
 

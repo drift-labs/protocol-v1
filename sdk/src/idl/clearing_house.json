@@ -1642,7 +1642,7 @@
       "args": []
     },
     {
-      "name": "updateFormulaicUpdateIntensity",
+      "name": "updateCurveUpdateIntensity",
       "accounts": [
         {
           "name": "admin",
@@ -1666,7 +1666,7 @@
           "type": "u64"
         },
         {
-          "name": "updateIntensity",
+          "name": "curveUpdateIntensity",
           "type": "u8"
         }
       ]
@@ -3331,7 +3331,7 @@
             "type": "i64"
           },
           {
-            "name": "updateIntensity",
+            "name": "curveUpdateIntensity",
             "type": "u8"
           },
           {

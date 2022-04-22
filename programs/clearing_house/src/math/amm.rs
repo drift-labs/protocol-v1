@@ -462,9 +462,9 @@ pub fn calculate_budgeted_k_scale(
     mark_price: u128,
 ) -> ClearingHouseResult<(u128, u128)> {
     // 0 - 100
-    let update_intensity = cast_to_i128(min(market.amm.update_intensity, 100_u8))?;
+    let curve_update_intensity = cast_to_i128(min(market.amm.curve_update_intensity, 100_u8))?;
 
-    if update_intensity == 0 {
+    if curve_update_intensity == 0 {
         return Ok((1, 1));
     }
 
@@ -511,7 +511,7 @@ pub fn calculate_budgeted_k_scale(
     }
 
     let (numerator, denominator) = if numerator > denominator {
-        let k_pct_upper_bound = K_BPS_UPDATE_SCALE + (K_BPS_INCREASE_MAX * update_intensity / 100);
+        let k_pct_upper_bound = K_BPS_UPDATE_SCALE + (K_BPS_INCREASE_MAX * curve_update_intensity / 100);
 
         let current_pct_change = multiply_i128(numerator, 1000)
             .ok_or_else(math_error!())?
@@ -529,7 +529,7 @@ pub fn calculate_budgeted_k_scale(
             (numerator, denominator)
         }
     } else {
-        let k_pct_lower_bound = K_BPS_UPDATE_SCALE - (K_BPS_DECREASE_MAX * update_intensity / 100);
+        let k_pct_lower_bound = K_BPS_UPDATE_SCALE - (K_BPS_DECREASE_MAX * curve_update_intensity / 100);
 
         let current_pct_change = multiply_i128(numerator, 1000)
             .ok_or_else(math_error!())?

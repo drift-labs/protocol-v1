@@ -100,7 +100,7 @@ pub struct AMM {
 
     // upgrade-ability
     pub net_revenue_since_last_funding: i64,
-    pub update_intensity: u8,
+    pub curve_update_intensity: u8,
 
     pub padding2: u8,
     pub padding3: u16,

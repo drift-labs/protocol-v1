@@ -28,6 +28,7 @@ import {
 	getAdmin,
 	getWebSocketClearingHouseConfig,
 } from './factory/clearingHouse';
+import { assert } from './assert/assert';
 
 export class Admin extends ClearingHouse {
 	public static from(
@@ -467,13 +468,16 @@ export class Admin extends ClearingHouse {
 		});
 	}
 
-	public async updateFormulaicUpdateIntensity(
+	public async updateCurveUpdateIntensity(
 		marketIndex: BN,
-		updateIntensity: number
+		curveUpdateIntensity: number
 	): Promise<TransactionSignature> {
-		return await this.program.rpc.updateFormulaicUpdateIntensity(
+		assert(curveUpdateIntensity >= 0 && curveUpdateIntensity <= 100);
+		assert(Number.isInteger(curveUpdateIntensity));
+
+		return await this.program.rpc.updateCurveUpdateIntensity(
 			marketIndex,
-			updateIntensity,
+			curveUpdateIntensity,
 			{
 				accounts: {
 					admin: this.wallet.publicKey,
