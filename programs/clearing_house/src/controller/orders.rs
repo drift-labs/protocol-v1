@@ -273,8 +273,7 @@ pub fn cancel_all_orders(
                 .load()
                 .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
             let market = markets.get_market(order.market_index);
-            oracle_account_infos
-                .get(&market.amm.oracle).copied()
+            oracle_account_infos.get(&market.amm.oracle).copied()
         };
 
         cancel_order(
