@@ -87,5 +87,12 @@ export function calculateMarkOracleSpread(
 	oraclePriceData: OraclePriceData
 ): BN {
 	const markPrice = calculateMarkPrice(market);
-	return markPrice.sub(oraclePriceData.price);
+	return calculateOracleSpread(markPrice, oraclePriceData);
+}
+
+export function calculateOracleSpread(
+	price: BN,
+	oraclePriceData: OraclePriceData
+): BN {
+	return price.sub(oraclePriceData.price);
 }
