@@ -13,11 +13,9 @@ import {
 	getMarketOrderParams,
 	findComputeUnitConsumption,
 	AMM_RESERVE_PRECISION,
-	AMM_TO_QUOTE_PRECISION_RATIO,
 	calculateTradeAcquiredAmounts,
 	convertToNumber,
 	FeeStructure,
-	PEG_PRECISION,
 	QUOTE_PRECISION,
 	ZERO,
 	calculateQuoteAssetAmountSwapped,
@@ -30,7 +28,6 @@ import {
 	setFeedPrice,
 } from './testHelpers';
 import {
-	BASE_PRECISION,
 	calculateBaseAssetAmountMarketCanExecute,
 	calculateMarkPrice,
 	getLimitOrderParams,

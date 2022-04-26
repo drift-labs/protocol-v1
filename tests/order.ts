@@ -37,7 +37,6 @@ import {
 } from './testHelpers';
 import {
 	AMM_RESERVE_PRECISION,
-	AMM_TO_QUOTE_PRECISION_RATIO,
 	calculateMarkPrice,
 	findComputeUnitConsumption,
 	TEN_THOUSAND,

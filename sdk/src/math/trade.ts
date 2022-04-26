@@ -1,4 +1,4 @@
-import { isVariant, Market, PositionDirection } from '../types';
+import { Market, PositionDirection } from '../types';
 import { BN } from '@project-serum/anchor';
 import { assert } from '../assert/assert';
 import {
