@@ -1931,7 +1931,7 @@
         },
         {
           "name": "baseSpread",
-          "type": "u32"
+          "type": "u16"
         }
       ]
     },
@@ -3297,7 +3297,11 @@
           },
           {
             "name": "baseSpread",
-            "type": "u32"
+            "type": "u16"
+          },
+          {
+            "name": "padding0",
+            "type": "u16"
           },
           {
             "name": "padding1",

@@ -340,6 +340,7 @@ pub mod clearing_house {
                 last_oracle_price: oracle_price,
                 minimum_base_asset_trade_size: 10000000,
                 base_spread: 0,
+                padding0: 0,
                 padding1: 0,
                 padding2: 0,
                 padding3: 0,
@@ -2398,7 +2399,7 @@ pub mod clearing_house {
     pub fn update_market_base_spread(
         ctx: Context<AdminUpdateMarket>,
         market_index: u64,
-        base_spread: u32,
+        base_spread: u16,
     ) -> ProgramResult {
         let market =
             &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
