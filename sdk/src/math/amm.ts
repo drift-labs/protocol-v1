@@ -326,7 +326,7 @@ export function calculateTerminalPrice(market: Market) {
 export function calculateMaxBaseAssetAmountToTrade(
 	amm: AMM,
 	limit_price: BN,
-	swapDirection: SwapDirection,
+	direction: PositionDirection,
 	useSpread: boolean
 ): [BN, PositionDirection] {
 	const invariant = amm.sqrtK.mul(amm.sqrtK);
@@ -343,9 +343,7 @@ export function calculateMaxBaseAssetAmountToTrade(
 	if (useSpread) {
 		baseAssetReserveBefore = calculateSpreadReserves(
 			amm,
-			isVariant(swapDirection, 'remove')
-				? PositionDirection.LONG
-				: PositionDirection.SHORT
+			direction
 		).baseAssetReserve;
 	} else {
 		baseAssetReserveBefore = amm.baseAssetReserve;

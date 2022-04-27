@@ -203,13 +203,10 @@ export function calculateAmountToTradeForLimit(
 		limitPrice = oraclePriceData.price.add(order.oraclePriceOffset);
 	}
 
-	const swapDirection = isVariant(order.direction, 'long')
-		? SwapDirection.REMOVE
-		: SwapDirection.ADD;
 	const [maxAmountToTrade, direction] = calculateMaxBaseAssetAmountToTrade(
 		market.amm,
 		limitPrice,
-		swapDirection,
+		order.direction,
 		!order.postOnly
 	);
 

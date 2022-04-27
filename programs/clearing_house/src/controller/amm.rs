@@ -114,16 +114,19 @@ fn calculate_quote_swap_output_with_spread(
         amm.sqrt_k,
     )?;
 
-    let (quote_asset_reserve_if_close, _) = amm::calculate_swap_output(
+    // find the quote asset reserves if the position were closed
+    let (quote_asset_reserve_if_closed, _) = amm::calculate_swap_output(
         base_asset_amount_with_spread.unsigned_abs(),
         new_base_asset_reserve,
         direction,
         amm.sqrt_k,
     )?;
 
+    // calculate the quote asset surplus by taking the difference between what quote_asset_amount is
+    // with and without spread
     let quote_asset_amount_surplus = calculate_quote_asset_amount_surplus(
         new_quote_asset_reserve,
-        quote_asset_reserve_if_close,
+        quote_asset_reserve_if_closed,
         direction,
         amm.peg_multiplier,
         quote_asset_amount,
@@ -265,6 +268,8 @@ fn calculate_base_swap_output_with_spread(
         amm.sqrt_k,
     )?;
 
+    // calculate the quote asset surplus by taking the difference between what quote_asset_amount is
+    // with and without spread
     let quote_asset_amount_surplus = calculate_quote_asset_amount_surplus(
         new_quote_asset_reserve,
         amm.quote_asset_reserve,

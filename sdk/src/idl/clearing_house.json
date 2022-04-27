@@ -3839,20 +3839,6 @@
       }
     },
     {
-      "name": "AssetType",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "Quote"
-          },
-          {
-            "name": "Base"
-          }
-        ]
-      }
-    },
-    {
       "name": "Type",
       "type": {
         "kind": "enum",
