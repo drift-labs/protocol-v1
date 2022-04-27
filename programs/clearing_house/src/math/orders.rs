@@ -8,7 +8,7 @@ use std::cell::RefMut;
 use std::cmp::min;
 use std::ops::Div;
 
-use crate::controller::amm::{AssetType, SwapDirection};
+use crate::controller::amm::SwapDirection;
 use crate::controller::position::get_position_index;
 use crate::controller::position::PositionDirection;
 use crate::math::amm::{calculate_spread_reserves, calculate_swap_output};

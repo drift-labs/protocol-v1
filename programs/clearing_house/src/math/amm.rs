@@ -2,7 +2,7 @@ use std::cmp::{max, min};
 
 use solana_program::msg;
 
-use crate::controller::amm::{AssetType, SwapDirection};
+use crate::controller::amm::SwapDirection;
 use crate::controller::position::PositionDirection;
 use crate::error::*;
 use crate::math::bn;
