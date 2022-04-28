@@ -1,19 +1,16 @@
-use crate::controller::position::{get_position_index, PositionDirection};
+use crate::controller::position::PositionDirection;
 use crate::error::*;
 use crate::math::constants::*;
 use crate::math::quote_asset::asset_to_reserve_amount;
-use crate::state::market::{Market, Markets};
+use crate::state::market::Market;
 use crate::state::order_state::OrderState;
 use crate::state::user_orders::{Order, OrderTriggerCondition, OrderType};
 
 use crate::context::OrderParams;
-use crate::math::orders::{
-    calculate_available_quote_asset_user_can_execute,
-    calculate_base_asset_amount_to_trade_for_limit,
-};
-use crate::state::user::{MarketPosition, User, UserPositions};
+use crate::math::orders::calculate_base_asset_amount_to_trade_for_limit;
+use crate::state::user::MarketPosition;
 use solana_program::msg;
-use std::cell::RefMut;
+
 use std::ops::Div;
 
 pub fn validate_order(
@@ -59,6 +56,11 @@ fn validate_market_order(order: &Order, market: &Market) -> ClearingHouseResult 
         return Err(ErrorCode::InvalidOrder);
     }
 
+    if order.immediate_or_cancel {
+        msg!("Market order can not be immediate or cancel");
+        return Err(ErrorCode::InvalidOrder);
+    }
+
     Ok(())
 }
 
@@ -75,9 +77,14 @@ fn validate_limit_order(
         return Err(ErrorCode::InvalidOrder);
     }
 
-    if order.price != 0 && order.has_oracle_price_offset() {
-        msg!("Limit order price != 0 and oracle price offset is set");
-        return Err(ErrorCode::InvalidOrder);
+    if order.has_oracle_price_offset() {
+        if order.post_only && order.price == 0 {
+            msg!("Limit order price must not be 0 for post only oracle offset order");
+            return Err(ErrorCode::InvalidOrder);
+        } else if !order.post_only && order.price != 0 {
+            msg!("Limit order price must be 0 for taker oracle offset order");
+            return Err(ErrorCode::InvalidOrder);
+        }
     }
 
     if order.trigger_price > 0 {

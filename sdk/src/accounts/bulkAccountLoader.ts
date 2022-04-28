@@ -215,7 +215,7 @@ export class BulkAccountLoader {
 				this.log('unable to update account for newest slot');
 				this.log('oldBuffer ' + oldBuffer);
 				this.log('newBuffer ' + newBuffer);
-				this.log('buffers equal ' + newBuffer.equals(oldBuffer));
+				this.log('buffers equal ' + newBuffer?.equals(oldBuffer));
 			}
 		}
 	}
@@ -255,6 +255,14 @@ export class BulkAccountLoader {
 	public log(msg: string, force = false): void {
 		if (this.loggingEnabled || force) {
 			console.log(msg);
+		}
+	}
+
+	public updatePollingFrequency(pollingFrequency: number): void {
+		this.stopPolling();
+		this.pollingFrequency = pollingFrequency;
+		if (this.accountsToLoad.size > 0) {
+			this.startPolling();
 		}
 	}
 }

@@ -1,4 +1,4 @@
-use crate::controller::position::{add_new_position, get_position_index, PositionDirection};
+use crate::controller::position::{add_new_position, get_position_index};
 use crate::error::ClearingHouseResult;
 use crate::error::*;
 use crate::math::casting::cast;
@@ -273,9 +273,7 @@ pub fn cancel_all_orders(
                 .load()
                 .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
             let market = markets.get_market(order.market_index);
-            oracle_account_infos
-                .get(&market.amm.oracle)
-                .map(|oracle| *oracle)
+            oracle_account_infos.get(&market.amm.oracle).copied()
         };
 
         cancel_order(
@@ -332,7 +330,7 @@ pub fn cancel_order(
     let valid_oracle_price = get_valid_oracle_price(
         oracle,
         market,
-        &order,
+        order,
         &state.oracle_guard_rails.validity,
         clock.slot,
     )?;
@@ -854,6 +852,16 @@ pub fn execute_market_order(
     let market_position = &mut user_positions.positions[position_index];
     let market = markets.get_market_mut(market_index);
 
+    let base_asset_amount = if order.reduce_only {
+        calculate_base_asset_amount_for_reduce_only_order(
+            order.base_asset_amount,
+            order.direction,
+            market_position.base_asset_amount,
+        )
+    } else {
+        order.base_asset_amount
+    };
+
     let (
         potentially_risk_increasing,
         reduce_only,
@@ -862,7 +870,7 @@ pub fn execute_market_order(
         quote_asset_amount_surplus,
     ) = if order.base_asset_amount > 0 {
         controller::position::update_position_with_base_asset_amount(
-            order.base_asset_amount,
+            base_asset_amount,
             order.direction,
             market,
             user,

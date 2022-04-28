@@ -200,7 +200,14 @@ export function calculateAmountToTradeForLimit(
 				'Cant calculate limit price for oracle offset oracle without OraclePriceData'
 			);
 		}
-		limitPrice = oraclePriceData.price.add(order.oraclePriceOffset);
+		const floatingPrice = oraclePriceData.price.add(order.oraclePriceOffset);
+		if (order.postOnly) {
+			limitPrice = isVariant(order.direction, 'long')
+				? BN.min(order.price, floatingPrice)
+				: BN.max(order.price, floatingPrice);
+		} else {
+			limitPrice = floatingPrice;
+		}
 	}
 
 	const [maxAmountToTrade, direction] = calculateMaxBaseAssetAmountToTrade(
@@ -320,5 +327,19 @@ export function calculateBaseAssetAmountUserCanExecute(
 		swapDirection
 	);
 
-	return baseAssetReservesBefore.sub(baseAssetReservesAfter).abs();
+	let baseAssetAmount = baseAssetReservesBefore.sub(baseAssetReservesAfter).abs();
+	if (order.reduceOnly) {
+		const position =
+			user.getUserPosition(order.marketIndex) ||
+			user.getEmptyPosition(order.marketIndex);
+		if (isVariant(order.direction, 'long') && position.baseAssetAmount.gte(ZERO)) {
+			baseAssetAmount = ZERO;
+		} else if (isVariant(order.direction, 'short') && position.baseAssetAmount.lte(ZERO)) {
+			baseAssetAmount = ZERO;
+		} else {
+			BN.min(baseAssetAmount, position.baseAssetAmount.abs());
+		}
+	}
+
+	return baseAssetAmount;
 }
