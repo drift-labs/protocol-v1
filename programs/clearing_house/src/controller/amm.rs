@@ -170,9 +170,13 @@ fn calculate_quote_asset_amount_surplus(
     }
 
     let quote_asset_amount_surplus = if actual_quote_asset_amount > initial_quote_asset_amount {
-        actual_quote_asset_amount - initial_quote_asset_amount
+        actual_quote_asset_amount
+            .checked_sub(initial_quote_asset_amount)
+            .ok_or_else(math_error!())?
     } else {
-        initial_quote_asset_amount - actual_quote_asset_amount
+        initial_quote_asset_amount
+            .checked_sub(actual_quote_asset_amount)
+            .ok_or_else(math_error!())?
     };
 
     Ok(quote_asset_amount_surplus)
