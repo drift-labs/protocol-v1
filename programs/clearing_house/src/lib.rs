@@ -1058,7 +1058,7 @@ pub mod clearing_house {
         Ok(())
     }
 
-    pub fn cancel_all_orders(ctx: Context<CancelOrder>) -> ProgramResult {
+    pub fn cancel_all_orders(ctx: Context<CancelOrder>, best_effort: bool) -> ProgramResult {
         controller::orders::cancel_all_orders(
             &ctx.accounts.state,
             &mut ctx.accounts.user,
@@ -1069,6 +1069,33 @@ pub mod clearing_house {
             &ctx.accounts.order_history,
             &Clock::get()?,
             ctx.remaining_accounts,
+            best_effort,
+            None,
+            None,
+        )?;
+
+        Ok(())
+    }
+
+    pub fn cancel_orders_by_market_and_side(
+        ctx: Context<CancelOrder>,
+        best_effort: bool,
+        market_index_only: u64,
+        direction_only: PositionDirection,
+    ) -> ProgramResult {
+        controller::orders::cancel_all_orders(
+            &ctx.accounts.state,
+            &mut ctx.accounts.user,
+            &ctx.accounts.user_positions,
+            &ctx.accounts.markets,
+            &ctx.accounts.user_orders,
+            &ctx.accounts.funding_payment_history,
+            &ctx.accounts.order_history,
+            &Clock::get()?,
+            ctx.remaining_accounts,
+            best_effort,
+            Some(market_index_only),
+            Some(direction_only),
         )?;
 
         Ok(())

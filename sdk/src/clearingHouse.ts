@@ -911,17 +911,30 @@ export class ClearingHouse {
 	}
 
 	public async cancelAllOrders(
-		oracles?: PublicKey[]
+		oracles?: PublicKey[],
+		bestEffort?: boolean,
+		marketIndexOnly?: BN,
+		directionOnly?: PositionDirection
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
-			wrapInTx(await this.getCancelAllOrdersIx(oracles)),
+			wrapInTx(
+				await this.getCancelAllOrdersIx(
+					oracles,
+					bestEffort,
+					marketIndexOnly,
+					directionOnly
+				)
+			),
 			[],
 			this.opts
 		);
 	}
 
 	public async getCancelAllOrdersIx(
-		oracles: PublicKey[]
+		oracles: PublicKey[],
+		bestEffort?: boolean,
+		marketIndexOnly?: BN,
+		directionOnly?: PositionDirection
 	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
 		const userAccount = await this.getUserAccount();
@@ -938,21 +951,48 @@ export class ClearingHouse {
 			});
 		}
 
-		return await this.program.instruction.cancelAllOrders({
-			accounts: {
-				state: await this.getStatePublicKey(),
-				user: userAccountPublicKey,
-				authority: this.wallet.publicKey,
-				markets: state.markets,
-				userOrders: await this.getUserOrdersAccountPublicKey(),
-				userPositions: userAccount.positions,
-				fundingPaymentHistory: state.fundingPaymentHistory,
-				fundingRateHistory: state.fundingRateHistory,
-				orderState: await this.getOrderStatePublicKey(),
-				orderHistory: orderState.orderHistory,
-			},
-			remainingAccounts,
-		});
+		let instr;
+
+		if (directionOnly && marketIndexOnly) {
+			instr = await this.program.instruction.cancelOrderByMarketAndSide(
+				bestEffort,
+				marketIndexOnly,
+				directionOnly,
+				{
+					accounts: {
+						state: await this.getStatePublicKey(),
+						user: userAccountPublicKey,
+						authority: this.wallet.publicKey,
+						markets: state.markets,
+						userOrders: await this.getUserOrdersAccountPublicKey(),
+						userPositions: userAccount.positions,
+						fundingPaymentHistory: state.fundingPaymentHistory,
+						fundingRateHistory: state.fundingRateHistory,
+						orderState: await this.getOrderStatePublicKey(),
+						orderHistory: orderState.orderHistory,
+					},
+					remainingAccounts,
+				}
+			);
+		} else {
+			instr = await this.program.instruction.cancelAllOrders(bestEffort, {
+				accounts: {
+					state: await this.getStatePublicKey(),
+					user: userAccountPublicKey,
+					authority: this.wallet.publicKey,
+					markets: state.markets,
+					userOrders: await this.getUserOrdersAccountPublicKey(),
+					userPositions: userAccount.positions,
+					fundingPaymentHistory: state.fundingPaymentHistory,
+					fundingRateHistory: state.fundingRateHistory,
+					orderState: await this.getOrderStatePublicKey(),
+					orderHistory: orderState.orderHistory,
+				},
+				remainingAccounts,
+			});
+		}
+
+		return instr;
 	}
 
 	public async fillOrder(
