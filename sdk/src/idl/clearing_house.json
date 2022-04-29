@@ -2538,7 +2538,11 @@
           },
           {
             "name": "totalFeePaid",
-            "type": "i128"
+            "type": "u64"
+          },
+          {
+            "name": "totalFeeRebate",
+            "type": "u64"
           },
           {
             "name": "totalTokenDiscount",

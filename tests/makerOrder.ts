@@ -180,7 +180,8 @@ describe('maker order', () => {
 				.getUserAccount()
 				.collateral.eq(usdcAmount.add(new BN(500)))
 		);
-		assert(clearingHouseUser.getUserAccount().totalFeePaid.eq(new BN(-500)));
+		assert(clearingHouseUser.getUserAccount().totalFeePaid.eq(ZERO));
+		assert(clearingHouseUser.getUserAccount().totalFeeRebate.eq(new BN(500)));
 
 		await fillerClearingHouse.fetchAccounts();
 		const orderHistory = fillerClearingHouse.getOrderHistoryAccount();
@@ -265,7 +266,8 @@ describe('maker order', () => {
 				.getUserAccount()
 				.collateral.eq(usdcAmount.add(new BN(500)))
 		);
-		assert(clearingHouseUser.getUserAccount().totalFeePaid.eq(new BN(-500)));
+		assert(clearingHouseUser.getUserAccount().totalFeePaid.eq(ZERO));
+		assert(clearingHouseUser.getUserAccount().totalFeeRebate.eq(new BN(500)));
 
 		await fillerClearingHouse.fetchAccounts();
 		const orderHistory = fillerClearingHouse.getOrderHistoryAccount();
