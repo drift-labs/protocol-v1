@@ -693,12 +693,10 @@ pub fn fill_order(
     };
 
     // Increment the user's total fee variables
-    if user_fee > 0 {
-        user.total_fee_paid = user
-            .total_fee_paid
-            .checked_add(user_fee.unsigned_abs())
-            .ok_or_else(math_error!())?;
-    }
+    user.total_fee_paid = user
+        .total_fee_paid
+        .checked_add(user_fee)
+        .ok_or_else(math_error!())?;
     user.total_token_discount = user
         .total_token_discount
         .checked_add(token_discount)
