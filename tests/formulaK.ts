@@ -343,7 +343,7 @@ describe('formulaic curve (k)', () => {
 
 		const curveHistoryAccount = clearingHouse.getCurveHistoryAccount();
 		const curveHistoryHead = curveHistoryAccount.head.toNumber();
-		assert.ok(curveHistoryHead === 1);
+		assert.ok(curveHistoryHead === 2);
 		const cRecord = curveHistoryAccount.curveRecords[curveHistoryHead - 1];
 
 		console.log(
@@ -465,7 +465,7 @@ describe('formulaic curve (k)', () => {
 
 		const curveHistoryAccount = clearingHouse.getCurveHistoryAccount();
 		const curveHistoryHead = curveHistoryAccount.head.toNumber();
-		assert.ok(curveHistoryHead === 2);
+		assert.ok(curveHistoryHead === 3);
 		const cRecord = curveHistoryAccount.curveRecords[curveHistoryHead - 1];
 
 		console.log(

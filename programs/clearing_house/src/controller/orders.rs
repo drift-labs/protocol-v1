@@ -800,9 +800,6 @@ pub fn fill_order(
         let funding_rate_history = &mut funding_rate_history
             .load_mut()
             .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
-        let extended_curve_history = &mut extended_curve_history
-            .load_mut()
-            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
         controller::funding::update_funding_rate(
             market_index,
             market,
@@ -816,6 +813,10 @@ pub fn fill_order(
             Some(mark_price_after),
             Some(trade_record_id),
         )?;
+
+        let extended_curve_history = &mut extended_curve_history
+            .load_mut()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
 
         // if market_index >= 12 {
         // todo for soft launch

@@ -4356,6 +4356,11 @@
       "code": 6061,
       "name": "InvalidRepegPriceImpact",
       "msg": "AMM repeg mark price impact vs oracle too large"
+    },
+    {
+      "code": 6062,
+      "name": "CouldNotDeserializeCurveHistory",
+      "msg": "Could not deserialize curve history"
     }
   ]
 }

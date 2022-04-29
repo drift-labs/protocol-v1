@@ -11,6 +11,7 @@ use crate::state::history::curve::{ExtendedCurveHistory, ExtendedCurveRecord};
 use crate::state::market::{Market, OraclePriceData, AMM};
 use std::cell::RefMut;
 
+use anchor_lang::AccountLoader;
 use solana_program::log::sol_log_compute_units;
 use std::cmp::{max, min};
 
@@ -102,7 +103,7 @@ pub fn formulaic_update_k(
     market: &mut Market,
     oracle_price_data: &OraclePriceData,
     funding_imbalance_cost: i128,
-    curve_history: Option<&mut RefMut<ExtendedCurveHistory>>,
+    curve_history: Option<&AccountLoader<ExtendedCurveHistory>>,
     now: i64,
     market_index: u64,
     trade_record: Option<u128>,
@@ -134,7 +135,10 @@ pub fn formulaic_update_k(
     };
 
     if budget != 0 && curve_history.is_some() {
-        let curve_history = curve_history.unwrap();
+        let curve_history = &mut curve_history
+            .unwrap()
+            .load_mut()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
 
         // single k scale is capped by .1% increase and .09% decrease (regardless of budget)
         let (k_scale_numerator, k_scale_denominator) =

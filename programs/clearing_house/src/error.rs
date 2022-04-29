@@ -128,6 +128,8 @@ pub enum ErrorCode {
     CantExpireOrders,
     #[msg("AMM repeg mark price impact vs oracle too large")]
     InvalidRepegPriceImpact,
+    #[msg("Could not deserialize curve history")]
+    CouldNotDeserializeCurveHistory,
 }
 
 #[macro_export]

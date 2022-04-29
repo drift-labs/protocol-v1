@@ -659,10 +659,16 @@ export class ClearingHouse {
 			});
 		}
 
+		const state = this.getStateAccount();
+		remainingAccounts.push({
+			pubkey: state.extendedCurveHistory,
+			isWritable: true,
+			isSigner: false,
+		});
+
 		const priceOracle =
 			this.getMarketsAccount().markets[marketIndex.toNumber()].amm.oracle;
 
-		const state = this.getStateAccount();
 		return await this.program.instruction.openPosition(
 			direction,
 			amount,
@@ -1186,6 +1192,12 @@ export class ClearingHouse {
 		}
 
 		const state = this.getStateAccount();
+		remainingAccounts.push({
+			pubkey: state.extendedCurveHistory,
+			isWritable: true,
+			isSigner: false,
+		});
+
 		return await this.program.instruction.closePosition(
 			marketIndex,
 			optionalAccounts,

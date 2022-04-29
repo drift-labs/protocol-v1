@@ -35,7 +35,7 @@ declare_id!("AsW7LnXB9UA1uec9wi9MctYTgTz7YH9snhxd16GsFaGX");
 pub mod clearing_house {
     use crate::math;
     use crate::optional_accounts::{
-        get_discount_token, get_oracle_for_cancel_order_by_order_id,
+        get_discount_token, get_extended_curve_history, get_oracle_for_cancel_order_by_order_id,
         get_oracle_for_cancel_order_by_user_order_id, get_oracle_for_place_order, get_referrer,
         get_referrer_for_fill_order,
     };
@@ -763,6 +763,12 @@ pub mod clearing_house {
                 [Markets::index_from_u64(market_index)];
             let price_oracle = &ctx.accounts.oracle;
             let funding_rate_history = &mut ctx.accounts.funding_rate_history.load_mut()?;
+            let extended_curve_history_value = get_extended_curve_history(
+                ctx.remaining_accounts,
+                &ctx.accounts.state.extended_curve_history,
+            )?;
+            let extended_curve_history_ref = extended_curve_history_value.as_ref();
+
             controller::funding::update_funding_rate(
                 market_index,
                 market,
@@ -770,12 +776,16 @@ pub mod clearing_house {
                 now,
                 clock_slot,
                 funding_rate_history,
-                None,
+                extended_curve_history_ref,
                 &ctx.accounts.state.oracle_guard_rails,
                 ctx.accounts.state.funding_paused,
                 Some(mark_price_after),
                 Some(record_id),
             )?;
+
+            if let Some(extended_curve_history) = extended_curve_history_value {
+                extended_curve_history.exit(ctx.program_id);
+            }
         }
 
         Ok(())
@@ -957,6 +967,12 @@ pub mod clearing_house {
             oracle_price: oracle_price_after,
         });
 
+        let extended_curve_history_value = get_extended_curve_history(
+            ctx.remaining_accounts,
+            &ctx.accounts.state.extended_curve_history,
+        )?;
+        let extended_curve_history_ref = extended_curve_history_value.as_ref();
+
         // Try to update the funding rate at the end of every trade
         let funding_rate_history = &mut ctx.accounts.funding_rate_history.load_mut()?;
         controller::funding::update_funding_rate(
@@ -966,12 +982,16 @@ pub mod clearing_house {
             now,
             clock_slot,
             funding_rate_history,
-            None,
+            extended_curve_history_ref,
             &ctx.accounts.state.oracle_guard_rails,
             ctx.accounts.state.funding_paused,
             Some(mark_price_after),
             Some(record_id),
         )?;
+
+        if let Some(extended_curve_history) = extended_curve_history_value {
+            extended_curve_history.exit(ctx.program_id);
+        }
 
         Ok(())
     }
@@ -2088,12 +2108,6 @@ pub mod clearing_house {
         let clock_slot = clock.slot;
 
         let funding_rate_history = &mut ctx.accounts.funding_rate_history.load_mut()?;
-        let extended_curve_history = &mut ctx
-            .accounts
-            .extended_curve_history
-            .load_mut()
-            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
-
         controller::funding::update_funding_rate(
             market_index,
             market,
@@ -2101,7 +2115,7 @@ pub mod clearing_house {
             now,
             clock_slot,
             funding_rate_history,
-            Some(extended_curve_history),
+            Some(&ctx.accounts.extended_curve_history),
             &ctx.accounts.state.oracle_guard_rails,
             ctx.accounts.state.funding_paused,
             None,

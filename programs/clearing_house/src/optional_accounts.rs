@@ -1,6 +1,7 @@
 use crate::context::{InitializeUserOptionalAccounts, ManagePositionOptionalAccounts, OrderParams};
 use crate::error::{ClearingHouseResult, ErrorCode};
 use crate::print_error;
+use crate::state::history::curve::ExtendedCurveHistory;
 use crate::state::market::Markets;
 use crate::state::user::User;
 use crate::state::user_orders::UserOrders;
@@ -255,4 +256,20 @@ pub fn get_oracle_for_cancel_order_by_user_order_id<'a, 'b, 'c, 'd>(
     };
 
     Ok(oracle)
+}
+
+pub fn get_extended_curve_history<'a, 'b, 'c>(
+    accounts: &'a [AccountInfo<'b>],
+    extended_curve_history_key: &'c Pubkey,
+) -> ClearingHouseResult<Option<AccountLoader<'b, ExtendedCurveHistory>>> {
+    let account_info_iter = &mut accounts.iter();
+    let account_info =
+        account_info_iter.find(|account_info| account_info.key.eq(extended_curve_history_key));
+
+    match account_info {
+        None => Ok(None),
+        Some(account_info) => AccountLoader::try_from(account_info)
+            .map(Some)
+            .or(Err(ErrorCode::CouldNotDeserializeCurveHistory)),
+    }
 }
