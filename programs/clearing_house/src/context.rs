@@ -21,11 +21,13 @@ use crate::state::user_orders::{OrderTriggerCondition, OrderType, UserOrders};
     insurance_vault_nonce: u8
 )]
 pub struct Initialize<'info> {
+    #[account(mut)]
     pub admin: Signer<'info>,
     #[account(
         init,
         seeds = [b"clearing_house".as_ref()],
-        bump = clearing_house_nonce,
+        space = std::mem::size_of::<State>() + 8,
+        bump,
         payer = admin
     )]
     pub state: Box<Account<'info, State>>,
@@ -33,7 +35,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         seeds = [b"collateral_vault".as_ref()],
-        bump = collateral_vault_nonce,
+        bump,
         payer = admin,
         token::mint = collateral_mint,
         token::authority = collateral_vault_authority
@@ -43,7 +45,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         seeds = [b"insurance_vault".as_ref()],
-        bump = insurance_vault_nonce,
+        bump,
         payer = admin,
         token::mint = collateral_mint,
         token::authority = insurance_vault_authority
@@ -84,6 +86,7 @@ pub struct InitializeHistory<'info> {
     order_house_nonce: u8,
 )]
 pub struct InitializeOrderState<'info> {
+    #[account(mut)]
     pub admin: Signer<'info>,
     #[account(
         mut,
@@ -93,7 +96,8 @@ pub struct InitializeOrderState<'info> {
     #[account(
         init,
         seeds = [b"order_state".as_ref()],
-        bump = order_house_nonce,
+        space = std::mem::size_of::<OrderState>() + 8,
+        bump,
         payer = admin
     )]
     pub order_state: Box<Account<'info, OrderState>>,
@@ -109,7 +113,8 @@ pub struct InitializeUser<'info> {
     #[account(
         init,
         seeds = [b"user", authority.key.as_ref()],
-        bump = user_nonce,
+        space = std::mem::size_of::<User>() + 8,
+        bump,
         payer = authority
     )]
     pub user: Box<Account<'info, User>>,
@@ -117,6 +122,7 @@ pub struct InitializeUser<'info> {
     #[account(
         init,
         payer = authority,
+        space = std::mem::size_of::<UserPositions>() + 8,
     )]
     pub user_positions: AccountLoader<'info, UserPositions>,
     #[account(mut)]
@@ -131,7 +137,8 @@ pub struct InitializeUserWithExplicitPayer<'info> {
     #[account(
         init,
         seeds = [b"user", authority.key.as_ref()],
-        bump = user_nonce,
+        space = std::mem::size_of::<User>() + 8,
+        bump,
         payer = payer
     )]
     pub user: Box<Account<'info, User>>,
@@ -139,6 +146,7 @@ pub struct InitializeUserWithExplicitPayer<'info> {
     #[account(
         init,
         payer = payer,
+        space = std::mem::size_of::<UserPositions>() + 8,
     )]
     pub user_positions: AccountLoader<'info, UserPositions>,
     pub authority: Signer<'info>,
@@ -158,11 +166,13 @@ pub struct InitializeUserOrders<'info> {
     #[account(
         init,
         seeds = [b"user_orders", user.key().as_ref()],
-        bump = user_orders_nonce,
+        space = std::mem::size_of::<UserOrders>() + 8,
+        bump,
         payer = authority
     )]
     pub user_orders: AccountLoader<'info, UserOrders>,
     pub state: Box<Account<'info, State>>,
+    #[account(mut)]
     pub authority: Signer<'info>,
     pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
@@ -178,7 +188,8 @@ pub struct InitializeUserOrdersWithExplicitPayer<'info> {
     #[account(
         init,
         seeds = [b"user_orders", user.key().as_ref()],
-        bump = user_orders_nonce,
+        space = std::mem::size_of::<UserOrders>() + 8,
+        bump,
         payer = payer
     )]
     pub user_orders: AccountLoader<'info, UserOrders>,

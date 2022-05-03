@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use switchboard_v2::AggregatorAccountData;
 
-use crate::error::*;
+use crate::error::{ClearingHouseResult, ErrorCode};
 use crate::math::amm;
 use crate::math::casting::{cast, cast_to_i128, cast_to_i64, cast_to_u128};
 use crate::math::margin::MarginType;

@@ -16,7 +16,7 @@ pub mod pyth {
         price: i64,
         expo: i32,
         _conf: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let oracle = &ctx.accounts.price;
 
         let mut price_oracle = Price::load(oracle).unwrap();
@@ -30,7 +30,7 @@ pub mod pyth {
         Ok(())
     }
 
-    pub fn set_price(ctx: Context<SetPrice>, price: i64) -> ProgramResult {
+    pub fn set_price(ctx: Context<SetPrice>, price: i64) -> Result<()> {
         let oracle = &ctx.accounts.price;
         let mut price_oracle = Price::load(oracle).unwrap();
 
@@ -44,7 +44,7 @@ pub mod pyth {
         Ok(())
     }
 
-    pub fn set_twap(ctx: Context<SetPrice>, twap: i64) -> ProgramResult {
+    pub fn set_twap(ctx: Context<SetPrice>, twap: i64) -> Result<()> {
         let oracle = &ctx.accounts.price;
         let mut price_oracle = Price::load(oracle).unwrap();
 
