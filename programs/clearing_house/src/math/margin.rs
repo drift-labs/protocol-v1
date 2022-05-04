@@ -7,7 +7,7 @@ use crate::math::position::{
 use crate::math_error;
 use crate::state::market::Markets;
 use crate::state::user::{User, UserPositions};
-use std::cell::{Ref, RefMut};
+use std::cell::Ref;
 
 use crate::math::amm::use_oracle_price_for_margin_calculation;
 use crate::math::casting::cast_to_i128;
@@ -69,7 +69,7 @@ pub fn calculate_margin_requirement_and_total_collateral(
 
 pub fn meets_initial_margin_requirement(
     user: &User,
-    user_positions: &RefMut<UserPositions>,
+    user_positions: &UserPositions,
     markets: &Ref<Markets>,
 ) -> ClearingHouseResult<bool> {
     let (mut initial_margin_requirement, total_collateral) =
@@ -89,7 +89,7 @@ pub fn meets_initial_margin_requirement(
 
 pub fn meets_partial_margin_requirement(
     user: &User,
-    user_positions: &RefMut<UserPositions>,
+    user_positions: &UserPositions,
     markets: &Ref<Markets>,
 ) -> ClearingHouseResult<bool> {
     let (mut partial_margin_requirement, total_collateral) =
@@ -138,7 +138,7 @@ pub struct MarketStatus {
 
 pub fn calculate_liquidation_status(
     user: &User,
-    user_positions: &RefMut<UserPositions>,
+    user_positions: &UserPositions,
     markets: &Ref<Markets>,
     remaining_accounts: &[AccountInfo],
     oracle_guard_rails: &OracleGuardRails,
