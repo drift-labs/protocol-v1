@@ -1,4 +1,4 @@
-import { BN } from '../';
+import { BN, calculateMarkPrice } from '../';
 import {
 	AMM_RESERVE_PRECISION,
 	AMM_TIMES_PEG_TO_QUOTE_PRECISION_RATIO,
@@ -70,6 +70,47 @@ export function calculatePositionPNL(
 	}
 
 	const baseAssetValue = calculateBaseAssetValue(market, marketPosition);
+
+	let pnl;
+	if (marketPosition.baseAssetAmount.gt(ZERO)) {
+		pnl = baseAssetValue.sub(marketPosition.quoteAssetAmount);
+	} else {
+		pnl = marketPosition.quoteAssetAmount.sub(baseAssetValue);
+	}
+
+	if (withFunding) {
+		const fundingRatePnL = calculatePositionFundingPNL(
+			market,
+			marketPosition
+		).div(PRICE_TO_QUOTE_PRECISION);
+
+		pnl = pnl.add(fundingRatePnL);
+	}
+
+	return pnl;
+}
+
+/**
+ * calculatePositionPNLWithoutSlippage
+ * = BaseAssetAmount * (Avg Exit Price - Avg Entry Price)
+ * @param market
+ * @param marketPosition
+ * @param withFunding (adds unrealized funding payment pnl to result)
+ * @returns BaseAssetAmount : Precision QUOTE_PRECISION
+ */
+export function calculatePositionPNLWithoutSlippage(
+	market: Market,
+	marketPosition: UserPosition,
+	withFunding = false
+): BN {
+	if (marketPosition.baseAssetAmount.eq(ZERO)) {
+		return ZERO;
+	}
+
+	const baseAssetValue = marketPosition.baseAssetAmount
+		.mul(calculateMarkPrice(market))
+		.div(MARK_PRICE_PRECISION)
+		.div(AMM_TO_QUOTE_PRECISION_RATIO);
 
 	let pnl;
 	if (marketPosition.baseAssetAmount.gt(ZERO)) {
