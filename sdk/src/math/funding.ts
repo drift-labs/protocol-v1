@@ -18,7 +18,7 @@ import { OraclePriceData } from '../oracles/types';
  */
 export async function calculateAllEstimatedFundingRate(
 	market: Market,
-	oraclePriceData: OraclePriceData,
+	oraclePriceData?: OraclePriceData,
 	periodAdjustment: BN = new BN(1)
 ): Promise<[BN, BN, BN, BN, BN]> {
 	// periodAdjustment
@@ -27,6 +27,7 @@ export async function calculateAllEstimatedFundingRate(
 	//  24 * 365.25: annualized
 	const secondsInHour = new BN(3600);
 	const hoursInDay = new BN(24);
+	const ONE = new BN(1);
 
 	if (!market.initialized) {
 		return [ZERO, ZERO, ZERO, ZERO, ZERO];
@@ -43,13 +44,9 @@ export async function calculateAllEstimatedFundingRate(
 	const lastMarkPriceTwapTs = market.amm.lastMarkPriceTwapTs;
 
 	const timeSinceLastMarkChange = now.sub(lastMarkPriceTwapTs);
-	const markTwapTimeSinceLastUpdate = 
-		BN.max(
+	const markTwapTimeSinceLastUpdate = BN.max(
 		secondsInHour,
-		BN.max(
-			ZERO,
-			secondsInHour.sub(timeSinceLastMarkChange)
-		)
+		BN.max(ZERO, secondsInHour.sub(timeSinceLastMarkChange))
 	);
 	const baseAssetPriceWithMantissa = calculateMarkPrice(market);
 
@@ -63,39 +60,54 @@ export async function calculateAllEstimatedFundingRate(
 	const lastOracleTwapWithMantissa = market.amm.lastOraclePriceTwap;
 	const lastOraclePriceTwapTs = market.amm.lastOraclePriceTwapTs;
 
-	const oracleInvalidDuration = BN.max(ZERO, lastMarkPriceTwapTs.sub(lastOraclePriceTwapTs));
+	const oracleInvalidDuration = BN.max(
+		ZERO,
+		lastMarkPriceTwapTs.sub(lastOraclePriceTwapTs)
+	);
 
 	const timeSinceLastOracleTwapUpdate = now.sub(lastOraclePriceTwapTs);
 	const oracleTwapTimeSinceLastUpdate = BN.max(
-		secondsInHour,
-		secondsInHour.sub(timeSinceLastOracleTwapUpdate)
+		ONE,
+		BN.min(
+			secondsInHour,
+			BN.max(ONE, secondsInHour.sub(timeSinceLastOracleTwapUpdate))
+		)
 	);
-
-	const oraclePrice = oraclePriceData.price;
 	let oracleTwapWithMantissa = lastOracleTwapWithMantissa;
 
-	const oracleLiveVsTwap = oraclePrice
-		.sub(lastOracleTwapWithMantissa)
-		.abs()
-		.mul(MARK_PRICE_PRECISION)
-		.mul(new BN(100))
-		.div(lastOracleTwapWithMantissa);
+	// if passing live oracle data, improve predicted calc estimate
+	if (oraclePriceData) {
+		const oraclePrice = oraclePriceData.price;
 
-	// verify pyth live input is within 10% of last twap for live update
-	if (oracleLiveVsTwap.lte(MARK_PRICE_PRECISION.mul(new BN(10)))) {
-		oracleTwapWithMantissa = oracleTwapTimeSinceLastUpdate
-			.mul(lastOracleTwapWithMantissa)
-			.add(timeSinceLastMarkChange.mul(oraclePrice))
-			.add(oracleInvalidDuration.mul(lastMarkTwapWithMantissa))
-			.div(timeSinceLastMarkChange.add(oracleTwapTimeSinceLastUpdate).add(oracleInvalidDuration));
+		const oracleLiveVsTwap = oraclePrice
+			.sub(lastOracleTwapWithMantissa)
+			.abs()
+			.mul(MARK_PRICE_PRECISION)
+			.mul(new BN(100))
+			.div(lastOracleTwapWithMantissa);
+
+		// verify pyth live input is within 10% of last twap for live update
+		if (oracleLiveVsTwap.lte(MARK_PRICE_PRECISION.mul(new BN(10)))) {
+			oracleTwapWithMantissa = oracleTwapTimeSinceLastUpdate
+				.mul(lastOracleTwapWithMantissa)
+				.add(timeSinceLastMarkChange.mul(oraclePrice))
+				.div(timeSinceLastMarkChange.add(oracleTwapTimeSinceLastUpdate));
+		}
 	}
 
-	const twapSpread = lastMarkTwapWithMantissa.sub(lastOracleTwapWithMantissa);
+	const shrunkLastOracleTwapwithMantissa = oracleTwapTimeSinceLastUpdate
+		.mul(lastOracleTwapWithMantissa)
+		.add(oracleInvalidDuration.mul(lastMarkTwapWithMantissa))
+		.div(oracleTwapTimeSinceLastUpdate.add(oracleInvalidDuration));
+
+	const twapSpread = lastMarkTwapWithMantissa.sub(
+		shrunkLastOracleTwapwithMantissa
+	);
 
 	const twapSpreadPct = twapSpread
 		.mul(MARK_PRICE_PRECISION)
 		.mul(new BN(100))
-		.div(oracleTwapWithMantissa);
+		.div(shrunkLastOracleTwapwithMantissa);
 
 	const lowerboundEst = twapSpreadPct
 		.mul(payFreq)
@@ -194,9 +206,9 @@ export async function calculateAllEstimatedFundingRate(
  */
 export async function calculateEstimatedFundingRate(
 	market: Market,
-	oraclePriceData: OraclePriceData,
+	oraclePriceData?: OraclePriceData,
 	periodAdjustment: BN = new BN(1),
-	estimationMethod: 'interpolated' | 'lowerbound' | 'capped'
+	estimationMethod?: 'interpolated' | 'lowerbound' | 'capped'
 ): Promise<BN> {
 	const [_1, _2, lowerboundEst, cappedAltEst, interpEst] =
 		await calculateAllEstimatedFundingRate(
@@ -224,7 +236,7 @@ export async function calculateEstimatedFundingRate(
  */
 export async function calculateLongShortFundingRate(
 	market: Market,
-	oraclePriceData: OraclePriceData,
+	oraclePriceData?: OraclePriceData,
 	periodAdjustment: BN = new BN(1)
 ): Promise<[BN, BN]> {
 	const [_1, _2, _, cappedAltEst, interpEst] =
@@ -252,7 +264,7 @@ export async function calculateLongShortFundingRate(
  */
 export async function calculateLongShortFundingRateAndLiveTwaps(
 	market: Market,
-	oraclePriceData: OraclePriceData,
+	oraclePriceData?: OraclePriceData,
 	periodAdjustment: BN = new BN(1)
 ): Promise<[BN, BN, BN, BN]> {
 	const [markTwapLive, oracleTwapLive, _2, cappedAltEst, interpEst] =

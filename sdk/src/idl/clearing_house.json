@@ -1977,6 +1977,36 @@
       ]
     },
     {
+      "name": "updateMarketBaseSpread",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "markets",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "marketIndex",
+          "type": "u64"
+        },
+        {
+          "name": "baseSpread",
+          "type": "u16"
+        }
+      ]
+    },
+    {
       "name": "updateMarketMinimumBaseAssetTradeSize",
       "accounts": [
         {
@@ -2579,7 +2609,11 @@
           },
           {
             "name": "totalFeePaid",
-            "type": "u128"
+            "type": "u64"
+          },
+          {
+            "name": "totalFeeRebate",
+            "type": "u64"
           },
           {
             "name": "totalTokenDiscount",
@@ -3337,8 +3371,16 @@
             "type": "u128"
           },
           {
+            "name": "baseSpread",
+            "type": "u16"
+          },
+          {
+            "name": "padding0",
+            "type": "u16"
+          },
+          {
             "name": "padding1",
-            "type": "u64"
+            "type": "u32"
           },
           {
             "name": "padding2",
@@ -3402,7 +3444,7 @@
           },
           {
             "name": "fee",
-            "type": "u128"
+            "type": "i128"
           },
           {
             "name": "fillerReward",
@@ -3653,10 +3695,10 @@
           },
           {
             "name": "fee",
-            "type": "u128"
+            "type": "i128"
           },
           {
-            "name": "referrerReward",
+            "name": "quoteAssetAmountSurplus",
             "type": "u128"
           },
           {
@@ -3805,7 +3847,7 @@
           },
           {
             "name": "fee",
-            "type": "u128"
+            "type": "i128"
           },
           {
             "name": "direction",

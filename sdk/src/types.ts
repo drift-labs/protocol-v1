@@ -154,7 +154,7 @@ export type TradeRecord = {
 	markPriceBefore: BN;
 	markPriceAfter: BN;
 	fee: BN;
-	referrerReward: BN;
+	quoteAssetAmountSurplus: BN;
 	refereeDiscount: BN;
 	tokenDiscount: BN;
 	marketIndex: BN;
@@ -309,6 +309,7 @@ export type AMM = {
 	minimumQuoteAssetTradeSize: BN;
 	minimumBaseAssetTradeSize: BN;
 	lastOraclePrice: BN;
+	baseSpread: number;
 };
 
 // # User Account Types
@@ -331,6 +332,7 @@ export type UserAccount = {
 	cumulativeDeposits: BN;
 	positions: PublicKey;
 	totalFeePaid: BN;
+	totalFeeRebate: BN;
 	totalTokenDiscount: BN;
 	totalReferralReward: BN;
 	totalRefereeDiscount: BN;

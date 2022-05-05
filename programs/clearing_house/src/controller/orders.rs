@@ -1,7 +1,7 @@
 use crate::controller::position::{add_new_position, get_position_index};
 use crate::error::ClearingHouseResult;
 use crate::error::*;
-use crate::math::casting::cast;
+use crate::math::casting::{cast, cast_to_i128};
 use crate::math_error;
 use crate::print_error;
 use crate::state::user_orders::Order;
@@ -437,7 +437,7 @@ pub fn expire_orders(
     user.collateral = calculate_updated_collateral(user.collateral, -(filler_reward as i128))?;
     filler.collateral = calculate_updated_collateral(filler.collateral, filler_reward as i128)?;
 
-    let filler_reward_per_order: u128 = filler_reward / (expired_orders as u128);
+    let filler_reward_per_order: i128 = cast_to_i128(filler_reward)? / (expired_orders as i128);
 
     let user_positions = &mut user_positions
         .load_mut()
@@ -468,7 +468,7 @@ pub fn expire_orders(
             trade_record_id: 0,
             base_asset_amount_filled: 0,
             quote_asset_amount_filled: 0,
-            filler_reward: filler_reward_per_order,
+            filler_reward: filler_reward_per_order.unsigned_abs(),
             fee: filler_reward_per_order,
             quote_asset_amount_surplus: 0,
             padding: [0; 8],
@@ -688,6 +688,7 @@ pub fn fill_order(
             &referrer,
             filler.key() == user.key(),
             quote_asset_amount_surplus,
+            order.post_only,
         )?;
 
     // Increment the clearing house's total fee variables
@@ -708,14 +709,31 @@ pub fn fill_order(
             .ok_or_else(math_error!())?;
     }
 
-    // Subtract the fee from user's collateral
-    user.collateral = user.collateral.checked_sub(user_fee).or(Some(0)).unwrap();
+    // Update user's collateral based on fee/rebate
+    user.collateral = if user_fee >= 0 {
+        user.collateral
+            .checked_sub(user_fee.unsigned_abs())
+            .or(Some(0))
+            .unwrap()
+    } else {
+        user.collateral
+            .checked_add(user_fee.unsigned_abs())
+            .ok_or_else(math_error!())?
+    };
 
     // Increment the user's total fee variables
-    user.total_fee_paid = user
-        .total_fee_paid
-        .checked_add(user_fee)
-        .ok_or_else(math_error!())?;
+    if user_fee > 0 {
+        user.total_fee_paid = user
+            .total_fee_paid
+            .checked_add(cast(user_fee.unsigned_abs())?)
+            .ok_or_else(math_error!())?;
+    } else {
+        user.total_fee_rebate = user
+            .total_fee_rebate
+            .checked_add(cast(user_fee.unsigned_abs())?)
+            .ok_or_else(math_error!())?;
+    }
+
     user.total_token_discount = user
         .total_token_discount
         .checked_add(token_discount)
@@ -771,7 +789,7 @@ pub fn fill_order(
         mark_price_after,
         fee: user_fee,
         token_discount,
-        referrer_reward,
+        quote_asset_amount_surplus,
         referee_discount,
         liquidation: false,
         market_index,
@@ -890,29 +908,34 @@ pub fn execute_market_order(
         order.base_asset_amount
     };
 
-    let (potentially_risk_increasing, reduce_only, base_asset_amount, quote_asset_amount, _) =
-        if order.base_asset_amount > 0 {
-            controller::position::update_position_with_base_asset_amount(
-                base_asset_amount,
-                order.direction,
-                market,
-                user,
-                market_position,
-                mark_price_before,
-                now,
-                None,
-            )?
-        } else {
-            controller::position::update_position_with_quote_asset_amount(
-                order.quote_asset_amount,
-                order.direction,
-                market,
-                user,
-                market_position,
-                mark_price_before,
-                now,
-            )?
-        };
+    let (
+        potentially_risk_increasing,
+        reduce_only,
+        base_asset_amount,
+        quote_asset_amount,
+        quote_asset_amount_surplus,
+    ) = if order.base_asset_amount > 0 {
+        controller::position::update_position_with_base_asset_amount(
+            base_asset_amount,
+            order.direction,
+            market,
+            user,
+            market_position,
+            mark_price_before,
+            now,
+            None,
+        )?
+    } else {
+        controller::position::update_position_with_quote_asset_amount(
+            order.quote_asset_amount,
+            order.direction,
+            market,
+            user,
+            market_position,
+            mark_price_before,
+            now,
+        )?
+    };
 
     if base_asset_amount < market.amm.minimum_base_asset_trade_size {
         msg!("base asset amount {}", base_asset_amount);
@@ -938,7 +961,7 @@ pub fn execute_market_order(
         base_asset_amount,
         quote_asset_amount,
         potentially_risk_increasing,
-        0_u128,
+        quote_asset_amount_surplus,
     ))
 }
 
@@ -1055,7 +1078,7 @@ pub fn update_order_after_trade(
     minimum_base_asset_trade_size: u128,
     base_asset_amount: u128,
     quote_asset_amount: u128,
-    fee: u128,
+    fee: i128,
 ) -> ClearingHouseResult {
     order.base_asset_amount_filled = order
         .base_asset_amount_filled
