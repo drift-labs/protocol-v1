@@ -954,7 +954,7 @@ export class ClearingHouse {
 		let instr;
 
 		if (directionOnly && marketIndexOnly) {
-			instr = await this.program.instruction.cancelOrderByMarketAndSide(
+			instr = await this.program.instruction.cancelOrdersByMarketAndSide(
 				bestEffort,
 				marketIndexOnly,
 				directionOnly,
