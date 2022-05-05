@@ -29,6 +29,8 @@ export * from './math/position';
 export * from './math/amm';
 export * from './math/trade';
 export * from './math/orders';
+export * from './math/fee';
+export * from './math/state';
 export * from './orders';
 export * from './orderParams';
 export * from './wallet';
