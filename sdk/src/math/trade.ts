@@ -7,7 +7,11 @@ import {
 	AMM_TO_QUOTE_PRECISION_RATIO,
 	ZERO,
 } from '../constants/numericConstants';
-import { calculateMarkPrice } from './market';
+import {
+	calculateBidPrice,
+	calculateAskPrice,
+	calculateMarkPrice,
+} from './market';
 import {
 	calculateAmmReservesAfterSwap,
 	calculatePrice,
@@ -16,6 +20,7 @@ import {
 	calculateSpreadReserves,
 } from './amm';
 import { squareRootBN } from './utils';
+import { isVariant } from '../types';
 
 const MAXPCT = new BN(1000); //percentage units are [0,1000] => [0,1]
 
@@ -51,9 +56,20 @@ export function calculateTradeSlippage(
 	direction: PositionDirection,
 	amount: BN,
 	market: Market,
-	inputAssetType: AssetType = 'quote'
+	inputAssetType: AssetType = 'quote',
+	useSpread = true
 ): [BN, BN, BN, BN] {
-	const oldPrice = calculateMarkPrice(market);
+	let oldPrice: BN;
+
+	if (useSpread && market.amm.baseSpread > 0) {
+		if (isVariant(direction, 'long')) {
+			oldPrice = calculateAskPrice(market);
+		} else {
+			oldPrice = calculateBidPrice(market);
+		}
+	} else {
+		oldPrice = calculateMarkPrice(market);
+	}
 	if (amount.eq(ZERO)) {
 		return [ZERO, ZERO, oldPrice, oldPrice];
 	}
@@ -70,10 +86,26 @@ export function calculateTradeSlippage(
 		market.amm.pegMultiplier
 	).mul(new BN(-1));
 
+	let amm: Parameters<typeof calculateAmmReservesAfterSwap>[0];
+	if (useSpread && market.amm.baseSpread > 0) {
+		const { baseAssetReserve, quoteAssetReserve } = calculateSpreadReserves(
+			market.amm,
+			direction
+		);
+		amm = {
+			baseAssetReserve,
+			quoteAssetReserve,
+			sqrtK: market.amm.sqrtK,
+			pegMultiplier: market.amm.pegMultiplier,
+		};
+	} else {
+		amm = market.amm;
+	}
+
 	const newPrice = calculatePrice(
-		market.amm.baseAssetReserve.sub(acquiredBase),
-		market.amm.quoteAssetReserve.sub(acquiredQuote),
-		market.amm.pegMultiplier
+		amm.baseAssetReserve.sub(acquiredBase),
+		amm.quoteAssetReserve.sub(acquiredQuote),
+		amm.pegMultiplier
 	);
 
 	if (direction == PositionDirection.SHORT) {
