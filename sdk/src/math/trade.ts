@@ -136,7 +136,7 @@ export function calculateTradeSlippage(
  * @param inputAssetType
  * @param useSpread
  * @return
- * 	| 'acquiredBase' =>  positive/negative change in user's base : BN TODO-PRECISION
+ * 	| 'acquiredBase' =>  positive/negative change in user's base : BN AMM_RESERVE_PRECISION
  * 	| 'acquiredQuote' => positive/negative change in user's quote : BN TODO-PRECISION
  */
 export function calculateTradeAcquiredAmounts(
@@ -185,40 +185,58 @@ export function calculateTradeAcquiredAmounts(
  * @returns trade direction/size in order to push price to a targetPrice,
  *
  * [
- *   direction => direction of trade required, TODO-PRECISION
+ *   direction => direction of trade required, PositionDirection
  *   tradeSize => size of trade required, TODO-PRECISION
- *   entryPrice => the entry price for the trade, TODO-PRECISION
- *   targetPrice => the target price TODO-PRECISION
+ *   entryPrice => the entry price for the trade, MARK_PRICE_PRECISION
+ *   targetPrice => the target price MARK_PRICE_PRECISION
  * ]
  */
 export function calculateTargetPriceTrade(
 	market: Market,
 	targetPrice: BN,
 	pct: BN = MAXPCT,
-	outputAssetType: AssetType = 'quote'
+	outputAssetType: AssetType = 'quote',
+	useSpread = true
 ): [PositionDirection, BN, BN, BN] {
 	assert(market.amm.baseAssetReserve.gt(ZERO));
 	assert(targetPrice.gt(ZERO));
 	assert(pct.lte(MAXPCT) && pct.gt(ZERO));
 
 	const markPriceBefore = calculateMarkPrice(market);
+	const bidPriceBefore = calculateBidPrice(market);
+	const askPriceBefore = calculateAskPrice(market);
 
+	let direction;
 	if (targetPrice.gt(markPriceBefore)) {
 		const priceGap = targetPrice.sub(markPriceBefore);
 		const priceGapScaled = priceGap.mul(pct).div(MAXPCT);
 		targetPrice = markPriceBefore.add(priceGapScaled);
+		direction = PositionDirection.LONG;
 	} else {
 		const priceGap = markPriceBefore.sub(targetPrice);
 		const priceGapScaled = priceGap.mul(pct).div(MAXPCT);
 		targetPrice = markPriceBefore.sub(priceGapScaled);
+		direction = PositionDirection.SHORT;
 	}
 
-	let direction;
 	let tradeSize;
 	let baseSize;
 
-	const baseAssetReserveBefore = market.amm.baseAssetReserve;
-	const quoteAssetReserveBefore = market.amm.quoteAssetReserve;
+	let baseAssetReserveBefore: BN;
+	let quoteAssetReserveBefore: BN;
+
+	if (useSpread && market.amm.baseSpread > 0) {
+		const { baseAssetReserve, quoteAssetReserve } = calculateSpreadReserves(
+			market.amm,
+			direction
+		);
+		baseAssetReserveBefore = baseAssetReserve;
+		quoteAssetReserveBefore = quoteAssetReserve;
+	} else {
+		baseAssetReserveBefore = market.amm.baseAssetReserve;
+		quoteAssetReserveBefore = market.amm.quoteAssetReserve;
+	}
+
 	const peg = market.amm.pegMultiplier;
 	const invariant = market.amm.sqrtK.mul(market.amm.sqrtK);
 	const k = invariant.mul(MARK_PRICE_PRECISION);
@@ -228,7 +246,16 @@ export function calculateTargetPriceTrade(
 	const biasModifier = new BN(1);
 	let markPriceAfter;
 
-	if (markPriceBefore.gt(targetPrice)) {
+	if (targetPrice.lt(askPriceBefore) && targetPrice.gt(bidPriceBefore)) {
+		// no trade, market is at target
+		if (markPriceBefore.gt(targetPrice)) {
+			direction = PositionDirection.SHORT;
+		} else {
+			direction = PositionDirection.LONG;
+		}
+		tradeSize = ZERO;
+		return [direction, tradeSize, targetPrice, targetPrice];
+	} else if (markPriceBefore.gt(targetPrice)) {
 		// overestimate y2
 		baseAssetReserveAfter = squareRootBN(
 			k.div(targetPrice).mul(peg).div(PEG_PRECISION).sub(biasModifier)
