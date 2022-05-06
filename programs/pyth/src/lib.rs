@@ -50,14 +50,14 @@ pub mod pyth {
 
 #[derive(Accounts)]
 pub struct SetPrice<'info> {
-    /// CHECK:
+    /// CHECK: this program is just for testing
     #[account(mut)]
     pub price: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
-    /// CHECK:
+    /// CHECK: this program is just for testing
     #[account(mut)]
     pub price: AccountInfo<'info>,
 }
