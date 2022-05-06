@@ -104,6 +104,7 @@ export function calculateSpread(
 ): number {
 	let spread;
 
+	// future logic
 	if (isVariant(direction, 'long')) {
 		spread = amm.baseSpread;
 	} else {
