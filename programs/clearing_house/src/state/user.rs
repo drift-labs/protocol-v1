@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 
+// space: 224
 #[account]
 #[derive(Default)]
 #[repr(packed)]
@@ -21,6 +22,7 @@ pub struct User {
     pub padding3: u128,
 }
 
+// space: 1072
 #[account(zero_copy)]
 #[derive(Default)]
 #[repr(packed)]
@@ -29,6 +31,7 @@ pub struct UserPositions {
     pub positions: [MarketPosition; 5],
 }
 
+// SPACE: 1040
 #[zero_copy]
 #[derive(Default)]
 #[repr(packed)]

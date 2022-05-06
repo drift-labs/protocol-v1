@@ -115,7 +115,7 @@ pub struct InitializeUser<'info> {
     #[account(
         init,
         seeds = [b"user", authority.key.as_ref()],
-        space = std::mem::size_of::<User>() + 8,
+        space = 224 + 8,
         bump,
         payer = authority
     )]
@@ -124,7 +124,7 @@ pub struct InitializeUser<'info> {
     #[account(
         init,
         payer = authority,
-        space = std::mem::size_of::<UserPositions>() + 8,
+        space = 1072 + 8,
     )]
     pub user_positions: AccountLoader<'info, UserPositions>,
     #[account(mut)]
@@ -139,7 +139,7 @@ pub struct InitializeUserWithExplicitPayer<'info> {
     #[account(
         init,
         seeds = [b"user", authority.key.as_ref()],
-        space = std::mem::size_of::<User>() + 8,
+        space = 224 + 8,
         bump,
         payer = payer
     )]
@@ -148,7 +148,7 @@ pub struct InitializeUserWithExplicitPayer<'info> {
     #[account(
         init,
         payer = payer,
-        space = std::mem::size_of::<UserPositions>() + 8,
+        space = 1072 + 8,
     )]
     pub user_positions: AccountLoader<'info, UserPositions>,
     pub authority: Signer<'info>,
@@ -168,7 +168,7 @@ pub struct InitializeUserOrders<'info> {
     #[account(
         init,
         seeds = [b"user_orders", user.key().as_ref()],
-        space = std::mem::size_of::<UserOrders>() + 8,
+        space = 7168 + 8,
         bump,
         payer = authority
     )]
@@ -190,7 +190,7 @@ pub struct InitializeUserOrdersWithExplicitPayer<'info> {
     #[account(
         init,
         seeds = [b"user_orders", user.key().as_ref()],
-        space = std::mem::size_of::<UserOrders>() + 8,
+        space = 7168 + 8,
         bump,
         payer = payer
     )]

@@ -6,6 +6,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::msg;
 use std::cmp::{max, min};
 
+// SPACE: 7168
 #[account(zero_copy)]
 #[derive(Default)]
 #[repr(packed)]
@@ -20,6 +21,7 @@ impl UserOrders {
     }
 }
 
+// SPACE: 7136
 #[zero_copy]
 #[repr(packed)]
 pub struct Order {
