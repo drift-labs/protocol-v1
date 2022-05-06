@@ -12,6 +12,7 @@ use std::cmp::max;
 use switchboard_v2::decimal::SwitchboardDecimal;
 
 #[account(zero_copy)]
+#[repr(packed)]
 pub struct Markets {
     pub markets: [Market; 64],
 }
@@ -40,6 +41,7 @@ impl Markets {
 
 #[zero_copy]
 #[derive(Default)]
+#[repr(packed)]
 pub struct Market {
     pub initialized: bool,
     pub base_asset_amount_long: i128,
@@ -84,6 +86,7 @@ impl Default for OracleSource {
 
 #[zero_copy]
 #[derive(Default)]
+#[repr(packed)]
 pub struct AMM {
     pub oracle: Pubkey,
     pub oracle_source: OracleSource,

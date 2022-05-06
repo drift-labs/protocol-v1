@@ -8,6 +8,7 @@ use std::cmp::{max, min};
 
 #[account(zero_copy)]
 #[derive(Default)]
+#[repr(packed)]
 pub struct UserOrders {
     pub user: Pubkey,
     pub orders: [Order; 32],
@@ -20,6 +21,7 @@ impl UserOrders {
 }
 
 #[zero_copy]
+#[repr(packed)]
 pub struct Order {
     pub status: OrderStatus,
     pub order_type: OrderType,

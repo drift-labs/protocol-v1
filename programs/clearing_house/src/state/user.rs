@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 
 #[account]
 #[derive(Default)]
+#[repr(packed)]
 pub struct User {
     pub authority: Pubkey,
     pub collateral: u128,
@@ -22,6 +23,7 @@ pub struct User {
 
 #[account(zero_copy)]
 #[derive(Default)]
+#[repr(packed)]
 pub struct UserPositions {
     pub user: Pubkey,
     pub positions: [MarketPosition; 5],
@@ -29,6 +31,7 @@ pub struct UserPositions {
 
 #[zero_copy]
 #[derive(Default)]
+#[repr(packed)]
 pub struct MarketPosition {
     pub market_index: u64,
     pub base_asset_amount: i128,
