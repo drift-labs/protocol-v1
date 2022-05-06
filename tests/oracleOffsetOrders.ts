@@ -210,9 +210,9 @@ describe('oracle offset', () => {
 
 		const direction = PositionDirection.LONG;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
-		const price = ZERO;
 		const reduceOnly = false;
 		const priceOffset = MARK_PRICE_PRECISION.div(new BN(20)).neg();
+		const price = MARK_PRICE_PRECISION.add(priceOffset);
 
 		const orderParams = getLimitOrderParams(
 			marketIndex,
@@ -357,9 +357,9 @@ describe('oracle offset', () => {
 
 		const direction = PositionDirection.SHORT;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
-		const price = ZERO;
 		const reduceOnly = false;
 		const priceOffset = MARK_PRICE_PRECISION.div(new BN(20));
+		const price = MARK_PRICE_PRECISION.add(priceOffset);
 
 		const orderParams = getLimitOrderParams(
 			marketIndex,
@@ -431,9 +431,9 @@ describe('oracle offset', () => {
 
 		const direction = PositionDirection.SHORT;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
-		const price = ZERO;
 		const reduceOnly = false;
 		const priceOffset = MARK_PRICE_PRECISION.div(new BN(20));
+		const price = MARK_PRICE_PRECISION.add(priceOffset);
 
 		const orderParams = getLimitOrderParams(
 			marketIndex,
@@ -491,9 +491,9 @@ describe('oracle offset', () => {
 
 		const direction = PositionDirection.SHORT;
 		const baseAssetAmount = new BN(AMM_RESERVE_PRECISION);
-		const price = ZERO;
 		const reduceOnly = false;
 		const priceOffset = MARK_PRICE_PRECISION.div(new BN(20));
+		const price = MARK_PRICE_PRECISION.add(priceOffset);
 
 		const orderParams = getLimitOrderParams(
 			marketIndex,
