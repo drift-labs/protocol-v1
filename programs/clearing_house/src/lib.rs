@@ -1,4 +1,5 @@
 #![allow(clippy::too_many_arguments)]
+#![allow(unaligned_references)]
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
 
