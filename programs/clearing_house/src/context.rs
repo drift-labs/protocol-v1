@@ -41,6 +41,7 @@ pub struct Initialize<'info> {
         token::authority = collateral_vault_authority
     )]
     pub collateral_vault: Box<Account<'info, TokenAccount>>,
+    /// CHECK:
     pub collateral_vault_authority: AccountInfo<'info>,
     #[account(
         init,
@@ -51,6 +52,7 @@ pub struct Initialize<'info> {
         token::authority = insurance_vault_authority
     )]
     pub insurance_vault: Box<Account<'info, TokenAccount>>,
+    /// CHECK:
     pub insurance_vault_authority: AccountInfo<'info>,
     #[account(zero)]
     pub markets: AccountLoader<'info, Markets>,
@@ -218,6 +220,7 @@ pub struct InitializeMarket<'info> {
         constraint = &state.markets.eq(&markets.key())
     )]
     pub markets: AccountLoader<'info, Markets>,
+    /// CHECK: Can either by Pyth or Switchboard, validated later
     pub oracle: AccountInfo<'info>,
 }
 
@@ -277,6 +280,7 @@ pub struct WithdrawCollateral<'info> {
         constraint = &state.collateral_vault.eq(&collateral_vault.key())
     )]
     pub collateral_vault: Box<Account<'info, TokenAccount>>,
+    /// CHECK:
     #[account(
         constraint = &state.collateral_vault_authority.eq(&collateral_vault_authority.key())
     )]
@@ -286,6 +290,7 @@ pub struct WithdrawCollateral<'info> {
         constraint = &state.insurance_vault.eq(&insurance_vault.key())
     )]
     pub insurance_vault: Box<Account<'info, TokenAccount>>,
+    /// CHECK:
     #[account(
         constraint = &state.insurance_vault_authority.eq(&insurance_vault_authority.key())
     )]
@@ -326,6 +331,7 @@ pub struct WithdrawFees<'info> {
         constraint = &state.collateral_vault.eq(&collateral_vault.key())
     )]
     pub collateral_vault: Box<Account<'info, TokenAccount>>,
+    /// CHECK:
     #[account(
         constraint = &state.collateral_vault_authority.eq(&collateral_vault_authority.key())
     )]
@@ -352,6 +358,7 @@ pub struct WithdrawFromInsuranceVault<'info> {
         constraint = &state.insurance_vault.eq(&insurance_vault.key())
     )]
     pub insurance_vault: Box<Account<'info, TokenAccount>>,
+    /// CHECK:
     #[account(
         constraint = &state.insurance_vault_authority.eq(&insurance_vault_authority.key())
     )]
@@ -379,6 +386,7 @@ pub struct WithdrawFromInsuranceVaultToMarket<'info> {
         constraint = &state.insurance_vault.eq(&insurance_vault.key())
     )]
     pub insurance_vault: Box<Account<'info, TokenAccount>>,
+    /// CHECK:
     #[account(
         constraint = &state.insurance_vault_authority.eq(&insurance_vault_authority.key())
     )]
@@ -433,6 +441,7 @@ pub struct OpenPosition<'info> {
         constraint = &state.funding_rate_history.eq(&funding_rate_history.key())
     )]
     pub funding_rate_history: AccountLoader<'info, FundingRateHistory>,
+    /// CHECK: Can either be Pyth or Switchboard, validated later
     pub oracle: AccountInfo<'info>,
 }
 
@@ -494,6 +503,7 @@ pub struct FillOrder<'info> {
         constraint = &state.extended_curve_history.eq(&extended_curve_history.key())
     )]
     pub extended_curve_history: AccountLoader<'info, ExtendedCurveHistory>,
+    /// CHECK: Can either be Pyth or Switchboard, validated later
     pub oracle: AccountInfo<'info>,
 }
 
@@ -624,6 +634,7 @@ pub struct PlaceAndFillOrder<'info> {
         constraint = &state.extended_curve_history.eq(&extended_curve_history.key())
     )]
     pub extended_curve_history: AccountLoader<'info, ExtendedCurveHistory>,
+    /// CHECK: Can either be Pyth or Switchboard, validated later
     pub oracle: AccountInfo<'info>,
 }
 
@@ -737,6 +748,7 @@ pub struct ClosePosition<'info> {
         constraint = &state.funding_rate_history.eq(&funding_rate_history.key())
     )]
     pub funding_rate_history: AccountLoader<'info, FundingRateHistory>,
+    /// CHECK: Can either be Pyth or Switchboard, validated later
     pub oracle: AccountInfo<'info>,
 }
 
@@ -759,6 +771,7 @@ pub struct Liquidate<'info> {
         constraint = &state.collateral_vault.eq(&collateral_vault.key())
     )]
     pub collateral_vault: Box<Account<'info, TokenAccount>>,
+    /// CHECK:
     #[account(
         constraint = &state.collateral_vault_authority.eq(&collateral_vault_authority.key())
     )]
@@ -768,6 +781,7 @@ pub struct Liquidate<'info> {
         constraint = &state.insurance_vault.eq(&insurance_vault.key())
     )]
     pub insurance_vault: Box<Account<'info, TokenAccount>>,
+    /// CHECK:
     #[account(
         constraint = &state.insurance_vault_authority.eq(&insurance_vault_authority.key())
     )]
@@ -832,6 +846,7 @@ pub struct UpdateFundingRate<'info> {
         constraint = &state.markets.eq(&markets.key())
     )]
     pub markets: AccountLoader<'info, Markets>,
+    /// CHECK: Can either be Pyth or Switchboard, validated later
     pub oracle: AccountInfo<'info>,
     #[account(
         mut,
@@ -851,6 +866,7 @@ pub struct RepegCurve<'info> {
         constraint = &state.markets.eq(&markets.key())
     )]
     pub markets: AccountLoader<'info, Markets>,
+    /// CHECK: Can either be Pyth or Switchboard, validated later
     pub oracle: AccountInfo<'info>,
     pub admin: Signer<'info>,
     #[account(
@@ -911,6 +927,7 @@ pub struct AdminUpdateK<'info> {
         constraint = &state.markets.eq(&markets.key())
     )]
     pub markets: AccountLoader<'info, Markets>,
+    /// CHECK: Can either be Pyth or Switchboard, validated later
     pub oracle: AccountInfo<'info>,
     #[account(
         mut,

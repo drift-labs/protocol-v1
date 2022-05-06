@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 use context::*;
 use controller::position::{add_new_position, get_position_index, PositionDirection};
-use error::{ErrorCode};
+use error::ErrorCode;
 use math::{amm, bn, constants::*, fees, margin::*, orders::*, withdrawal::*};
 
 use crate::state::{
@@ -1756,11 +1756,7 @@ pub mod clearing_house {
     #[access_control(
         market_initialized(&ctx.accounts.markets, market_index)
     )]
-    pub fn withdraw_fees(
-        ctx: Context<WithdrawFees>,
-        market_index: u64,
-        amount: u64,
-    ) -> Result<()> {
+    pub fn withdraw_fees(ctx: Context<WithdrawFees>, market_index: u64, amount: u64) -> Result<()> {
         let state = &mut ctx.accounts.state;
         let markets = &mut ctx.accounts.markets.load_mut()?;
         let market = &mut markets.markets[Markets::index_from_u64(market_index)];
@@ -2062,10 +2058,7 @@ pub mod clearing_house {
         exchange_not_paused(&ctx.accounts.state) &&
         valid_oracle_for_market(&ctx.accounts.oracle, &ctx.accounts.markets, market_index)
     )]
-    pub fn update_funding_rate(
-        ctx: Context<UpdateFundingRate>,
-        market_index: u64,
-    ) -> Result<()> {
+    pub fn update_funding_rate(ctx: Context<UpdateFundingRate>, market_index: u64) -> Result<()> {
         let market =
             &mut ctx.accounts.markets.load_mut()?.markets[Markets::index_from_u64(market_index)];
         let price_oracle = &ctx.accounts.oracle;

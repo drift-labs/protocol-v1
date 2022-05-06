@@ -1,4 +1,4 @@
-use crate::error::{ClearingHouseResult};
+use crate::error::ClearingHouseResult;
 use crate::math_error;
 use solana_program::msg;
 

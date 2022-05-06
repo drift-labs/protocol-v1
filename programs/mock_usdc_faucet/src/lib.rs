@@ -85,6 +85,7 @@ pub struct MintToUser<'info> {
     pub mint_account: Box<Account<'info, Mint>>,
     #[account(mut)]
     pub user_token_account: Box<Account<'info, TokenAccount>>,
+    /// CHECK: Checked by spl_token
     pub mint_authority: AccountInfo<'info>,
     pub token_program: Program<'info, Token>,
 }

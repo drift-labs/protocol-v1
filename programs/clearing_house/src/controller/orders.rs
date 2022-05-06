@@ -1,6 +1,6 @@
 use crate::controller::position::{add_new_position, get_position_index};
 use crate::error::ClearingHouseResult;
-use crate::error::{ErrorCode};
+use crate::error::ErrorCode;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math_error;
 use crate::print_error;
