@@ -912,13 +912,60 @@ export class ClearingHouse {
 
 	public async cancelAllOrders(
 		oracles?: PublicKey[],
+		bestEffort?: boolean
+	): Promise<TransactionSignature> {
+		return await this.txSender.send(
+			wrapInTx(await this.getCancelAllOrdersIx(oracles, bestEffort)),
+			[],
+			this.opts
+		);
+	}
+
+	public async getCancelAllOrdersIx(
+		oracles: PublicKey[],
+		bestEffort?: boolean
+	): Promise<TransactionInstruction> {
+		const userAccountPublicKey = await this.getUserAccountPublicKey();
+		const userAccount = await this.getUserAccount();
+
+		const state = this.getStateAccount();
+		const orderState = this.getOrderStateAccount();
+
+		const remainingAccounts = [];
+		for (const oracle of oracles) {
+			remainingAccounts.push({
+				pubkey: oracle,
+				isWritable: false,
+				isSigner: false,
+			});
+		}
+
+		return await this.program.instruction.cancelAllOrders(bestEffort, {
+			accounts: {
+				state: await this.getStatePublicKey(),
+				user: userAccountPublicKey,
+				authority: this.wallet.publicKey,
+				markets: state.markets,
+				userOrders: await this.getUserOrdersAccountPublicKey(),
+				userPositions: userAccount.positions,
+				fundingPaymentHistory: state.fundingPaymentHistory,
+				fundingRateHistory: state.fundingRateHistory,
+				orderState: await this.getOrderStatePublicKey(),
+				orderHistory: orderState.orderHistory,
+			},
+			remainingAccounts,
+		});
+	}
+
+	public async cancelOrdersByMarketAndSide(
+		oracles?: PublicKey[],
 		bestEffort?: boolean,
 		marketIndexOnly?: BN,
 		directionOnly?: PositionDirection
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
 			wrapInTx(
-				await this.getCancelAllOrdersIx(
+				await this.getCancelOrdersByMarketAndSideIx(
 					oracles,
 					bestEffort,
 					marketIndexOnly,
@@ -930,7 +977,7 @@ export class ClearingHouse {
 		);
 	}
 
-	public async getCancelAllOrdersIx(
+	public async getCancelOrdersByMarketAndSideIx(
 		oracles: PublicKey[],
 		bestEffort?: boolean,
 		marketIndexOnly?: BN,
@@ -951,31 +998,11 @@ export class ClearingHouse {
 			});
 		}
 
-		let instr;
-
-		if (directionOnly && marketIndexOnly) {
-			instr = await this.program.instruction.cancelOrdersByMarketAndSide(
-				bestEffort,
-				marketIndexOnly,
-				directionOnly,
-				{
-					accounts: {
-						state: await this.getStatePublicKey(),
-						user: userAccountPublicKey,
-						authority: this.wallet.publicKey,
-						markets: state.markets,
-						userOrders: await this.getUserOrdersAccountPublicKey(),
-						userPositions: userAccount.positions,
-						fundingPaymentHistory: state.fundingPaymentHistory,
-						fundingRateHistory: state.fundingRateHistory,
-						orderState: await this.getOrderStatePublicKey(),
-						orderHistory: orderState.orderHistory,
-					},
-					remainingAccounts,
-				}
-			);
-		} else {
-			instr = await this.program.instruction.cancelAllOrders(bestEffort, {
+		return await this.program.instruction.cancelOrdersByMarketAndSide(
+			bestEffort,
+			marketIndexOnly,
+			directionOnly,
+			{
 				accounts: {
 					state: await this.getStatePublicKey(),
 					user: userAccountPublicKey,
@@ -989,10 +1016,8 @@ export class ClearingHouse {
 					orderHistory: orderState.orderHistory,
 				},
 				remainingAccounts,
-			});
-		}
-
-		return instr;
+			}
+		);
 	}
 
 	public async fillOrder(

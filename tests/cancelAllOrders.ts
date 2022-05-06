@@ -216,7 +216,7 @@ describe('cancel all orders', () => {
 			});
 
 		// cancel market_index=0, longs
-		await clearingHouse.cancelAllOrders(
+		await clearingHouse.cancelOrdersByMarketAndSide(
 			oracles,
 			true,
 			new BN(0),
@@ -248,7 +248,7 @@ describe('cancel all orders', () => {
 		);
 
 		// cancel market_index=1, shorts (best effort!)
-		await clearingHouse.cancelAllOrders(
+		await clearingHouse.cancelOrdersByMarketAndSide(
 			oracles,
 			true,
 			new BN(1),
