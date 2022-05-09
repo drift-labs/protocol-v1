@@ -42,6 +42,8 @@ export type PriceImpactUnit =
  * @param direction
  * @param amount
  * @param market
+ * @param inputAssetType which asset is being traded
+ * @param useSpread whether to consider spread with calculating slippage
  * @return [pctAvgSlippage, pctMaxSlippage, entryPrice, newPrice]
  *
  * 'pctAvgSlippage' =>  the percentage change to entryPrice (average est slippage in execution) : Precision MARK_PRICE_PRECISION
@@ -77,7 +79,8 @@ export function calculateTradeSlippage(
 		direction,
 		amount,
 		market,
-		inputAssetType
+		inputAssetType,
+		useSpread
 	);
 
 	const entryPrice = calculatePrice(
@@ -182,6 +185,8 @@ export function calculateTradeAcquiredAmounts(
  * @param market
  * @param targetPrice
  * @param pct optional default is 100% gap filling, can set smaller.
+ * @param outputAssetType which asset to trade.
+ * @param useSpread whether or not to consider the spread when calculating the trade size
  * @returns trade direction/size in order to push price to a targetPrice,
  *
  * [
@@ -246,7 +251,11 @@ export function calculateTargetPriceTrade(
 	const biasModifier = new BN(1);
 	let markPriceAfter;
 
-	if (targetPrice.lt(askPriceBefore) && targetPrice.gt(bidPriceBefore)) {
+	if (
+		useSpread &&
+		targetPrice.lt(askPriceBefore) &&
+		targetPrice.gt(bidPriceBefore)
+	) {
 		// no trade, market is at target
 		if (markPriceBefore.gt(targetPrice)) {
 			direction = PositionDirection.SHORT;
