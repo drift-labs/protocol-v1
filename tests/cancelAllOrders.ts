@@ -18,7 +18,7 @@ import {
 } from '../sdk';
 
 describe('cancel all orders', () => {
-	const provider = anchor.Provider.local(undefined, {
+	const provider = anchor.AnchorProvider.local(undefined, {
 		commitment: 'confirmed',
 		preflightCommitment: 'confirmed',
 	});
