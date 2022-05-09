@@ -275,12 +275,16 @@ pub fn cancel_all_orders(
             continue;
         }
 
-        if market_index_only.is_some() && order.market_index != market_index_only.unwrap() {
-            continue;
+        if let Some(market_index) = market_index_only {
+            if order.market_index != market_index {
+                continue;
+            }
         }
 
-        if direction_only.is_some() && direction_only.unwrap() != order.direction {
-            continue;
+        if let Some(direction) = direction_only {
+            if order.direction != direction {
+                continue;
+            }
         }
 
         let oracle = {
