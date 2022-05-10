@@ -12,15 +12,15 @@ export function isOracleValid(
 	const isOraclePriceNonPositive = oraclePriceData.price.lt(ZERO);
 	const isOraclePriceTooVolatile =
 		oraclePriceData.price
-			.sub(BN.max(ONE, amm.lastOraclePriceTwap))
+			.div(BN.max(ONE, amm.lastOraclePriceTwap))
 			.gt(oracleGuardRails.validity.tooVolatileRatio) ||
 		amm.lastOraclePriceTwap
-			.sub(BN.max(ONE, oraclePriceData.price))
+			.div(BN.max(ONE, oraclePriceData.price))
 			.gt(oracleGuardRails.validity.tooVolatileRatio);
 
 	const isConfidenceTooLarge = oraclePriceData.price
 		.div(BN.max(ONE, oraclePriceData.confidence))
-		.gt(oracleGuardRails.validity.confidenceIntervalMaxSize);
+		.lt(oracleGuardRails.validity.confidenceIntervalMaxSize);
 
 	const oracleIsStale = oraclePriceData.slot
 		.sub(new BN(slot))
