@@ -71,6 +71,8 @@ export interface ClearingHouseAccountSubscriber {
 	): Promise<boolean>;
 	fetch(): Promise<void>;
 	unsubscribe(): Promise<void>;
+	subscribeTo(account: ClearingHouseAccountTypes): Promise<boolean>;
+	unsubscribeFrom(account: ClearingHouseAccountTypes): Promise<boolean>;
 
 	getStateAccount(): StateAccount;
 	getMarketsAccount(): MarketsAccount;

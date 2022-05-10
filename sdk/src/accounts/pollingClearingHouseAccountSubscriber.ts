@@ -86,13 +86,7 @@ export class PollingClearingHouseAccountSubscriber
 		await this.updateAccountsToPoll();
 		await this.addToAccountLoader();
 
-		let subscriptionSucceeded = false;
-		let retries = 0;
-		while (!subscriptionSucceeded && retries < 5) {
-			await this.fetch();
-			subscriptionSucceeded = this.didSubscriptionSucceed();
-			retries++;
-		}
+		const subscriptionSucceeded = await this.fetchForSubscribe();
 
 		if (subscriptionSucceeded) {
 			this.eventEmitter.emit('update');
@@ -102,6 +96,17 @@ export class PollingClearingHouseAccountSubscriber
 		this.isSubscribed = subscriptionSucceeded;
 		this.subscriptionPromiseResolver(subscriptionSucceeded);
 
+		return subscriptionSucceeded;
+	}
+
+	async fetchForSubscribe(): Promise<boolean> {
+		let subscriptionSucceeded = false;
+		let retries = 0;
+		while (!subscriptionSucceeded && retries < 5) {
+			await this.fetch();
+			subscriptionSucceeded = this.didSubscriptionSucceed();
+			retries++;
+		}
 		return subscriptionSucceeded;
 	}
 
@@ -131,65 +136,94 @@ export class PollingClearingHouseAccountSubscriber
 		});
 
 		if (this.optionalExtraSubscriptions?.includes('tradeHistoryAccount')) {
-			this.accountsToPoll.set(accounts.tradeHistory.toString(), {
-				key: 'tradeHistory',
-				publicKey: accounts.tradeHistory,
-				eventType: 'tradeHistoryAccountUpdate',
-			});
+			this.addAccountToPoll('tradeHistoryAccount', accounts);
 		}
 
 		if (this.optionalExtraSubscriptions?.includes('depositHistoryAccount')) {
-			this.accountsToPoll.set(accounts.depositHistory.toString(), {
-				key: 'depositHistory',
-				publicKey: accounts.depositHistory,
-				eventType: 'depositHistoryAccountUpdate',
-			});
+			this.addAccountToPoll('depositHistoryAccount', accounts);
 		}
 
 		if (
 			this.optionalExtraSubscriptions?.includes('fundingPaymentHistoryAccount')
 		) {
-			this.accountsToPoll.set(accounts.fundingPaymentHistory.toString(), {
-				key: 'fundingPaymentHistory',
-				publicKey: accounts.fundingPaymentHistory,
-				eventType: 'fundingPaymentHistoryAccountUpdate',
-			});
+			this.addAccountToPoll('fundingPaymentHistoryAccount', accounts);
 		}
 
 		if (
 			this.optionalExtraSubscriptions?.includes('fundingRateHistoryAccount')
 		) {
-			this.accountsToPoll.set(accounts.fundingRateHistory.toString(), {
-				key: 'fundingRateHistory',
-				publicKey: accounts.fundingRateHistory,
-				eventType: 'fundingRateHistoryAccountUpdate',
-			});
+			this.addAccountToPoll('fundingRateHistoryAccount', accounts);
 		}
 
 		if (this.optionalExtraSubscriptions?.includes('curveHistoryAccount')) {
-			this.accountsToPoll.set(accounts.extendedCurveHistory.toString(), {
-				key: 'extendedCurveHistory',
-				publicKey: accounts.extendedCurveHistory,
-				eventType: 'curveHistoryAccountUpdate',
-			});
+			this.addAccountToPoll('curveHistoryAccount', accounts);
 		}
 
 		if (
 			this.optionalExtraSubscriptions?.includes('liquidationHistoryAccount')
 		) {
-			this.accountsToPoll.set(accounts.liquidationHistory.toString(), {
-				key: 'liquidationHistory',
-				publicKey: accounts.liquidationHistory,
-				eventType: 'liquidationHistoryAccountUpdate',
-			});
+			this.addAccountToPoll('liquidationHistoryAccount', accounts);
 		}
 
 		if (this.optionalExtraSubscriptions?.includes('orderHistoryAccount')) {
-			this.accountsToPoll.set(accounts.orderHistory.toString(), {
-				key: 'orderHistory',
-				publicKey: accounts.orderHistory,
-				eventType: 'orderHistoryAccountUpdate',
-			});
+			this.addAccountToPoll('orderHistoryAccount', accounts);
+		}
+	}
+
+	addAccountToPoll(
+		accountType: ClearingHouseAccountTypes,
+		accounts: ClearingHouseAccounts
+	): void {
+		switch (accountType) {
+			case 'tradeHistoryAccount':
+				this.accountsToPoll.set(accounts.tradeHistory.toString(), {
+					key: 'tradeHistory',
+					publicKey: accounts.tradeHistory,
+					eventType: 'tradeHistoryAccountUpdate',
+				});
+				break;
+			case 'depositHistoryAccount':
+				this.accountsToPoll.set(accounts.depositHistory.toString(), {
+					key: 'depositHistory',
+					publicKey: accounts.depositHistory,
+					eventType: 'depositHistoryAccountUpdate',
+				});
+				break;
+			case 'fundingPaymentHistoryAccount':
+				this.accountsToPoll.set(accounts.fundingPaymentHistory.toString(), {
+					key: 'fundingPaymentHistory',
+					publicKey: accounts.fundingPaymentHistory,
+					eventType: 'fundingPaymentHistoryAccountUpdate',
+				});
+				break;
+			case 'fundingRateHistoryAccount':
+				this.accountsToPoll.set(accounts.fundingRateHistory.toString(), {
+					key: 'fundingRateHistory',
+					publicKey: accounts.fundingRateHistory,
+					eventType: 'fundingRateHistoryAccountUpdate',
+				});
+				break;
+			case 'curveHistoryAccount':
+				this.accountsToPoll.set(accounts.curveHistory.toString(), {
+					key: 'extendedCurveHistory',
+					publicKey: accounts.curveHistory,
+					eventType: 'curveHistoryAccountUpdate',
+				});
+				break;
+			case 'liquidationHistoryAccount':
+				this.accountsToPoll.set(accounts.liquidationHistory.toString(), {
+					key: 'liquidationHistory',
+					publicKey: accounts.liquidationHistory,
+					eventType: 'liquidationHistoryAccountUpdate',
+				});
+				break;
+			case 'orderHistoryAccount':
+				this.accountsToPoll.set(accounts.orderHistory.toString(), {
+					key: 'orderHistory',
+					publicKey: accounts.orderHistory,
+					eventType: 'orderHistoryAccountUpdate',
+				});
+				break;
 		}
 	}
 
@@ -298,6 +332,37 @@ export class PollingClearingHouseAccountSubscriber
 		this.isSubscribed = false;
 	}
 
+	async subscribeTo(accountType: ClearingHouseAccountTypes): Promise<boolean> {
+		this.assertIsSubscribed();
+
+		if (this.optionalExtraSubscriptions.includes(accountType)) {
+			return true;
+		}
+
+		const accounts = await this.getClearingHouseAccounts();
+		this.addAccountToPoll(accountType, accounts);
+
+		return await this.fetchForSubscribe();
+	}
+
+	async unsubscribeFrom(
+		accountType: ClearingHouseAccountTypes
+	): Promise<boolean> {
+		this.assertIsSubscribed();
+
+		if (!this.optionalExtraSubscriptions.includes(accountType)) {
+			return true;
+		}
+
+		const accounts = await this.getClearingHouseAccounts();
+		const {key, publicKey} = this.accountsToPoll.get(accounts[accountType].toString());
+
+		this.
+
+
+		return await this.fetchForSubscribe();
+	}
+
 	assertIsSubscribed(): void {
 		if (!this.isSubscribed) {
 			throw new NotSubscribedError(
@@ -388,7 +453,7 @@ type ClearingHouseAccounts = {
 	depositHistory?: PublicKey;
 	fundingPaymentHistory?: PublicKey;
 	fundingRateHistory?: PublicKey;
-	extendedCurveHistory?: PublicKey;
+	curveHistory?: PublicKey;
 	liquidationHistory?: PublicKey;
 	orderHistory?: PublicKey;
 };
