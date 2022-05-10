@@ -3,7 +3,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::controller;
 use crate::controller::amm::SwapDirection;
-use crate::error::*;
+use crate::error::{ClearingHouseResult, ErrorCode};
 use crate::math::amm::should_round_trade;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math::collateral::calculate_updated_collateral;
@@ -731,8 +731,11 @@ fn calculate_quote_asset_amount_surplus(
     base_asset_amount: u128,
     limit_price: u128,
 ) -> ClearingHouseResult<(u128, u128)> {
-    let quote_asset_amount =
-        calculate_quote_asset_amount_for_maker_order(base_asset_amount, limit_price)?;
+    let quote_asset_amount = calculate_quote_asset_amount_for_maker_order(
+        base_asset_amount,
+        limit_price,
+        swap_direction,
+    )?;
 
     let quote_asset_amount_surplus = match swap_direction {
         SwapDirection::Remove => quote_asset_amount

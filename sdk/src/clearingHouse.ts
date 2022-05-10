@@ -1,4 +1,4 @@
-import { BN, Idl, Program, Provider } from '@project-serum/anchor';
+import { AnchorProvider, BN, Idl, Program } from '@project-serum/anchor';
 import {
 	ASSOCIATED_TOKEN_PROGRAM_ID,
 	Token,
@@ -71,7 +71,7 @@ export class ClearingHouse {
 	connection: Connection;
 	wallet: IWallet;
 	public program: Program;
-	provider: Provider;
+	provider: AnchorProvider;
 	opts?: ConfirmOptions;
 	accountSubscriber: ClearingHouseAccountSubscriber;
 	eventEmitter: StrictEventEmitter<EventEmitter, ClearingHouseAccountEvents>;
@@ -98,7 +98,7 @@ export class ClearingHouse {
 		connection: Connection,
 		wallet: IWallet,
 		clearingHouseProgramId: PublicKey,
-		opts: ConfirmOptions = Provider.defaultOptions()
+		opts: ConfirmOptions = AnchorProvider.defaultOptions()
 	): ClearingHouse {
 		const config = getWebSocketClearingHouseConfig(
 			connection,
@@ -245,7 +245,11 @@ export class ClearingHouse {
 	 * @param newWallet
 	 */
 	public updateWallet(newWallet: IWallet): void {
-		const newProvider = new Provider(this.connection, newWallet, this.opts);
+		const newProvider = new AnchorProvider(
+			this.connection,
+			newWallet,
+			this.opts
+		);
 		const newProgram = new Program(
 			clearingHouseIDL as Idl,
 			this.program.programId,
@@ -503,7 +507,7 @@ export class ClearingHouse {
 			.add(initializeUserOrdersAccountIx)
 			.add(depositCollateralIx);
 
-		const txSig = await this.program.provider.send(tx, [userPositionsAccount]);
+		const txSig = await this.txSender.send(tx, [userPositionsAccount]);
 
 		return [txSig, userAccountPublicKey];
 	}
@@ -538,7 +542,9 @@ export class ClearingHouse {
 			.add(initializeUserOrdersAccountIx)
 			.add(depositCollateralIx);
 
-		const txSig = await this.program.provider.send(tx, [userPositionsAccount]);
+		const txSig = await this.program.provider.sendAndConfirm(tx, [
+			userPositionsAccount,
+		]);
 
 		return [txSig, userAccountPublicKey];
 	}
@@ -911,17 +917,19 @@ export class ClearingHouse {
 	}
 
 	public async cancelAllOrders(
-		oracles?: PublicKey[]
+		oracles?: PublicKey[],
+		bestEffort?: boolean
 	): Promise<TransactionSignature> {
 		return await this.txSender.send(
-			wrapInTx(await this.getCancelAllOrdersIx(oracles)),
+			wrapInTx(await this.getCancelAllOrdersIx(oracles, bestEffort)),
 			[],
 			this.opts
 		);
 	}
 
 	public async getCancelAllOrdersIx(
-		oracles: PublicKey[]
+		oracles: PublicKey[],
+		bestEffort?: boolean
 	): Promise<TransactionInstruction> {
 		const userAccountPublicKey = await this.getUserAccountPublicKey();
 		const userAccount = await this.getUserAccount();
@@ -938,7 +946,7 @@ export class ClearingHouse {
 			});
 		}
 
-		return await this.program.instruction.cancelAllOrders({
+		return await this.program.instruction.cancelAllOrders(bestEffort, {
 			accounts: {
 				state: await this.getStatePublicKey(),
 				user: userAccountPublicKey,
@@ -953,6 +961,69 @@ export class ClearingHouse {
 			},
 			remainingAccounts,
 		});
+	}
+
+	public async cancelOrdersByMarketAndSide(
+		oracles?: PublicKey[],
+		bestEffort?: boolean,
+		marketIndexOnly?: BN,
+		directionOnly?: PositionDirection
+	): Promise<TransactionSignature> {
+		return await this.txSender.send(
+			wrapInTx(
+				await this.getCancelOrdersByMarketAndSideIx(
+					oracles,
+					bestEffort,
+					marketIndexOnly,
+					directionOnly
+				)
+			),
+			[],
+			this.opts
+		);
+	}
+
+	public async getCancelOrdersByMarketAndSideIx(
+		oracles: PublicKey[],
+		bestEffort?: boolean,
+		marketIndexOnly?: BN,
+		directionOnly?: PositionDirection
+	): Promise<TransactionInstruction> {
+		const userAccountPublicKey = await this.getUserAccountPublicKey();
+		const userAccount = await this.getUserAccount();
+
+		const state = this.getStateAccount();
+		const orderState = this.getOrderStateAccount();
+
+		const remainingAccounts = [];
+		for (const oracle of oracles) {
+			remainingAccounts.push({
+				pubkey: oracle,
+				isWritable: false,
+				isSigner: false,
+			});
+		}
+
+		return await this.program.instruction.cancelOrdersByMarketAndSide(
+			bestEffort,
+			marketIndexOnly,
+			directionOnly,
+			{
+				accounts: {
+					state: await this.getStatePublicKey(),
+					user: userAccountPublicKey,
+					authority: this.wallet.publicKey,
+					markets: state.markets,
+					userOrders: await this.getUserOrdersAccountPublicKey(),
+					userPositions: userAccount.positions,
+					fundingPaymentHistory: state.fundingPaymentHistory,
+					fundingRateHistory: state.fundingRateHistory,
+					orderState: await this.getOrderStatePublicKey(),
+					orderHistory: orderState.orderHistory,
+				},
+				remainingAccounts,
+			}
+		);
 	}
 
 	public async fillOrder(

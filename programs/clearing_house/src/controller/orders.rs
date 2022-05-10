@@ -1,6 +1,6 @@
 use crate::controller::position::{add_new_position, get_position_index};
 use crate::error::ClearingHouseResult;
-use crate::error::*;
+use crate::error::ErrorCode;
 use crate::math::casting::{cast, cast_to_i128};
 use crate::math_error;
 use crate::print_error;
@@ -22,12 +22,14 @@ use crate::state::{
 };
 
 use crate::controller;
+use crate::controller::position::PositionDirection;
 use crate::math::amm::{is_oracle_valid, normalise_oracle_price};
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math::constants::QUOTE_PRECISION;
 use crate::math::fees::calculate_order_fee_tier;
 use crate::order_validation::{
-    get_base_asset_amount_for_order, validate_order, validate_order_can_be_canceled,
+    check_if_order_can_be_canceled, get_base_asset_amount_for_order, validate_order,
+    validate_order_can_be_canceled,
 };
 use crate::state::history::funding_payment::FundingPaymentHistory;
 use crate::state::history::funding_rate::FundingRateHistory;
@@ -204,6 +206,7 @@ pub fn cancel_order_by_order_id(
         order_history,
         clock,
         oracle,
+        false,
     )
 }
 
@@ -240,6 +243,7 @@ pub fn cancel_order_by_user_order_id(
         order_history,
         clock,
         oracle,
+        false,
     )
 }
 
@@ -253,6 +257,9 @@ pub fn cancel_all_orders(
     order_history: &AccountLoader<OrderHistory>,
     clock: &Clock,
     remaining_accounts: &[AccountInfo],
+    best_effort: bool,
+    market_index_only: Option<u64>,
+    direction_only: Option<PositionDirection>,
 ) -> ClearingHouseResult {
     let user_orders = &mut user_orders
         .load_mut()
@@ -266,6 +273,18 @@ pub fn cancel_all_orders(
     for order in user_orders.orders.iter_mut() {
         if order.status != OrderStatus::Open {
             continue;
+        }
+
+        if let Some(market_index) = market_index_only {
+            if order.market_index != market_index {
+                continue;
+            }
+        }
+
+        if let Some(direction) = direction_only {
+            if order.direction != direction {
+                continue;
+            }
         }
 
         let oracle = {
@@ -286,6 +305,7 @@ pub fn cancel_all_orders(
             order_history,
             clock,
             oracle,
+            best_effort,
         )?
     }
 
@@ -302,6 +322,7 @@ pub fn cancel_order(
     order_history: &AccountLoader<OrderHistory>,
     clock: &Clock,
     oracle: Option<&AccountInfo>,
+    best_effort: bool,
 ) -> ClearingHouseResult {
     let now = clock.unix_timestamp;
 
@@ -335,11 +356,21 @@ pub fn cancel_order(
         clock.slot,
     )?;
 
-    validate_order_can_be_canceled(
-        order,
-        markets.get_market(order.market_index),
-        valid_oracle_price,
-    )?;
+    if best_effort {
+        let is_cancelable = check_if_order_can_be_canceled(
+            order,
+            user,
+            user_positions,
+            markets,
+            valid_oracle_price,
+        )?;
+
+        if !is_cancelable {
+            return Ok(());
+        }
+    } else {
+        validate_order_can_be_canceled(order, user, user_positions, markets, valid_oracle_price)?;
+    }
 
     // Add to the order history account
     let order_history_account = &mut order_history
@@ -682,10 +713,7 @@ pub fn fill_order(
 
     // Update user's collateral based on fee/rebate
     user.collateral = if user_fee >= 0 {
-        user.collateral
-            .checked_sub(user_fee.unsigned_abs())
-            .or(Some(0))
-            .unwrap()
+        user.collateral.saturating_sub(user_fee.unsigned_abs())
     } else {
         user.collateral
             .checked_add(user_fee.unsigned_abs())
