@@ -98,9 +98,10 @@ export function calculatePositionPNL(
  * @param withFunding (adds unrealized funding payment pnl to result)
  * @returns BaseAssetAmount : Precision QUOTE_PRECISION
  */
-export function calculatePositionPNLWithoutSlippage(
+export function calculatePositionPNLWithExitPrice(
 	market: Market,
 	marketPosition: UserPosition,
+	exitPrice: BN,
 	withFunding = false
 ): BN {
 	if (marketPosition.baseAssetAmount.eq(ZERO)) {
@@ -108,7 +109,7 @@ export function calculatePositionPNLWithoutSlippage(
 	}
 
 	const baseAssetValue = marketPosition.baseAssetAmount
-		.mul(calculateMarkPrice(market))
+		.mul(exitPrice)
 		.div(MARK_PRICE_PRECISION)
 		.div(AMM_TO_QUOTE_PRECISION_RATIO);
 
