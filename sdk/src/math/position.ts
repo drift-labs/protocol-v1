@@ -91,6 +91,49 @@ export function calculatePositionPNL(
 }
 
 /**
+ * calculatePositionPNLWithoutSlippage
+ * = BaseAssetAmount * (Avg Exit Price - Avg Entry Price)
+ * @param market
+ * @param marketPosition
+ * @param withFunding (adds unrealized funding payment pnl to result)
+ * @returns BaseAssetAmount : Precision QUOTE_PRECISION
+ */
+export function calculatePositionPNLWithExitPrice(
+	market: Market,
+	marketPosition: UserPosition,
+	exitPrice: BN,
+	withFunding = false
+): BN {
+	if (marketPosition.baseAssetAmount.eq(ZERO)) {
+		return ZERO;
+	}
+
+	const baseAssetValue = marketPosition.baseAssetAmount
+		.abs()
+		.mul(exitPrice)
+		.div(MARK_PRICE_PRECISION)
+		.div(AMM_TO_QUOTE_PRECISION_RATIO);
+
+	let pnl;
+	if (marketPosition.baseAssetAmount.gt(ZERO)) {
+		pnl = baseAssetValue.sub(marketPosition.quoteAssetAmount);
+	} else {
+		pnl = marketPosition.quoteAssetAmount.sub(baseAssetValue);
+	}
+
+	if (withFunding) {
+		const fundingRatePnL = calculatePositionFundingPNL(
+			market,
+			marketPosition
+		).div(PRICE_TO_QUOTE_PRECISION);
+
+		pnl = pnl.add(fundingRatePnL);
+	}
+
+	return pnl;
+}
+
+/**
  *
  * @param market
  * @param marketPosition
