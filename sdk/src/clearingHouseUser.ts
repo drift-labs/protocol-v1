@@ -11,7 +11,10 @@ import {
 	UserPosition,
 	UserPositionsAccount,
 } from './types';
-import { calculateEntryPrice } from './math/position';
+import {
+	calculateEntryPrice,
+	calculatePositionPNLWithExitPrice,
+} from './math/position';
 import {
 	MARK_PRICE_PRECISION,
 	AMM_TO_QUOTE_PRECISION_RATIO,
@@ -254,7 +257,11 @@ export class ClearingHouseUser {
 	 * calculates unrealized position price pnl
 	 * @returns : Precision QUOTE_PRECISION
 	 */
-	public getUnrealizedPNL(withFunding?: boolean, marketIndex?: BN): BN {
+	public getUnrealizedPNL(
+		withFunding?: boolean,
+		marketIndex?: BN,
+		withoutSlippage?: boolean
+	): BN {
 		return this.getUserPositionsAccount()
 			.positions.filter((pos) =>
 				marketIndex ? pos.marketIndex === marketIndex : true
@@ -262,7 +269,14 @@ export class ClearingHouseUser {
 			.reduce((pnl, marketPosition) => {
 				const market = this.clearingHouse.getMarket(marketPosition.marketIndex);
 				return pnl.add(
-					calculatePositionPNL(market, marketPosition, withFunding)
+					withoutSlippage
+						? calculatePositionPNLWithExitPrice(
+								market,
+								marketPosition,
+								calculateMarkPrice(market),
+								withFunding
+						  )
+						: calculatePositionPNL(market, marketPosition, withFunding)
 				);
 			}, ZERO);
 	}
@@ -286,10 +300,11 @@ export class ClearingHouseUser {
 	 * calculates TotalCollateral: collateral + unrealized pnl
 	 * @returns : Precision QUOTE_PRECISION
 	 */
-	public getTotalCollateral(): BN {
+	public getTotalCollateral(withoutSlippage = false): BN {
 		return (
-			this.getUserAccount().collateral.add(this.getUnrealizedPNL(true)) ??
-			new BN(0)
+			this.getUserAccount().collateral.add(
+				this.getUnrealizedPNL(true, null, withoutSlippage)
+			) ?? new BN(0)
 		);
 	}
 

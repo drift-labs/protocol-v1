@@ -109,6 +109,7 @@ export function calculatePositionPNLWithExitPrice(
 	}
 
 	const baseAssetValue = marketPosition.baseAssetAmount
+		.abs()
 		.mul(exitPrice)
 		.div(MARK_PRICE_PRECISION)
 		.div(AMM_TO_QUOTE_PRECISION_RATIO);
