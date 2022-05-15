@@ -22,6 +22,7 @@ import {
 	Order,
 	ExtendedCurveHistoryAccount,
 	UserPositionsAccount,
+	SettlementStateAccount,
 } from './types';
 import * as anchor from '@project-serum/anchor';
 import clearingHouseIDL from './idl/clearing_house.json';
@@ -42,6 +43,7 @@ import StrictEventEmitter from 'strict-event-emitter-types';
 import {
 	getClearingHouseStateAccountPublicKey,
 	getOrderStateAccountPublicKey,
+	getSettlementStatePublicKey,
 	getUserAccountPublicKey,
 	getUserAccountPublicKeyAndNonce,
 	getUserOrdersAccountPublicKey,
@@ -184,6 +186,13 @@ export class ClearingHouse {
 
 	public getStateAccount(): StateAccount {
 		return this.accountSubscriber.getStateAccount();
+	}
+
+	public async getSettlementAccount(): Promise<SettlementStateAccount> {
+		// @ts-ignore
+		return await this.program.account.settlementState.fetch(
+			await getSettlementStatePublicKey(this.program.programId)
+		);
 	}
 
 	public getMarketsAccount(): MarketsAccount {
@@ -1404,5 +1413,65 @@ export class ClearingHouse {
 
 	public triggerEvent(eventName: keyof ClearingHouseAccountEvents, data?: any) {
 		this.eventEmitter.emit(eventName, data);
+	}
+
+	public async settlePositionAndClaimCollateral(
+		collateralAccountPublicKey: PublicKey
+	): Promise<TransactionSignature> {
+		const settlePositionIx = await this.getSettlePositionIx();
+		const claimCollateralIx = await this.getClaimCollateralIx(
+			collateralAccountPublicKey
+		);
+		const tx = new Transaction().add(settlePositionIx).add(claimCollateralIx);
+
+		return this.txSender.send(tx, [], this.opts);
+	}
+
+	public async getSettlePositionIx(): Promise<TransactionInstruction> {
+		const userAccountPublicKey = await this.getUserAccountPublicKey();
+		const user: any = await this.program.account.user.fetch(
+			userAccountPublicKey
+		);
+		const state = this.getStateAccount();
+
+		const settlementState = await getSettlementStatePublicKey(
+			this.program.programId
+		);
+
+		return await this.program.instruction.settlePosition({
+			accounts: {
+				state: await this.getStatePublicKey(),
+				user: userAccountPublicKey,
+				markets: state.markets,
+				authority: this.wallet.publicKey,
+				userPositions: user.positions,
+				settlementState,
+				fundingPaymentHistory: state.fundingPaymentHistory,
+			},
+		});
+	}
+
+	public async getClaimCollateralIx(
+		collateralAccountPublicKey: PublicKey
+	): Promise<TransactionInstruction> {
+		const userAccountPublicKey = await this.getUserAccountPublicKey();
+		const state = this.getStateAccount();
+
+		const settlementState = await getSettlementStatePublicKey(
+			this.program.programId
+		);
+
+		return await this.program.instruction.claimCollateral({
+			accounts: {
+				state: await this.getStatePublicKey(),
+				user: userAccountPublicKey,
+				collateralVault: state.collateralVault,
+				collateralVaultAuthority: state.collateralVaultAuthority,
+				userCollateralAccount: collateralAccountPublicKey,
+				authority: this.wallet.publicKey,
+				tokenProgram: TOKEN_PROGRAM_ID,
+				settlementState,
+			},
+		});
 	}
 }

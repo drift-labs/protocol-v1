@@ -268,6 +268,12 @@ export type OrderStateAccount = {
 	minOrderQuoteAssetAmount: BN;
 };
 
+export type SettlementStateAccount = {
+	totalSettlementValue: BN;
+	collateralAvailableToClaim: BN;
+	collateralClaimed: BN;
+};
+
 export type MarketsAccount = {
 	markets: Market[];
 };
@@ -336,6 +342,10 @@ export type UserAccount = {
 	totalTokenDiscount: BN;
 	totalReferralReward: BN;
 	totalRefereeDiscount: BN;
+	settledPositionValue: BN;
+	collateralClaimed: BN;
+	lastCollateralAvailableToClaim: BN;
+	forgoPositionSettlement: number;
 };
 
 export type UserOrdersAccount = {
