@@ -840,7 +840,11 @@ export class ClearingHouseUser {
 
 	public getClaimableCollateral(settlementState: SettlementStateAccount): BN {
 		return this.getSettledPositionValue()
-			.mul(settlementState.collateralAvailableToClaim)
+			.mul(
+				settlementState.collateralAvailableToClaim.sub(
+					this.getUserAccount().lastCollateralAvailableToClaim
+				)
+			)
 			.div(settlementState.totalSettlementValue);
 	}
 
