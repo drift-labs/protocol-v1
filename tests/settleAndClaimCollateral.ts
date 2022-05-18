@@ -128,7 +128,7 @@ describe('settle and claim collateral', () => {
 
 		await primaryClearingHouse.fetchAccounts();
 
-		await primaryClearingHouse.updateUserForgoSettlement(
+		await primaryClearingHouse.adminUpdateUserForgoSettlement(
 			firstClearingHouseUser.authority
 		);
 
