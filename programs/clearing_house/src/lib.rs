@@ -2599,16 +2599,17 @@ pub mod clearing_house {
             return Err(ErrorCode::SettlementNotEnabled.into());
         }
 
-        let claim_amount = (user.settled_position_value as u64)
+        let claim_amount = user
+            .settled_position_value
             .checked_mul(
                 settlement_state
                     .collateral_available_to_claim
                     .checked_sub(user.last_collateral_available_to_claim)
-                    .ok_or_else(math_error!())?,
+                    .ok_or_else(math_error!())? as u128,
             )
             .ok_or_else(math_error!())?
-            .checked_div(settlement_state.total_settlement_value)
-            .ok_or_else(math_error!())?;
+            .checked_div(settlement_state.total_settlement_value as u128)
+            .ok_or_else(math_error!())? as u64;
 
         user.last_collateral_available_to_claim = settlement_state.collateral_available_to_claim;
         user.collateral_claimed = user
