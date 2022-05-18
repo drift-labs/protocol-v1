@@ -58,9 +58,17 @@ import { TxSender } from './tx/types';
 import { wrapInTx } from './tx/utils';
 import {
 	getClearingHouse,
+	getPollingClearingHouseConfig,
 	getWebSocketClearingHouseConfig,
 } from './factory/clearingHouse';
 import { ZERO } from './constants/numericConstants';
+import { BulkAccountLoader } from './accounts/bulkAccountLoader';
+import { ClearingHouseUser } from './clearingHouseUser';
+import {
+	getClearingHouseUser,
+	getPollingClearingHouseUserConfig,
+} from './factory/clearingHouseUser';
+import { bulkPollingUserSubscribe } from './accounts/bulkUserSubscription';
 
 /**
  * # ClearingHouse
@@ -1473,5 +1481,54 @@ export class ClearingHouse {
 				settlementState,
 			},
 		});
+	}
+
+	public async getTotalSettlementSize(): Promise<BN> {
+		const accountLoader = new BulkAccountLoader(
+			this.connection,
+			'processed',
+			50000
+		);
+		const clearingHouse = getClearingHouse(
+			getPollingClearingHouseConfig(
+				this.connection,
+				this.wallet,
+				this.program.programId,
+				accountLoader
+			)
+		);
+
+		console.log('loading all users');
+		const programUserAccounts =
+			(await this.program.account.user.all()) as any[];
+		const userArray: ClearingHouseUser[] = [];
+		for (const programUserAccount of programUserAccounts) {
+			const user = getClearingHouseUser(
+				getPollingClearingHouseUserConfig(
+					clearingHouse,
+					programUserAccount.account.authority,
+					accountLoader
+				)
+			);
+			userArray.push(user);
+		}
+
+		console.log('subscribing all users');
+		await bulkPollingUserSubscribe(userArray, accountLoader);
+
+		console.log('calculating settlement size');
+		const settlementSize = userArray.reduce((collateralToBeSettled, user) => {
+			return collateralToBeSettled.add(
+				user.getUserAccount().forgoPositionSettlement === 0
+					? user.getSettledPositionValue()
+					: ZERO
+			);
+		}, ZERO);
+
+		for (const user of userArray) {
+			await user.unsubscribe();
+		}
+
+		return settlementSize;
 	}
 }

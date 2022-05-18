@@ -865,4 +865,32 @@ export class ClearingHouseUser {
 			ZERO
 		);
 	}
+
+	public async estimateClaimableCollateral(): Promise<BN> {
+		const currentCollateralVaultBalance = new BN(
+			(
+				await this.clearingHouse.connection.getTokenAccountBalance(
+					this.clearingHouse.getStateAccount().collateralVault
+				)
+			).value.amount
+		);
+		const currentInsuranceVaultBalance = new BN(
+			(
+				await this.clearingHouse.connection.getTokenAccountBalance(
+					this.clearingHouse.getStateAccount().insuranceVault
+				)
+			).value.amount
+		);
+
+		const totalClaimableCollateral = currentCollateralVaultBalance.add(
+			currentInsuranceVaultBalance
+		);
+		const totalEstimatedSettlementValue =
+			await this.clearingHouse.getTotalSettlementSize();
+		const userSettledPositionValue = await this.getSettledPositionValue();
+
+		return totalClaimableCollateral
+			.mul(userSettledPositionValue)
+			.div(totalEstimatedSettlementValue);
+	}
 }
