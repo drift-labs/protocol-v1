@@ -272,6 +272,7 @@ export type SettlementStateAccount = {
 	totalSettlementValue: BN;
 	collateralAvailableToClaim: BN;
 	collateralClaimed: BN;
+	enabled: boolean;
 };
 
 export type MarketsAccount = {

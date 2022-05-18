@@ -130,6 +130,8 @@ pub enum ErrorCode {
     UserMustForgoSettlement,
     #[msg("NoAvailableCollateralToBeClaimed")]
     NoAvailableCollateralToBeClaimed,
+    #[msg("SettlementNotEnabled")]
+    SettlementNotEnabled,
 }
 
 #[macro_export]

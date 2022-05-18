@@ -2267,6 +2267,32 @@
       "args": []
     },
     {
+      "name": "updateSettlementStateEnabled",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "state",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "settlementState",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "enabled",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "settlePosition",
       "accounts": [
         {
@@ -2622,6 +2648,10 @@
           {
             "name": "collateralClaimed",
             "type": "u64"
+          },
+          {
+            "name": "enabled",
+            "type": "bool"
           }
         ]
       }
@@ -4382,6 +4412,9 @@
           },
           {
             "name": "NoAvailableCollateralToBeClaimed"
+          },
+          {
+            "name": "SettlementNotEnabled"
           }
         ]
       }

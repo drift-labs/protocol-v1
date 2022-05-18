@@ -1004,6 +1004,18 @@ pub struct InitializeSettlementState<'info> {
 }
 
 #[derive(Accounts)]
+pub struct UpdateSettlementStateEnabled<'info> {
+    #[account(mut)]
+    pub admin: Signer<'info>,
+    #[account(
+        has_one = admin
+    )]
+    pub state: Box<Account<'info, State>>,
+    #[account(mut)]
+    pub settlement_state: Box<Account<'info, SettlementState>>,
+}
+
+#[derive(Accounts)]
 pub struct UpdateSettlementState<'info> {
     pub admin: Signer<'info>,
     #[account(

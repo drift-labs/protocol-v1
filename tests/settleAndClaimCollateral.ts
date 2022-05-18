@@ -143,7 +143,10 @@ describe('settle and claim collateral', () => {
 		assert(
 			settlementState.collateralAvailableToClaim.eq(usdcAmount.mul(new BN(3)))
 		);
-		assert(settlementState.totalSettlementValue.eq(new BN(46576520)));
+		assert(settlementState.totalSettlementValue.eq(new BN(46244321)));
+		assert(!settlementState.enabled);
+
+		await primaryClearingHouse.updateSettlementStateEnabled(true);
 
 		try {
 			await firstClearingHouse.settlePositionAndClaimCollateral(
@@ -154,13 +157,13 @@ describe('settle and claim collateral', () => {
 			//should throw err
 		}
 
+		let expectedCollateralClaimed =
+			secondClearingHouseUser.getClaimableCollateral(settlementState);
 		await secondClearingHouse.settlePositionAndClaimCollateral(
 			secondUSDCTokenAccountPublicKey
 		);
 
-		let expectedCollateralClaimed =
-			secondClearingHouseUser.getClaimableCollateral(settlementState);
-		await secondClearingHouse.fetchAccounts();
+		await secondClearingHouseUser.fetchAccounts();
 		assert(
 			secondClearingHouseUser
 				.getUserAccount()
@@ -187,12 +190,12 @@ describe('settle and claim collateral', () => {
 		settlementState = await primaryClearingHouse.getSettlementAccount();
 		assert(settlementState.collateralClaimed.eq(expectedCollateralClaimed));
 
+		expectedCollateralClaimed =
+			thirdClearingHouseUser.getClaimableCollateral(settlementState);
 		await thirdClearingHouse.settlePositionAndClaimCollateral(
 			thirdUSDCTokenAccountPublicKey
 		);
 
-		expectedCollateralClaimed =
-			thirdClearingHouseUser.getClaimableCollateral(settlementState);
 		await thirdClearingHouse.fetchAccounts();
 		assert(
 			thirdClearingHouseUser

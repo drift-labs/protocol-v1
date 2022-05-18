@@ -799,4 +799,20 @@ export class Admin extends ClearingHouse {
 			},
 		});
 	}
+
+	public async updateSettlementStateEnabled(
+		enabled: boolean
+	): Promise<TransactionSignature> {
+		const settlementState = await getSettlementStatePublicKey(
+			this.program.programId
+		);
+
+		return await this.program.rpc.updateSettlementStateEnabled(enabled, {
+			accounts: {
+				admin: this.wallet.publicKey,
+				state: await this.getStatePublicKey(),
+				settlementState: settlementState,
+			},
+		});
+	}
 }

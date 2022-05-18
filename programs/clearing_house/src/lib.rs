@@ -2509,6 +2509,7 @@ pub mod clearing_house {
             total_settlement_value: collateral_to_be_settled,
             collateral_available_to_claim,
             collateral_claimed: 0,
+            enabled: false,
         };
 
         Ok(())
@@ -2516,6 +2517,7 @@ pub mod clearing_house {
 
     pub fn update_settlement_state(ctx: Context<UpdateSettlementState>) -> Result<()> {
         let settlement_state = &mut ctx.accounts.settlement_state;
+
         let collateral_vault = &ctx.accounts.collateral_vault;
         let additional_collateral_available_to_claim = collateral_vault
             .amount
@@ -2538,10 +2540,23 @@ pub mod clearing_house {
         Ok(())
     }
 
+    pub fn update_settlement_state_enabled(
+        ctx: Context<UpdateSettlementStateEnabled>,
+        enabled: bool,
+    ) -> Result<()> {
+        let settlement_state = &mut ctx.accounts.settlement_state;
+        settlement_state.enabled = enabled;
+        Ok(())
+    }
+
     pub fn settle_position(ctx: Context<SettlePosition>) -> Result<()> {
         let user = &mut ctx.accounts.user;
         if user.forgo_position_settlement == 1 {
             return Err(ErrorCode::UserMustForgoSettlement.into());
+        }
+
+        if !ctx.accounts.settlement_state.enabled {
+            return Err(ErrorCode::SettlementNotEnabled.into());
         }
 
         if user.settled_position_value != 0 {
@@ -2578,6 +2593,10 @@ pub mod clearing_house {
         if settlement_state.collateral_available_to_claim == user.last_collateral_available_to_claim
         {
             return Err(ErrorCode::NoAvailableCollateralToBeClaimed.into());
+        }
+
+        if !settlement_state.enabled {
+            return Err(ErrorCode::SettlementNotEnabled.into());
         }
 
         let claim_amount = (user.settled_position_value as u64)
