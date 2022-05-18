@@ -2494,6 +2494,13 @@ pub mod clearing_house {
         Ok(())
     }
 
+    pub fn admin_update_user_forgo_settlement(
+        ctx: Context<AdminUpdateUserForgoSettlement>,
+    ) -> Result<()> {
+        ctx.accounts.user.forgo_position_settlement = 1;
+        Ok(())
+    }
+
     pub fn update_user_forgo_settlement(ctx: Context<UpdateUserForgoSettlement>) -> Result<()> {
         ctx.accounts.user.forgo_position_settlement = 1;
         Ok(())

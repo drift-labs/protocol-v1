@@ -968,7 +968,7 @@ pub struct UpdateCurveHistory<'info> {
 }
 
 #[derive(Accounts)]
-pub struct UpdateUserForgoSettlement<'info> {
+pub struct AdminUpdateUserForgoSettlement<'info> {
     pub admin: Signer<'info>,
     #[account(
 
@@ -976,6 +976,16 @@ pub struct UpdateUserForgoSettlement<'info> {
     )]
     pub state: Box<Account<'info, State>>,
     #[account(mut)]
+    pub user: Box<Account<'info, User>>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateUserForgoSettlement<'info> {
+    pub authority: Signer<'info>,
+    #[account(
+        mut,
+        has_one = authority
+    )]
     pub user: Box<Account<'info, User>>,
 }
 

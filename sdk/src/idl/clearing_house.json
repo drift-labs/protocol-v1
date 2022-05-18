@@ -2179,7 +2179,7 @@
       ]
     },
     {
-      "name": "updateUserForgoSettlement",
+      "name": "adminUpdateUserForgoSettlement",
       "accounts": [
         {
           "name": "admin",
@@ -2190,6 +2190,22 @@
           "name": "state",
           "isMut": false,
           "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "updateUserForgoSettlement",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
         },
         {
           "name": "user",

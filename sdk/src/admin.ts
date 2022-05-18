@@ -750,14 +750,15 @@ export class Admin extends ClearingHouse {
 		});
 	}
 
-	public async updateUserForgoSettlement(
+	public async adminUpdateUserForgoSettlement(
 		authority: PublicKey
 	): Promise<TransactionSignature> {
 		const user = await getUserAccountPublicKey(
 			this.program.programId,
 			authority
 		);
-		return await this.program.rpc.updateUserForgoSettlement({
+
+		return await this.program.rpc.adminUpdateUserForgoSettlement({
 			accounts: {
 				admin: this.wallet.publicKey,
 				state: await this.getStatePublicKey(),

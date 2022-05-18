@@ -1531,4 +1531,13 @@ export class ClearingHouse {
 
 		return settlementSize;
 	}
+
+	public async updateUserForgoSettlement(): Promise<TransactionSignature> {
+		return await this.program.rpc.updateUserForgoSettlement({
+			accounts: {
+				authority: this.wallet.publicKey,
+				user: await this.getUserAccountPublicKey(),
+			},
+		});
+	}
 }
