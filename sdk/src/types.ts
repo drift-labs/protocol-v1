@@ -347,6 +347,7 @@ export type UserAccount = {
 	collateralClaimed: BN;
 	lastCollateralAvailableToClaim: BN;
 	forgoPositionSettlement: number;
+	hasSettledPosition: number;
 };
 
 export type UserOrdersAccount = {

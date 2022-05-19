@@ -157,6 +157,7 @@ describe('settle and claim collateral', () => {
 			//should throw err
 		}
 
+		assert(secondClearingHouseUser.getUserAccount().hasSettledPosition === 0);
 		let expectedCollateralClaimed =
 			secondClearingHouseUser.getClaimableCollateral(settlementState);
 		await secondClearingHouse.settlePositionAndClaimCollateral(
@@ -176,6 +177,7 @@ describe('settle and claim collateral', () => {
 					settlementState.collateralAvailableToClaim
 				)
 		);
+		assert(secondClearingHouseUser.getUserAccount().hasSettledPosition === 1);
 
 		const secondUSDCTokenAccountBalance =
 			await provider.connection.getTokenAccountBalance(

@@ -2586,6 +2586,7 @@ pub mod clearing_house {
             calculated_settled_position_value(user, user_positions, markets)?;
 
         user.settled_position_value = settled_position_value;
+        user.has_settled_position = 1;
 
         Ok(())
     }
@@ -2600,6 +2601,10 @@ pub mod clearing_house {
         if settlement_state.collateral_available_to_claim == user.last_collateral_available_to_claim
         {
             return Err(ErrorCode::NoAvailableCollateralToBeClaimed.into());
+        }
+
+        if user.has_settled_position != 1 {
+            return Err(ErrorCode::MustCallSettlePositionFirst.into());
         }
 
         if !settlement_state.enabled {

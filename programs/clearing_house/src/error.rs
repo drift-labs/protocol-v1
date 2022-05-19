@@ -132,6 +132,8 @@ pub enum ErrorCode {
     NoAvailableCollateralToBeClaimed,
     #[msg("SettlementNotEnabled")]
     SettlementNotEnabled,
+    #[msg("MustCallSettlePositionFirst")]
+    MustCallSettlePositionFirst,
 }
 
 #[macro_export]

@@ -2925,6 +2925,10 @@
             "type": "u8"
           },
           {
+            "name": "hasSettledPosition",
+            "type": "u8"
+          },
+          {
             "name": "padding1",
             "type": "u128"
           },
@@ -2933,7 +2937,7 @@
             "type": {
               "array": [
                 "u8",
-                15
+                14
               ]
             }
           }
@@ -4431,6 +4435,9 @@
           },
           {
             "name": "SettlementNotEnabled"
+          },
+          {
+            "name": "MustCallSettlePositionFirst"
           }
         ]
       }
