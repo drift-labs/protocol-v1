@@ -849,11 +849,14 @@ export class ClearingHouseUser {
 	}
 
 	public getSettledPositionValue(): BN {
-		return this.getUserAccount()
-			.collateral.add(
-				this.getUnrealizedFundingPNL().div(PRICE_TO_QUOTE_PRECISION)
-			)
-			.add(this.getSettledPositionsPNL());
+		return BN.max(
+			this.getUserAccount()
+				.collateral.add(
+					this.getUnrealizedFundingPNL().div(PRICE_TO_QUOTE_PRECISION)
+				)
+				.add(this.getSettledPositionsPNL()),
+			ZERO
+		);
 	}
 
 	public getSettledPositionsPNL(): BN {
