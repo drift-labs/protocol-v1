@@ -446,6 +446,7 @@ pub mod clearing_house {
                 amount,
                 &ctx.accounts.collateral_vault,
                 &ctx.accounts.insurance_vault,
+                markets,
             )?;
 
         // amount_withdrawn can be less than amount if there is an insufficient balance in collateral and insurance vault
@@ -1699,6 +1700,7 @@ pub mod clearing_house {
             cast(liquidation_fee)?,
             &ctx.accounts.collateral_vault,
             &ctx.accounts.insurance_vault,
+            &ctx.accounts.markets.load()?,
         )?;
 
         user.collateral = user
