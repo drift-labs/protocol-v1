@@ -43,9 +43,9 @@ pub struct MarketPosition {
     pub last_cumulative_repeg_rebate: u128,
     pub last_funding_rate_ts: i64,
     pub open_orders: u128,
+    pub pnl_outstanding: u128,
 
     // upgrade-ability
-    pub padding0: u128,
     pub padding1: u128,
     pub padding2: u128,
     pub padding3: u128,
@@ -56,11 +56,12 @@ pub struct MarketPosition {
 
 impl MarketPosition {
     pub fn is_for(&self, market_index: u64) -> bool {
-        self.market_index == market_index && (self.is_open_position() || self.has_open_order())
+        self.market_index == market_index
+            && (self.is_open_position() || self.has_open_order() || self.has_pnl_outstanding())
     }
 
     pub fn is_available(&self) -> bool {
-        !self.is_open_position() && !self.has_open_order()
+        !self.is_open_position() && !self.has_open_order() && !self.has_pnl_outstanding()
     }
 
     pub fn is_open_position(&self) -> bool {
@@ -69,5 +70,9 @@ impl MarketPosition {
 
     pub fn has_open_order(&self) -> bool {
         self.open_orders != 0
+    }
+
+    pub fn has_pnl_outstanding(&self) -> bool {
+        self.pnl_outstanding != 0
     }
 }

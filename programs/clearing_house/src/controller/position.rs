@@ -3,10 +3,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::controller;
 use crate::controller::amm::SwapDirection;
+use crate::controller::pnl::update_pnl;
 use crate::error::{ClearingHouseResult, ErrorCode};
 use crate::math::amm::should_round_trade;
 use crate::math::casting::{cast, cast_to_i128};
-use crate::math::collateral::calculate_updated_collateral;
 use crate::math::orders::calculate_quote_asset_amount_for_maker_order;
 use crate::math::pnl::calculate_pnl;
 use crate::math::position::calculate_base_asset_value_and_pnl;
@@ -46,7 +46,7 @@ pub fn add_new_position(
         last_cumulative_repeg_rebate: 0,
         last_funding_rate_ts: 0,
         open_orders: 0,
-        padding0: 0,
+        pnl_outstanding: 0,
         padding1: 0,
         padding2: 0,
         padding3: 0,
@@ -306,7 +306,7 @@ pub fn reduce(
             .ok_or_else(math_error!())?
     };
 
-    user.collateral = calculate_updated_collateral(user.collateral, pnl)?;
+    update_pnl(user, market_position, market, pnl)?;
 
     Ok((base_asset_swapped, quote_asset_amount_surplus))
 }
@@ -404,7 +404,7 @@ pub fn reduce_with_base_asset_amount(
             .ok_or_else(math_error!())?
     };
 
-    user.collateral = calculate_updated_collateral(user.collateral, pnl)?;
+    update_pnl(user, market_position, market, pnl)?;
 
     Ok((quote_asset_amount, quote_asset_amount_surplus))
 }
@@ -454,7 +454,8 @@ pub fn close(
         swap_direction,
     )?;
 
-    user.collateral = calculate_updated_collateral(user.collateral, pnl)?;
+    update_pnl(user, market_position, market, pnl)?;
+
     market_position.last_cumulative_funding_rate = 0;
     market_position.last_funding_rate_ts = 0;
 

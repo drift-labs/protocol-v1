@@ -341,10 +341,10 @@ pub mod clearing_house {
                 last_oracle_price: oracle_price,
                 minimum_base_asset_trade_size: 10000000,
                 base_spread: 0,
+                available_pnl: 0,
                 padding0: 0,
                 padding1: 0,
                 padding2: 0,
-                padding3: 0,
             },
         };
 

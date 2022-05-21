@@ -3522,6 +3522,10 @@
             "type": "u16"
           },
           {
+            "name": "availablePnl",
+            "type": "u128"
+          },
+          {
             "name": "padding0",
             "type": "u16"
           },
@@ -3531,10 +3535,6 @@
           },
           {
             "name": "padding2",
-            "type": "u128"
-          },
-          {
-            "name": "padding3",
             "type": "u128"
           }
         ]
@@ -3873,7 +3873,7 @@
             "type": "u128"
           },
           {
-            "name": "padding0",
+            "name": "pnlOutstanding",
             "type": "u128"
           },
           {

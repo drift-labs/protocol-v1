@@ -112,11 +112,11 @@ pub struct AMM {
     pub last_oracle_price: i128,
     pub minimum_base_asset_trade_size: u128,
     pub base_spread: u16,
+    pub available_pnl: u128,
 
     pub padding0: u16,
     pub padding1: u32,
     pub padding2: u128,
-    pub padding3: u128,
 }
 
 impl AMM {

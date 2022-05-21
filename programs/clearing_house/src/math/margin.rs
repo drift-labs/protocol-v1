@@ -36,6 +36,7 @@ pub fn calculate_margin_requirement_and_total_collateral(
 ) -> ClearingHouseResult<(u128, u128)> {
     let mut margin_requirement: u128 = 0;
     let mut unrealized_pnl: i128 = 0;
+    let mut pnl_outstanding: u128 = 0;
 
     for market_position in user_positions.positions.iter() {
         if market_position.base_asset_amount == 0 {
@@ -60,9 +61,14 @@ pub fn calculate_margin_requirement_and_total_collateral(
         unrealized_pnl = unrealized_pnl
             .checked_add(position_unrealized_pnl)
             .ok_or_else(math_error!())?;
+        pnl_outstanding = pnl_outstanding
+            .checked_add(market_position.pnl_outstanding)
+            .ok_or_else(math_error!())?;
     }
 
-    let total_collateral = calculate_updated_collateral(user.collateral, unrealized_pnl)?;
+    let total_collateral = calculate_updated_collateral(user.collateral, unrealized_pnl)?
+        .checked_add(pnl_outstanding)
+        .ok_or_else(math_error!())?;
 
     Ok((margin_requirement, total_collateral))
 }
@@ -148,6 +154,7 @@ pub fn calculate_liquidation_status(
     let mut maintenance_margin_requirement: u128 = 0;
     let mut base_asset_value: u128 = 0;
     let mut unrealized_pnl: i128 = 0;
+    let mut pnl_outstanding: u128 = 0;
     let mut adjusted_unrealized_pnl: i128 = 0;
     let mut market_statuses = [MarketStatus::default(); 5];
 
@@ -171,6 +178,9 @@ pub fn calculate_liquidation_status(
             .ok_or_else(math_error!())?;
         unrealized_pnl = unrealized_pnl
             .checked_add(amm_position_unrealized_pnl)
+            .ok_or_else(math_error!())?;
+        pnl_outstanding = pnl_outstanding
+            .checked_add(market_position.pnl_outstanding)
             .ok_or_else(math_error!())?;
 
         // Block the liquidation if the oracle is invalid or the oracle and mark are too divergent
@@ -303,9 +313,13 @@ pub fn calculate_liquidation_status(
         .checked_div(MARGIN_PRECISION)
         .ok_or_else(math_error!())?;
 
-    let total_collateral = calculate_updated_collateral(user.collateral, unrealized_pnl)?;
+    let total_collateral = calculate_updated_collateral(user.collateral, unrealized_pnl)?
+        .checked_add(pnl_outstanding)
+        .ok_or_else(math_error!())?;
     let adjusted_total_collateral =
-        calculate_updated_collateral(user.collateral, adjusted_unrealized_pnl)?;
+        calculate_updated_collateral(user.collateral, adjusted_unrealized_pnl)?
+            .checked_add(pnl_outstanding)
+            .ok_or_else(math_error!())?;
 
     let requires_partial_liquidation = adjusted_total_collateral < partial_margin_requirement;
     let requires_full_liquidation = adjusted_total_collateral < maintenance_margin_requirement;
@@ -368,6 +382,7 @@ pub fn calculate_free_collateral(
     let mut closed_position_base_asset_value: u128 = 0;
     let mut initial_margin_requirement: u128 = 0;
     let mut unrealized_pnl: i128 = 0;
+    let mut pnl_outstanding: u128 = 0;
 
     for market_position in user_positions.positions.iter() {
         if market_position.base_asset_amount == 0 {
@@ -394,13 +409,19 @@ pub fn calculate_free_collateral(
         unrealized_pnl = unrealized_pnl
             .checked_add(position_unrealized_pnl)
             .ok_or_else(math_error!())?;
+
+        pnl_outstanding = pnl_outstanding
+            .checked_add(market_position.pnl_outstanding)
+            .ok_or_else(math_error!())?;
     }
 
     initial_margin_requirement = initial_margin_requirement
         .checked_div(MARGIN_PRECISION)
         .ok_or_else(math_error!())?;
 
-    let total_collateral = calculate_updated_collateral(user.collateral, unrealized_pnl)?;
+    let total_collateral = calculate_updated_collateral(user.collateral, unrealized_pnl)?
+        .checked_add(pnl_outstanding)
+        .ok_or_else(math_error!())?;
 
     let free_collateral = if initial_margin_requirement < total_collateral {
         total_collateral
