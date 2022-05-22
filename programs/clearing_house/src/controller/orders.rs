@@ -524,6 +524,13 @@ pub fn fill_order(
         )?;
     }
 
+    {
+        let markets = &mut markets
+            .load_mut()
+            .or(Err(ErrorCode::UnableToLoadAccountLoader))?;
+        controller::pnl::settle_pnl_outstanding(user, user_positions, markets)?;
+    }
+
     let user_orders = &mut user_orders
         .load_mut()
         .or(Err(ErrorCode::UnableToLoadAccountLoader))?;

@@ -299,6 +299,7 @@ pub struct WithdrawCollateral<'info> {
     pub user_collateral_account: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
     #[account(
+        mut,
         constraint = &state.markets.eq(&markets.key())
     )]
     pub markets: AccountLoader<'info, Markets>,

@@ -343,7 +343,7 @@
         },
         {
           "name": "markets",
-          "isMut": false,
+          "isMut": true,
           "isSigner": false
         },
         {

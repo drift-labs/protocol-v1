@@ -2,8 +2,8 @@ use crate::error::ClearingHouseResult;
 use crate::math::casting::cast;
 use crate::math::collateral::calculate_updated_collateral;
 use crate::math_error;
-use crate::state::market::Market;
-use crate::state::user::{MarketPosition, User};
+use crate::state::market::{Market, Markets};
+use crate::state::user::{MarketPosition, User, UserPositions};
 use solana_program::msg;
 use std::cmp::min;
 
@@ -44,6 +44,38 @@ pub fn update_pnl(
             .amm
             .available_pnl
             .checked_add(realised_pnl.unsigned_abs())
+            .ok_or_else(math_error!())?;
+    }
+
+    Ok(())
+}
+
+pub fn settle_pnl_outstanding(
+    user: &mut User,
+    user_positions: &mut UserPositions,
+    markets: &mut Markets,
+) -> ClearingHouseResult {
+    for position in user_positions.positions.iter_mut() {
+        if position.pnl_outstanding == 0 {
+            continue;
+        }
+
+        let market = markets.get_market_mut(position.market_index);
+        if market.amm.available_pnl == 0 {
+            continue;
+        }
+
+        let realised_pnl = min(position.pnl_outstanding, market.amm.available_pnl);
+        user.collateral = calculate_updated_collateral(user.collateral, cast(realised_pnl)?)?;
+        position.pnl_outstanding = position
+            .pnl_outstanding
+            .checked_sub(realised_pnl)
+            .ok_or_else(math_error!())?;
+
+        market.amm.available_pnl = market
+            .amm
+            .available_pnl
+            .checked_sub(realised_pnl)
             .ok_or_else(math_error!())?;
     }
 

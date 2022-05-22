@@ -426,17 +426,22 @@ pub mod clearing_house {
         let collateral_before = user.collateral;
         let cumulative_deposits_before = user.cumulative_deposits;
 
-        let markets = &ctx.accounts.markets.load()?;
         let user_positions = &mut ctx.accounts.user_positions.load_mut()?;
         let funding_payment_history = &mut ctx.accounts.funding_payment_history.load_mut()?;
         controller::funding::settle_funding_payment(
             user,
             user_positions,
-            markets,
+            &ctx.accounts.markets.load()?,
             funding_payment_history,
             now,
         )?;
 
+        {
+            let markets = &mut ctx.accounts.markets.load_mut()?;
+            controller::pnl::settle_pnl_outstanding(user, user_positions, markets)?;
+        }
+
+        let markets = &ctx.accounts.markets.load()?;
         if cast_to_u128(amount)? > user.collateral {
             return Err(ErrorCode::InsufficientCollateral.into());
         }
@@ -539,6 +544,11 @@ pub mod clearing_house {
             funding_payment_history,
             now,
         )?;
+
+        {
+            let markets = &mut ctx.accounts.markets.load_mut()?;
+            controller::pnl::settle_pnl_outstanding(user, user_positions, markets)?;
+        }
 
         // Get existing position or add a new position for market
         let position_index = get_position_index(user_positions, market_index)
@@ -807,6 +817,11 @@ pub mod clearing_house {
             funding_payment_history,
             now,
         )?;
+
+        {
+            let markets = &mut ctx.accounts.markets.load_mut()?;
+            controller::pnl::settle_pnl_outstanding(user, user_positions, markets)?;
+        }
 
         let position_index = get_position_index(user_positions, market_index)?;
         let market_position = &mut user_positions.positions[position_index];
