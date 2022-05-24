@@ -111,13 +111,13 @@ describe('drift drain', () => {
 		const [
 			_,
 			firstAttackerClearingHouse,
-			firstAttackerClearingHouseUser,
+			firstAttackerUser,
 			firstAttackerUserUSDCAccount,
 		] = await createUser(attackDepositPerAccount);
 		const [
 			secondAttackerKeypair,
 			secondAttackerClearingHouse,
-			secondAttackerClearingHouseUser,
+			secondAttackerUser,
 		] = await createUser(attackDepositPerAccount);
 
 		console.log(
@@ -138,22 +138,26 @@ describe('drift drain', () => {
 			).value.amount
 		);
 		assert(wholeVaultBefore.eq(new BN(11750000).mul(QUOTE_PRECISION)));
-		const firstUserCollateralBefore =
-			firstAttackerClearingHouseUser.getUserAccount().collateral;
-		assert(firstUserCollateralBefore.eq(attackDepositPerAccount));
-		const secondUserCollateralBefore =
-			secondAttackerClearingHouseUser.getUserAccount().collateral;
-		assert(secondUserCollateralBefore.eq(attackDepositPerAccount));
+		const firstAttackerUserCollateralBefore =
+			firstAttackerUser.getUserAccount().collateral;
+		assert(
+			firstAttackerUserCollateralBefore.eq(new BN(875000).mul(QUOTE_PRECISION))
+		);
+		const secondAttackerUserCollateralBefore =
+			secondAttackerUser.getUserAccount().collateral;
+		assert(
+			secondAttackerUserCollateralBefore.eq(new BN(875000).mul(QUOTE_PRECISION))
+		);
 
 		const firstUserOpenIx = await firstAttackerClearingHouse.getOpenPositionIx(
 			PositionDirection.LONG,
-			attackDepositPerAccount.mul(leverage),
+			firstAttackerUserCollateralBefore.mul(leverage),
 			solMarketIndex
 		);
 		const secondUserOpenIx =
 			await secondAttackerClearingHouse.getOpenPositionIx(
 				PositionDirection.LONG,
-				attackDepositPerAccount.mul(leverage),
+				secondAttackerUserCollateralBefore.mul(leverage),
 				solMarketIndex
 			);
 		const firstUserCloseIx =
@@ -173,14 +177,6 @@ describe('drift drain', () => {
 
 		await firstAttackerClearingHouse.txSender.send(tx, [secondAttackerKeypair]);
 
-		await firstAttackerClearingHouse.fetchAccounts();
-		console.log(
-			calculateMarkPrice(firstAttackerClearingHouse.getMarket(0)).toString()
-		);
-
-		await firstAttackerClearingHouseUser.fetchAccounts();
-		console.log(firstAttackerClearingHouseUser.getTotalCollateral().toString());
-
 		// assert first attacker takes whole vault ($11.75M)
 		const firstUserBalanceAfter = new BN(
 			(
@@ -193,8 +189,8 @@ describe('drift drain', () => {
 
 		await admin.unsubscribe();
 		await firstAttackerClearingHouse.unsubscribe();
-		await firstAttackerClearingHouseUser.unsubscribe();
+		await firstAttackerUser.unsubscribe();
 		await secondAttackerClearingHouse.unsubscribe();
-		await secondAttackerClearingHouseUser.unsubscribe();
+		await secondAttackerUser.unsubscribe();
 	});
 });
