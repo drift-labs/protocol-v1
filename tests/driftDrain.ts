@@ -9,7 +9,12 @@ import { Keypair, PublicKey, Transaction } from '@solana/web3.js';
 import { Admin, ClearingHouse } from '../sdk/src';
 
 import { mockOracle, mockUSDCMint, mockUserUSDCAccount } from './testHelpers';
-import { calculateMarkPrice, OracleSource, PositionDirection } from '../sdk';
+import {
+	calculateMarkPrice,
+	OracleSource,
+	PositionDirection,
+	QUOTE_PRECISION,
+} from '../sdk';
 
 describe('drift drain', () => {
 	const provider = anchor.AnchorProvider.local(undefined, {
@@ -135,15 +140,19 @@ describe('drift drain', () => {
 				)
 			).value.amount
 		);
-		assert(wholeVaultBefore.eq(usdcAmount.mul(new BN(3))));
+		// whole vault 300k
+		assert(wholeVaultBefore.eq(new BN(300000).mul(QUOTE_PRECISION)));
 		const adminCollateralBefore = (await admin.getUserAccount()).collateral;
-		assert(adminCollateralBefore.eq(usdcAmount));
+		// admin has 100k
+		assert(adminCollateralBefore.eq(new BN(100000).mul(QUOTE_PRECISION)));
 		const firstUserCollateralBefore =
 			firstClearingHouseUser.getUserAccount().collateral;
-		assert(firstUserCollateralBefore.eq(usdcAmount));
+		// first attacker account has 100k
+		assert(firstUserCollateralBefore.eq(new BN(100000).mul(QUOTE_PRECISION)));
 		const secondUserCollateralBefore =
 			secondClearingHouseUser.getUserAccount().collateral;
-		assert(secondUserCollateralBefore.eq(usdcAmount));
+		// second attacker account has 100k
+		assert(secondUserCollateralBefore.eq(new BN(100000).mul(QUOTE_PRECISION)));
 
 		const firstUserOpenIx = await firstClearingHouse.getOpenPositionIx(
 			PositionDirection.LONG,
@@ -181,7 +190,7 @@ describe('drift drain', () => {
 				)
 			).value.amount
 		);
-		console.assert(wholeVaultBefore.eq(firstUserBalanceAfter));
+		assert(wholeVaultBefore.eq(firstUserBalanceAfter));
 
 		await admin.unsubscribe();
 		await firstClearingHouse.unsubscribe();
