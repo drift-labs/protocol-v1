@@ -287,7 +287,7 @@ export class BigNum {
 			return this.shift(new BN(precision)).toPrecision(precision, true);
 		}
 
-		const unitTicks = ['', 'K', 'M', 'B', 'T', 'Q', 'Z', 'ZZ', 'ZZZ'];
+		const unitTicks = ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'];
 		const unitNumber = Math.floor((leftSide.length - 1) / 3);
 		const unit = unitTicks[unitNumber];
 
