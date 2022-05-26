@@ -118,6 +118,10 @@ export class BigNum {
 		return this.val.eq(comparisonVal);
 	}
 
+	public eqZero() {
+		return this.val.eq(ZERO);
+	}
+
 	public abs(): BigNum {
 		return new BigNum(this.val.abs(), this.precision);
 	}
@@ -194,7 +198,7 @@ export class BigNum {
 	 * @param fixedPrecision
 	 * @returns
 	 */
-	public toPrecision(fixedPrecision: number, showLong = false): string {
+	public toPrecision(fixedPrecision: number, trailingZeroes = false): string {
 		const printString = this.print();
 
 		let precisionPrintString = printString.slice(0, fixedPrecision + 1);
@@ -242,7 +246,7 @@ export class BigNum {
 
 			if (!skipExponent) {
 				const exponent = delimFullStringLocation - fixedPrecision;
-				if (showLong) {
+				if (trailingZeroes) {
 					precisionPrintString = `${precisionPrintString}${Array(exponent)
 						.fill('0')
 						.join('')}`;
@@ -255,11 +259,11 @@ export class BigNum {
 		return precisionPrintString;
 	}
 
-	toTradePrecision(): string {
+	public toTradePrecision(): string {
 		return this.toPrecision(6, true);
 	}
 
-	toNotional(): string {
+	public toNotional(): string {
 		const num = Number(this.print());
 
 		return `${num < 0 ? `-` : ``}$${(
@@ -268,6 +272,77 @@ export class BigNum {
 			maximumFractionDigits: 2,
 			minimumFractionDigits: 2,
 		})}`;
+	}
+
+	public toMillified(precision = 3) {
+		const stringVal = this.print();
+
+		const [leftSide] = stringVal.split(BigNum.delim);
+
+		if (!leftSide) {
+			return this.shift(new BN(precision)).toPrecision(precision, true);
+		}
+
+		if (leftSide.length <= 3) {
+			return this.shift(new BN(precision)).toPrecision(precision, true);
+		}
+
+		const unitTicks = ['', 'K', 'M', 'B', 'T', 'Q', 'Z', 'ZZ', 'ZZZ'];
+		const unitNumber = Math.floor((leftSide.length - 1) / 3);
+		const unit = unitTicks[unitNumber];
+
+		let leadDigits = leftSide.slice(0, precision);
+
+		if (leadDigits.length < precision) {
+			leadDigits = [
+				...leadDigits.split(''),
+				...Array(precision - leadDigits.length).fill('0'),
+			].join('');
+		}
+
+		// need to figure out which location to put the decimal
+		//// how many digits are there after the decimal?
+
+		const decimalLocation = leftSide.length - 3 * unitNumber;
+
+		let leadString = '';
+
+		if (decimalLocation >= precision) {
+			leadString = `${leadDigits}`;
+		} else {
+			leadString = `${leadDigits.slice(0, decimalLocation)}${
+				BigNum.delim
+			}${leadDigits.slice(decimalLocation)}`;
+		}
+
+		return `${leadString}${unit}`;
+
+		return decimalLocation;
+
+		return `${leadDigits} : ${unit} : ${decimalLocation}`;
+
+		// return `${currentNumString} ${currentNumString.length} ${unitTick} ${unitTicks[unitTick]}`;
+
+		// if (precision > 3) {
+		// 	unitTick += Math.floor(precision / 3);
+		// }
+
+		// const characters = currentNumString.slice(0, precision);
+
+		// return `${characters} ${unitTicks[unitTick]}`;
+
+		// const charactersAfterUnit = currentNumString.slice(
+		// 	-precision,
+		// 	0 - charactersBeforeUnit.length
+		// );
+
+		// const unit = unitTicks[unitTick];
+
+		// return `${charactersBeforeUnit}${
+		// 	charactersAfterUnit.length > 0
+		// 		? `${BigNum.delim}${charactersAfterUnit}`
+		// 		: ``
+		// }${unit}`;
 	}
 
 	/**

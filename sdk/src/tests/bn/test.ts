@@ -9,7 +9,7 @@ import {
 // if you used the '@types/mocha' method to install mocha type definitions, uncomment the following line
 // import 'mocha';
 
-describe('Basics', () => {
+describe('BigNum Tests', () => {
 	it('basic string representations are correct', () => {
 		const bn = BigNum.from(TEN_THOUSAND);
 		expect(bn.toString()).to.equal('10000');
@@ -104,6 +104,27 @@ describe('Basics', () => {
 		expect(val4.print()).to.equal('0.0250000000000');
 		expect(val4.toFixed(3)).to.equal('0.025');
 		expect(val4.toPrecision(4)).to.equal('0.025');
+
+		// Case 5
+		expect(BigNum.fromPrint('1').toMillified()).to.equal('1.00');
+		expect(BigNum.fromPrint('12').toMillified()).to.equal('12.0');
+		expect(BigNum.fromPrint('123').toMillified()).to.equal('123');
+		expect(BigNum.fromPrint('1234').toMillified()).to.equal('1.23K');
+		expect(BigNum.fromPrint('12345').toMillified()).to.equal('12.3K');
+		expect(BigNum.fromPrint('123456').toMillified()).to.equal('123K');
+		expect(BigNum.fromPrint('1234567').toMillified()).to.equal('1.23M');
+		expect(BigNum.fromPrint('12345678').toMillified()).to.equal('12.3M');
+		expect(BigNum.fromPrint('123456789').toMillified()).to.equal('123M');
+
+		expect(BigNum.fromPrint('1').toMillified(5)).to.equal('1.0000');
+		expect(BigNum.fromPrint('12').toMillified(5)).to.equal('12.000');
+		expect(BigNum.fromPrint('123').toMillified(5)).to.equal('123.00');
+		expect(BigNum.fromPrint('1234').toMillified(5)).to.equal('1.2340K');
+		expect(BigNum.fromPrint('12345').toMillified(5)).to.equal('12.345K');
+		expect(BigNum.fromPrint('123456').toMillified(5)).to.equal('123.45K');
+		expect(BigNum.fromPrint('1234567').toMillified(5)).to.equal('1.2345M');
+		expect(BigNum.fromPrint('12345678').toMillified(5)).to.equal('12.345M');
+		expect(BigNum.fromPrint('123456789').toMillified(5)).to.equal('123.45M');
 	});
 
 	it('can initialise from string values correctly', () => {
