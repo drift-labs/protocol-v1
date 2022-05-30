@@ -167,4 +167,25 @@ describe('BigNum Tests', () => {
 		expect(postAdd === postSub).to.equal(false);
 		expect(postAdd.val === postSub.val).to.equal(false);
 	});
+
+	it('serializes properly', () => {
+		// JSON
+		let val = BigNum.from(new BN('123456'), 3);
+		expect(val.toString()).to.equal('123456');
+		val = val.shift(new BN(3));
+		expect(val.toString()).to.equal('123456000');
+		expect(val.print()).to.equal('123.456000');
+
+		const stringified = JSON.stringify(val);
+
+		expect(stringified).to.equal('{"val":"123456000","precision":"6"}');
+
+		let parsed = BigNum.fromJSON(JSON.parse(stringified));
+		expect(parsed.toString()).to.equal('123456000');
+		expect(parsed.print()).to.equal('123.456000');
+
+		parsed = parsed.shift(new BN(3));
+		expect(parsed.toString()).to.equal('123456000000');
+		expect(parsed.print()).to.equal('123.456000000');
+	});
 });

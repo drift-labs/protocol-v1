@@ -8,10 +8,16 @@ export class BigNum {
 
 	static delim = '.';
 
-	constructor(val: BN | number, precisionVal: BN | number = new BN(0)) {
-		const bn = typeof val === 'number' ? new BN(val) : val;
+	constructor(
+		val: BN | number | string,
+		precisionVal: BN | number | string = new BN(0)
+	) {
+		const bn =
+			typeof val === 'number' || typeof val === 'string' ? new BN(val) : val;
 		const precision =
-			typeof precisionVal === 'number' ? new BN(precisionVal) : precisionVal;
+			typeof precisionVal === 'number' || typeof precisionVal === 'string'
+				? new BN(precisionVal)
+				: precisionVal;
 
 		this.val = new BN(bn);
 		this.precision = new BN(precision);
@@ -60,12 +66,14 @@ export class BigNum {
 	 * @param skipAdjustingPrecision
 	 * @returns
 	 */
-	public shift(bn: BN, skipAdjustingPrecision = false): BigNum {
+	public shift(bn: BN | number, skipAdjustingPrecision = false): BigNum {
+		const shiftVal = typeof bn === 'number' ? new BN(bn) : bn;
+
 		return BigNum.from(
-			bn.isNeg()
-				? this.val.div(new BN(10).pow(bn))
-				: this.val.mul(new BN(10).pow(bn)),
-			skipAdjustingPrecision ? this.precision : this.precision.add(bn)
+			shiftVal.isNeg()
+				? this.val.div(new BN(10).pow(shiftVal))
+				: this.val.mul(new BN(10).pow(shiftVal)),
+			skipAdjustingPrecision ? this.precision : this.precision.add(shiftVal)
 		);
 	}
 
@@ -86,6 +94,12 @@ export class BigNum {
 	 */
 	public scale(numerator: BN | number, denominator: BN | number): BigNum {
 		return this.mul(new BN(numerator)).div(new BN(denominator));
+	}
+
+	public toPercentage(denominator: BigNum, precision: number): string {
+		return this.shift(precision)
+			.scale(100, denominator.val)
+			.toPrecision(precision);
 	}
 
 	public gt(bn: BigNum | BN): boolean {
@@ -184,7 +198,7 @@ export class BigNum {
 		const [leftSide, rightSide] = printString.split(BigNum.delim);
 
 		const filledRightSide = [
-			...rightSide.slice(0, fixedPrecision),
+			...(rightSide ?? '').slice(0, fixedPrecision),
 			...Array(fixedPrecision).fill('0'),
 		]
 			.slice(0, fixedPrecision)
@@ -345,13 +359,27 @@ export class BigNum {
 		// }${unit}`;
 	}
 
+	public toJSON() {
+		return {
+			val: this.val.toString(),
+			precision: this.precision.toString(),
+		};
+	}
+
+	static fromJSON(json: { val: string; precision: string }) {
+		return BigNum.from(new BN(json.val), new BN(json.precision));
+	}
+
 	/**
 	 * Create a BigNum instance
 	 * @param val
 	 * @param precision
 	 * @returns
 	 */
-	static from(val: BN | number = ZERO, precision?: BN | number): BigNum {
+	static from(
+		val: BN | number | string = ZERO,
+		precision?: BN | number | string
+	): BigNum {
 		return new BigNum(val, precision);
 	}
 
