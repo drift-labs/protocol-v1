@@ -288,7 +288,7 @@ export class BigNum {
 		})}`;
 	}
 
-	public toMillified(precision = 3) {
+	public toMillified(precision = 3): string {
 		const stringVal = this.print();
 
 		const [leftSide] = stringVal.split(BigNum.delim);
@@ -330,33 +330,6 @@ export class BigNum {
 		}
 
 		return `${leadString}${unit}`;
-
-		return decimalLocation;
-
-		return `${leadDigits} : ${unit} : ${decimalLocation}`;
-
-		// return `${currentNumString} ${currentNumString.length} ${unitTick} ${unitTicks[unitTick]}`;
-
-		// if (precision > 3) {
-		// 	unitTick += Math.floor(precision / 3);
-		// }
-
-		// const characters = currentNumString.slice(0, precision);
-
-		// return `${characters} ${unitTicks[unitTick]}`;
-
-		// const charactersAfterUnit = currentNumString.slice(
-		// 	-precision,
-		// 	0 - charactersBeforeUnit.length
-		// );
-
-		// const unit = unitTicks[unitTick];
-
-		// return `${charactersBeforeUnit}${
-		// 	charactersAfterUnit.length > 0
-		// 		? `${BigNum.delim}${charactersAfterUnit}`
-		// 		: ``
-		// }${unit}`;
 	}
 
 	public toJSON() {
