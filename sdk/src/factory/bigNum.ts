@@ -353,6 +353,10 @@ export class BigNum {
 		val: BN | number | string = ZERO,
 		precision?: BN | number | string
 	): BigNum {
+		assert(
+			new BN(precision).lt(new BN(100)),
+			'Tried to create a bignum with precision higher than 10^100'
+		);
 		return new BigNum(val, precision);
 	}
 
