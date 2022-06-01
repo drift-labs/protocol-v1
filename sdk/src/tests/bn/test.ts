@@ -2,9 +2,9 @@ import { BN } from '@project-serum/anchor';
 import { expect } from 'chai';
 import { BigNum } from '../../factory/bigNum';
 import {
-	TEN_THOUSAND,
 	AMM_RESERVE_PRECISION_EXP,
 	BASE_PRECISION_EXP,
+	TEN_THOUSAND,
 } from './../../constants/numericConstants';
 // if you used the '@types/mocha' method to install mocha type definitions, uncomment the following line
 // import 'mocha';
@@ -187,5 +187,20 @@ describe('BigNum Tests', () => {
 		parsed = parsed.shift(new BN(3));
 		expect(parsed.toString()).to.equal('123456000000');
 		expect(parsed.print()).to.equal('123.456000000');
+	});
+
+	it('can convert to a percentage', () => {
+		// JSON
+		const val = BigNum.from(new BN('100000'), 3);
+		const val2 = BigNum.from(new BN('200000'), 3);
+		const val3 = BigNum.from(new BN('66666'), 3);
+		const val4 = BigNum.from(new BN('50000'), 3);
+		const val5 = BigNum.from(new BN('700000'), 3);
+
+		expect(val.toPercentage(val2, 3)).to.equal('50.0');
+		expect(val.toPercentage(val2, 4)).to.equal('50.00');
+		expect(val3.toPercentage(val2, 4)).to.equal('33.33');
+		expect(val4.toPercentage(val2, 4)).to.equal('25.00');
+		expect(val.toPercentage(val5, 6)).to.equal('14.2857');
 	});
 });

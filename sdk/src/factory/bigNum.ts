@@ -98,7 +98,8 @@ export class BigNum {
 
 	public toPercentage(denominator: BigNum, precision: number): string {
 		return this.shift(precision)
-			.scale(100, denominator.val)
+			.shift(2, true)
+			.div(denominator)
 			.toPrecision(precision);
 	}
 
