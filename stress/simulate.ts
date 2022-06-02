@@ -1,0 +1,189 @@
+import * as anchor from '@project-serum/anchor';
+import { PublicKey } from '@solana/web3.js';
+import { BN } from '../sdk/lib';
+import csv from 'csvtojson';
+import fs from 'fs';
+import {
+    Admin, 
+	ClearingHouse,
+	PositionDirection,
+	ClearingHouseUser,
+    OracleSource, 
+    Market
+} from '../sdk/src';
+import * as drift from '../sdk/src'
+
+import { mockUserUSDCAccount, mockUSDCMint } from './mockAccounts';
+import { mockOracle } from './mockAccounts';
+import { getFeedData, setFeedPrice } from './mockPythUtils';
+import { initUserAccount } from './stressUtils'
+
+import * as web3 from '@solana/web3.js'
+var assert = require('assert');
+
+import {
+    save_states_to_csv,
+    serialize_user_and_positions,
+    serialize_position,
+    serialize_user,
+    serialize_market,
+} from './simulate_utils'
+
+async function main() {
+
+    // start local validator + load local programs upon startup 
+    var provider = anchor.AnchorProvider.local();
+    var connection = provider.connection;
+    anchor.setProvider(provider)
+
+    const chProgram = anchor.workspace.ClearingHouse as anchor.Program; // this.program-ify
+    console.log("ch_id:", chProgram.programId.toString()); // 8audUMDxGuB7hjQR3h1Fr4AhYXUd7mtpZH2MS1yaYpmn
+
+    const pyProgram = anchor.workspace.Pyth as anchor.Program; // this.program-ify
+    console.log("pyth_id:", pyProgram.programId.toString()); // 8audUMDxGuB7hjQR3h1Fr4AhYXUd7mtpZH2MS1yaYpmn
+
+    // setup 
+    const usdcMint = await mockUSDCMint(provider);
+    const clearingHouse = Admin.from(
+        connection,
+        provider.wallet, 
+        chProgram.programId
+    );
+    // init ch program
+    await clearingHouse.initialize(
+        usdcMint.publicKey,
+        true
+    )
+    await clearingHouse.subscribe();
+
+    // read csv files to simulate off of 
+    const sim_path = '../simulation-py/sim-crosscheck'
+    const events = await csv()
+        .fromFile(sim_path + "/events.csv")
+    const ch_states = await csv()
+        .fromFile(sim_path + "/simulation_state.csv")    
+    const oracle_prices = await csv()
+        .fromFile(sim_path + "/all_oracle_prices.csv")
+    
+    let ORACLE_PRECISION = 6 
+    
+    // init oracle 
+    let init_oracle_price = parseInt(oracle_prices[0]["price"])
+    let solUsd = await mockOracle(
+        init_oracle_price * 10 ** -ORACLE_PRECISION, 
+        -ORACLE_PRECISION
+    );
+
+    // init clearing house market 
+    let marketIndex = new anchor.BN(0)
+    var init_ch_state = ch_states[0]
+    
+    await clearingHouse.initializeMarket(
+        marketIndex,
+        solUsd,
+        new anchor.BN(parseInt(init_ch_state['m0_base_asset_reserve'])),
+        new anchor.BN(parseInt(init_ch_state['m0_quote_asset_reserve'])),
+        new anchor.BN(parseInt(init_ch_state['m0_funding_period'])),
+        new anchor.BN(parseInt(init_ch_state['m0_peg_multiplier'])),
+        OracleSource.PYTH,
+        init_ch_state['m0_margin_ratio_initial'],
+        init_ch_state['m0_margin_ratio_partial'],
+        init_ch_state['m0_margin_ratio_maintenance'],
+    );
+
+    // run through each event 
+    let users = {}
+    let market_state = []
+
+    for (let i = 0; i < events.length; i++) {
+        let event = events[i]
+        let timestamp = parseInt(event["timestamp"])
+        let event_name = event["event_name"]
+        console.log(`${i}/${events.length}:`,"event:", event_name)
+
+        if (event_name != "null") {
+            // set oracle price at timestep t 
+            let oracle_price_t = oracle_prices.find(or => or.timestamp == timestamp)["price"]
+            await setFeedPrice(
+                anchor.workspace.Pyth, 
+                oracle_price_t * 10 ** -ORACLE_PRECISION, 
+                solUsd,
+            );
+        }
+
+        // process the event 
+        if (event_name == "deposit_collateral") {
+            let parameters = JSON.parse(event["parameters"])
+            console.log(parameters)
+
+            let user_index = parameters["user_index"]
+            let deposit_amount = new anchor.BN(parameters["deposit_amount"])
+
+            if (!(user_index in users)) { 
+                var result = await initUserAccount(
+                    usdcMint, 
+                    new anchor.BN(deposit_amount), 
+                    provider,
+                )
+                let user_kp = result[0] as web3.Keypair
+                let user_ch = result[1] as ClearingHouse
+                let user_uch = result[2] as ClearingHouseUser
+
+                users[user_index] = {
+                    'user_kp': user_kp,
+                    'user_ch': user_ch,
+                    'user_uch': user_uch,
+                }
+            } else { 
+                throw Error("re-deposits not supported yet...")
+            }
+
+        } else if (event_name == "trade") { 
+            let parameters = JSON.parse(event["parameters"])
+            console.log(parameters)
+
+            let user_index = parameters["user_index"]
+            let quote_amount = parameters["quote_amount"]
+            let direction = parameters["direction"] == "long" ? PositionDirection.LONG : PositionDirection.SHORT
+            assert(parameters["direction"] == "long" || parameters["direction"] == "short")
+            let market_index = parameters["market_index"]
+            assert(market_index == 0, "only support market 0")
+
+            let user = users[user_index]
+            let user_ch: ClearingHouse = user['user_ch']
+            await user_ch.openPosition(
+                direction, 
+                new anchor.BN(quote_amount), 
+                new anchor.BN(market_index),
+            )
+
+        } else if (event_name == "null") {
+            // do nothing 
+        } else { 
+            throw Error("not supported yet...")
+        }
+
+        // serialize the full state 
+        let all_user_jsons = []
+        for (const [user_index, user] of Object.entries(users)) {
+            let user_json = await serialize_user_and_positions(
+                user, 
+                user_index
+            )   
+            all_user_jsons.push(user_json)
+        }
+        all_user_jsons = Object.assign({}, ...all_user_jsons)
+
+        let market = clearingHouse.getMarket(marketIndex)
+        let market_json = serialize_market(market)
+
+        let state = Object.assign({}, market_json, all_user_jsons)
+        state["timestamp"] = timestamp
+        market_state.push(state)
+    }
+    
+    save_states_to_csv(market_state, "simulation.csv")
+    console.log("done!")
+}
+
+main()
