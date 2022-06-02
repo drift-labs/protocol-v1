@@ -1,5 +1,5 @@
 import * as anchor from '@project-serum/anchor';
-import { Provider } from '@project-serum/anchor';
+import { AnchorProvider } from '@project-serum/anchor';
 import {
 	AccountLayout,
 	MintLayout,
@@ -20,12 +20,12 @@ export async function mockOracle(price = 50 * 10e7, expo = -7) {
 	// default: create a $50 coin oracle
 	const program = anchor.workspace.Pyth;
 
-	anchor.setProvider(anchor.Provider.env());
-	const priceFeedAddress = await createPriceFeed({
-		oracleProgram: program,
-		initPrice: price,
-		expo: expo,
-	});
+	// anchor.setProvider(anchor.AnchorProvider.env());
+	const priceFeedAddress = await createPriceFeed(
+		program,
+		price,
+		expo,
+	);
 
 	const feedData = await getFeedData(program, priceFeedAddress);
 	assert.ok(feedData.price === price);
@@ -33,7 +33,7 @@ export async function mockOracle(price = 50 * 10e7, expo = -7) {
 	return priceFeedAddress;
 }
 
-export async function mockUSDCMint(provider: Provider): Promise<Keypair> {
+export async function mockUSDCMint(provider: AnchorProvider): Promise<Keypair> {
 	const fakeUSDCMint = anchor.web3.Keypair.generate();
 	const createUSDCMintAccountIx = SystemProgram.createAccount({
 		fromPubkey: provider.wallet.publicKey,

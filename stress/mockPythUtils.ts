@@ -6,18 +6,20 @@ import { BN } from '../sdk';
 const empty32Buffer = buffer.Buffer.alloc(32);
 const PKorNull = (data) =>
 	data.equals(empty32Buffer) ? null : new anchor.web3.PublicKey(data);
-export const createPriceFeed = async ({
+
+export const createPriceFeed = async (
 	oracleProgram,
 	initPrice,
-	confidence = undefined,
-	expo = -4,
-}) => {
-	const conf = confidence || new BN((initPrice / 10) * 10 ** -expo);
+	expo,
+) => {
+	// const conf = new BN((initPrice / 10) * 10 ** -expo);
 	const collateralTokenFeed = new anchor.web3.Account();
+
+	console.log("rpc", new BN(initPrice * 10 ** -expo).toString())
 	await oracleProgram.rpc.initialize(
 		new BN(initPrice * 10 ** -expo),
-		expo,
-		conf,
+		new BN(expo),
+		new BN(1),
 		{
 			accounts: { price: collateralTokenFeed.publicKey },
 			signers: [collateralTokenFeed],

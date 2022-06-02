@@ -10,6 +10,8 @@ import {
 } from '../sdk/src';
 import { mockUserUSDCAccount } from './mockAccounts';
 
+
+
 export async function initUserAccounts(
 	NUM_USERS,
 	usdcMint,
@@ -70,14 +72,50 @@ export async function initUserAccounts(
 
 		userAccountInfos.push(userAccount);
 
-		// } catch (e) {
-		// 	assert(true);
-		// }
-
 		user_keys.push(userAccountPublicKey);
 	}
 	return [userUSDCAccounts, user_keys, clearingHouses, userAccountInfos];
 }
+
+export async function initUserAccount(
+	usdcMint,
+	usdcAmount,
+	provider: anchor.Provider
+) {
+	const chProgram = anchor.workspace.ClearingHouse as anchor.Program; // this.program-ify
+
+	const owner = anchor.web3.Keypair.generate();
+	const ownerWallet = new anchor.Wallet(owner);
+	await provider.connection.requestAirdrop(ownerWallet.publicKey, 100000000);
+
+	const userUSDCAccount = await mockUserUSDCAccount(
+		usdcMint,
+		usdcAmount,
+		provider,
+		ownerWallet.publicKey
+	);
+
+	const clearingHouse = ClearingHouse.from(
+		provider.connection,
+		ownerWallet,
+		chProgram.programId
+	);
+	await clearingHouse.subscribe();
+
+	await clearingHouse.initializeUserAccountAndDepositCollateral(
+		usdcAmount,
+		userUSDCAccount.publicKey
+	);
+
+	const clearingHouseUser = ClearingHouseUser.from(
+		clearingHouse,
+		ownerWallet.publicKey
+	);
+	await clearingHouseUser.subscribe();
+
+	return [userUSDCAccount, clearingHouse, clearingHouseUser]
+}
+
 
 export async function simEvent(
 	clearingHouse,

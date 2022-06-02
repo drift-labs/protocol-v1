@@ -4,7 +4,8 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "./test-scripts/run-ts-mocha"
+stress = 'bash ./stress/do.sh'
 
 [programs.localnet]
-clearing_house = "AsW7LnXB9UA1uec9wi9MctYTgTz7YH9snhxd16GsFaGX"
-pyth = "ASfdvRMCan2aoWtbDi5HLXhz2CFfgEkuDoxc57bJLKLX"
+clearing_house = "8audUMDxGuB7hjQR3h1Fr4AhYXUd7mtpZH2MS1yaYpmn"
+pyth = "2s5Aom1KJpoFesar3to6v1e562CMks1ea9TyeEe441b2"
