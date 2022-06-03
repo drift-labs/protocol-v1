@@ -16,7 +16,7 @@ import {
 import { assert } from 'chai';
 import { createPriceFeed, getFeedData } from './mockPythUtils';
 
-export async function mockOracle(price = 50 * 10e7, expo = -7) {
+export async function mockOracle(price, expo) {
 	// default: create a $50 coin oracle
 	const program = anchor.workspace.Pyth;
 
@@ -28,7 +28,7 @@ export async function mockOracle(price = 50 * 10e7, expo = -7) {
 	);
 
 	const feedData = await getFeedData(program, priceFeedAddress);
-	assert.ok(feedData.price === price);
+	assert.ok(feedData.price === price.toNumber() * 10 ** expo);
 
 	return priceFeedAddress;
 }

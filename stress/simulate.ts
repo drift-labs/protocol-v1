@@ -15,14 +15,13 @@ import * as drift from '../sdk/src'
 
 import { mockUserUSDCAccount, mockUSDCMint } from './mockAccounts';
 import { mockOracle } from './mockAccounts';
-import { getFeedData, setFeedPrice } from './mockPythUtils';
+import { getFeedData, setFeedPrice, setFeedPriceDirect } from './mockPythUtils';
 import { initUserAccount } from './stressUtils'
 
 import * as web3 from '@solana/web3.js'
 var assert = require('assert');
 
 import {
-    save_states_to_csv,
     serialize_user_and_positions,
     serialize_position,
     serialize_user,
@@ -57,7 +56,7 @@ async function main() {
     await clearingHouse.subscribe();
 
     // read csv files to simulate off of 
-    const sim_path = '../simulation-py/sim-crosscheck'
+    const sim_path = '../drift-sim/sim-results/sim-crosscheck'
     const events = await csv()
         .fromFile(sim_path + "/events.csv")
     const ch_states = await csv()
@@ -68,9 +67,11 @@ async function main() {
     let ORACLE_PRECISION = 6 
     
     // init oracle 
-    let init_oracle_price = parseInt(oracle_prices[0]["price"])
+    let init_oracle_price = new BN(
+        parseInt(oracle_prices[0]["price"])
+    )
     let solUsd = await mockOracle(
-        init_oracle_price * 10 ** -ORACLE_PRECISION, 
+        init_oracle_price, 
         -ORACLE_PRECISION
     );
 
@@ -104,9 +105,9 @@ async function main() {
         if (event_name != "null") {
             // set oracle price at timestep t 
             let oracle_price_t = oracle_prices.find(or => or.timestamp == timestamp)["price"]
-            await setFeedPrice(
+            await setFeedPriceDirect(
                 anchor.workspace.Pyth, 
-                oracle_price_t * 10 ** -ORACLE_PRECISION, 
+                new anchor.BN(oracle_price_t), 
                 solUsd,
             );
         }
@@ -138,7 +139,7 @@ async function main() {
                 throw Error("re-deposits not supported yet...")
             }
 
-        } else if (event_name == "trade") { 
+        } else if (event_name == "open_position") { 
             let parameters = JSON.parse(event["parameters"])
             console.log(parameters)
 
@@ -175,14 +176,20 @@ async function main() {
         all_user_jsons = Object.assign({}, ...all_user_jsons)
 
         let market = clearingHouse.getMarket(marketIndex)
-        let market_json = serialize_market(market)
+        let market_json = serialize_market(market, marketIndex.toNumber())
 
         let state = Object.assign({}, market_json, all_user_jsons)
         state["timestamp"] = timestamp
         market_state.push(state)
+
+        // console.log("market state:", state)
     }
     
-    save_states_to_csv(market_state, "simulation.csv")
+    fs.writeFileSync(
+        "simulation.csv",
+        JSON.stringify(market_state),
+    )
+
     console.log("done!")
 }
 

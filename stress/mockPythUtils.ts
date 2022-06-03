@@ -15,9 +15,9 @@ export const createPriceFeed = async (
 	// const conf = new BN((initPrice / 10) * 10 ** -expo);
 	const collateralTokenFeed = new anchor.web3.Account();
 
-	console.log("rpc", new BN(initPrice * 10 ** -expo).toString())
+	// console.log("rpc", new BN(initPrice * 10 ** -expo).toString())
 	await oracleProgram.rpc.initialize(
-		new BN(initPrice * 10 ** -expo),
+		initPrice,
 		new BN(expo),
 		new BN(1),
 		{
@@ -49,6 +49,13 @@ export const setFeedPrice = async (oracleProgram, newPrice, priceFeed) => {
 		accounts: { price: priceFeed },
 	});
 };
+
+export const setFeedPriceDirect = async (oracleProgram, newPrice, priceFeed) => {
+	await oracleProgram.rpc.setPrice(newPrice, {
+		accounts: { price: priceFeed },
+	});
+};
+
 export const getFeedData = async (oracleProgram, priceFeed) => {
 	const info = await oracleProgram.provider.connection.getAccountInfo(
 		priceFeed

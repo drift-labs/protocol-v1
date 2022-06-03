@@ -21,50 +21,6 @@ import { initUserAccount } from './stressUtils'
 import * as web3 from '@solana/web3.js'
 var assert = require('assert');
 
-export function save_states_to_csv(market_states, filename) {
-    // save to csv 
-    let df_rows = {}
-    // derive all column names 
-    let df_columns = []
-    for (let state of market_states) {
-        for (const [key, _] of Object.entries(state)) {
-            if (!df_columns.includes(key)) { 
-                df_columns.push(key)
-                df_rows[key] = []
-            }
-        }
-    }
-
-    // add row data to df 
-    for (let state of market_states) {
-        for (let column of df_columns) {
-            if (column in state) { 
-                let v = state[column]
-                df_rows[column].push(v)
-            } else { 
-                df_rows[column].push("NaN") // empty 
-            }
-        }
-    }
-
-    // rows => string 
-    let csv_string = ""
-    // add header 
-    csv_string += df_columns.join(",") + "\n"
-    // add rows 
-    for (let i=0; i < df_rows[df_columns[0]].length; i++) {
-        let row_string = ""
-        for (let column of df_columns) {
-            row_string += df_rows[column][i] + ","
-        }
-        csv_string += row_string + "\n"
-    }
-    fs.writeFileSync(
-        filename,
-        csv_string,
-    )
-}
-
 export async function serialize_user_and_positions(user, user_index) {
     let user_kp = user['user_kp'] as web3.Keypair
     let user_ch = user['user_ch'] as ClearingHouse
@@ -102,28 +58,6 @@ export async function serialize_user_and_positions(user, user_index) {
     return json_user
 }
 
-var rename = function(obj, prefix){
-
-    if(typeof obj !== 'object' || !obj){
-        return false;    // check the obj argument somehow
-    }
-
-    var keys = Object.keys(obj),
-        keysLen = keys.length,
-        prefix = prefix || '';
-
-    for(var i=0; i<keysLen ;i++){
-
-        obj[prefix+keys[i]] = obj[keys[i]];
-        if(typeof obj[keys[i]]=== 'object'){
-            rename(obj[prefix+keys[i]],prefix);
-        }
-        delete obj[keys[i]];
-    }
-
-    return obj;
-};
-
 export function serialize_position(position: any) {
     let result = {
         market_index: position.marketIndex.toString(),
@@ -155,7 +89,7 @@ export function serialize_user(user: drift.UserAccount) {
     return user_json
 }
 
-export function serialize_market(market: Market) {
+export function serialize_market(market: Market, market_index: number) {
     let market_json =  {
         initialized: market.initialized.toString(),
         base_asset_amount_long: market.baseAssetAmountLong.toString(),
@@ -188,5 +122,26 @@ export function serialize_market(market: Market) {
         margin_ratio_partial: market.marginRatioPartial.toString(),
         margin_ratio_maintenance: market.marginRatioMaintenance.toString(),
     }
+    // prepend m{index}_ to the market json
+    market_json = rename(market_json, `m${market_index}_`)
+
     return market_json
 }
+
+
+var rename = function(obj, prefix){
+    if(typeof obj !== 'object' || !obj){
+        return false;    // check the obj argument somehow
+    }
+    var keys = Object.keys(obj),
+        keysLen = keys.length,
+        prefix = prefix || '';
+    for(var i=0; i<keysLen ;i++){
+        obj[prefix+keys[i]] = obj[keys[i]];
+        if(typeof obj[keys[i]]=== 'object'){
+            rename(obj[prefix+keys[i]],prefix);
+        }
+        delete obj[keys[i]];
+    }
+    return obj;
+};
