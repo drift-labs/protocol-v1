@@ -1,6 +1,7 @@
 (
     sleep 1.5 # wait for validator to be up and running
     echo "running tests..."
+    solana config set -ul &&
     solana-keygen new -o owner.json --silent -f &&
     solana airdrop 1000 ./owner.json && 
     ANCHOR_WALLET=owner.json npx ts-node ./stress/simulate.ts 
