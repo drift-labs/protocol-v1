@@ -48,6 +48,7 @@ async function main() {
         provider.wallet, 
         chProgram.programId
     );
+    
     // init ch program
     await clearingHouse.initialize(
         usdcMint.publicKey,
@@ -64,7 +65,7 @@ async function main() {
     const oracle_prices = await csv()
         .fromFile(sim_path + "/all_oracle_prices.csv")
     
-    let ORACLE_PRECISION = 6 
+    let ORACLE_PRECISION = 10
     
     // init oracle 
     let init_oracle_price = new BN(
@@ -105,6 +106,7 @@ async function main() {
         if (event_name != "null") {
             // set oracle price at timestep t 
             let oracle_price_t = oracle_prices.find(or => or.timestamp == timestamp)["price"]
+
             await setFeedPriceDirect(
                 anchor.workspace.Pyth, 
                 new anchor.BN(oracle_price_t), 
@@ -115,8 +117,6 @@ async function main() {
         // process the event 
         if (event_name == "deposit_collateral") {
             let parameters = JSON.parse(event["parameters"])
-            console.log(parameters)
-
             let user_index = parameters["user_index"]
             let deposit_amount = new anchor.BN(parameters["deposit_amount"])
 
@@ -181,8 +181,6 @@ async function main() {
         let state = Object.assign({}, market_json, all_user_jsons)
         state["timestamp"] = timestamp
         market_state.push(state)
-
-        // console.log("market state:", state)
     }
     
     fs.writeFileSync(
