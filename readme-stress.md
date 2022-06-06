@@ -1,7 +1,5 @@
 ## build instructions
-- anchor build : generate pubkeys for programs 
-- modify declare_id! of each program lib.rs 
-- anchor build : again 
+- anchor build
 - anchor run sim
 
 ## key files 

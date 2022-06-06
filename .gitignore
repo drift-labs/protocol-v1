@@ -14,4 +14,5 @@ migrations
 
 node_log.txt
 *.json 
+!program-keys/*
 *.csv
