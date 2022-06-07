@@ -32,14 +32,14 @@ import {
 
 async function main() {
 	// extract simulation path from cli args
-	let simulationPath = "";
-	for (let i=0; i<argv.length; i++) {
+	let simulationPath = '';
+	for (let i = 0; i < argv.length; i++) {
 		let arg = argv[i];
 		if (arg.includes('--simulation-path=')) {
 			simulationPath = arg.split('=')[1];
 		}
 	}
-	assert(simulationPath != "", "--simulation-path=<path> must be specified");
+	assert(simulationPath != '', '--simulation-path=<path> must be specified');
 	console.log('simulation path:', simulationPath);
 
 	// start local validator + load local programs upon startup
@@ -47,8 +47,8 @@ async function main() {
 	var connection = provider.connection;
 	anchor.setProvider(provider);
 
-	const chProgram = anchor.workspace.ClearingHouse as anchor.Program; 
-	const pyProgram = anchor.workspace.Pyth as anchor.Program; 
+	const chProgram = anchor.workspace.ClearingHouse as anchor.Program;
+	const pyProgram = anchor.workspace.Pyth as anchor.Program;
 
 	// setup
 	const usdcMint = await mockUSDCMint(provider);
@@ -64,25 +64,29 @@ async function main() {
 
 	// read csv files to simulate off of
 	const events = await csv().fromFile(simulationPath + '/events.csv');
-	const ch_states = await csv().fromFile(simulationPath + '/simulation_state.csv');
+	const ch_states = await csv().fromFile(
+		simulationPath + '/simulation_state.csv'
+	);
 	const oracle_prices = await csv().fromFile(
 		simulationPath + '/all_oracle_prices.csv'
 	);
 
 	// init oracle
-	let ORACLE_PRECISION = 10; // 1e10 
+	let ORACLE_PRECISION = 10; // 1e10
 	let init_oracle_price = new BN(parseInt(oracle_prices[0]['price']));
 	let solUsd = await mockOracle(init_oracle_price, -ORACLE_PRECISION);
 
 	// init clearing house market
 	let marketIndex = new anchor.BN(0);
 	var init_ch_state = ch_states[0];
-
+	console.log(init_ch_state);
+	const baseR = init_ch_state['m0_base_asset_reserve'];
+	const quoteR = init_ch_state['m0_quote_asset_reserve'];
 	await clearingHouse.initializeMarket(
 		marketIndex,
 		solUsd,
-		new anchor.BN(parseInt(init_ch_state['m0_base_asset_reserve'])),
-		new anchor.BN(parseInt(init_ch_state['m0_quote_asset_reserve'])),
+		new anchor.BN(baseR),
+		new anchor.BN(quoteR),
 		new anchor.BN(parseInt(init_ch_state['m0_funding_period'])),
 		new anchor.BN(parseInt(init_ch_state['m0_peg_multiplier'])),
 		OracleSource.PYTH,
