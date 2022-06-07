@@ -21,6 +21,8 @@ import { initUserAccount } from './stressUtils';
 import * as web3 from '@solana/web3.js';
 var assert = require('assert');
 
+import { argv } from 'node:process';
+
 import {
 	serialize_user_and_positions,
 	serialize_position,
@@ -29,16 +31,24 @@ import {
 } from './simulate_utils';
 
 async function main() {
+	// extract simulation path from cli args
+	let simulationPath = "";
+	for (let i=0; i<argv.length; i++) {
+		let arg = argv[i];
+		if (arg.includes('--simulation-path=')) {
+			simulationPath = arg.split('=')[1];
+		}
+	}
+	assert(simulationPath != "", "--simulation-path=<path> must be specified");
+	console.log('simulation path:', simulationPath);
+
 	// start local validator + load local programs upon startup
 	var provider = anchor.AnchorProvider.local();
 	var connection = provider.connection;
 	anchor.setProvider(provider);
 
-	const chProgram = anchor.workspace.ClearingHouse as anchor.Program; // this.program-ify
-	console.log('ch_id:', chProgram.programId.toString()); // 8audUMDxGuB7hjQR3h1Fr4AhYXUd7mtpZH2MS1yaYpmn
-
-	const pyProgram = anchor.workspace.Pyth as anchor.Program; // this.program-ify
-	console.log('pyth_id:', pyProgram.programId.toString()); // 8audUMDxGuB7hjQR3h1Fr4AhYXUd7mtpZH2MS1yaYpmn
+	const chProgram = anchor.workspace.ClearingHouse as anchor.Program; 
+	const pyProgram = anchor.workspace.Pyth as anchor.Program; 
 
 	// setup
 	const usdcMint = await mockUSDCMint(provider);
@@ -53,16 +63,14 @@ async function main() {
 	await clearingHouse.subscribe();
 
 	// read csv files to simulate off of
-	const sim_path = '../sim-results/sim-crosscheck';
-	const events = await csv().fromFile(sim_path + '/events.csv');
-	const ch_states = await csv().fromFile(sim_path + '/simulation_state.csv');
+	const events = await csv().fromFile(simulationPath + '/events.csv');
+	const ch_states = await csv().fromFile(simulationPath + '/simulation_state.csv');
 	const oracle_prices = await csv().fromFile(
-		sim_path + '/all_oracle_prices.csv'
+		simulationPath + '/all_oracle_prices.csv'
 	);
 
-	let ORACLE_PRECISION = 10;
-
 	// init oracle
+	let ORACLE_PRECISION = 10; // 1e10 
 	let init_oracle_price = new BN(parseInt(oracle_prices[0]['price']));
 	let solUsd = await mockOracle(init_oracle_price, -ORACLE_PRECISION);
 
@@ -100,7 +108,7 @@ async function main() {
 			)['price'];
 
 			await setFeedPriceDirect(
-				anchor.workspace.Pyth,
+				pyProgram,
 				new anchor.BN(oracle_price_t),
 				solUsd
 			);

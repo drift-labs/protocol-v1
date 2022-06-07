@@ -4,7 +4,7 @@
     solana config set -ul &&
     solana-keygen new -o owner.json --silent -f &&
     solana airdrop 1000 ./owner.json && 
-    ANCHOR_WALLET=owner.json npx ts-node ./stress/simulate.ts 
+    ANCHOR_WALLET=owner.json npx ts-node ./stress/simulate.ts --simulation-path=$1
 ) & (
     solana-test-validator -r \
     --bpf-program ./program-keys/clearing_house-keypair.json ./target/deploy/clearing_house.so \

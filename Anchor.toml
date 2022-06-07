@@ -4,7 +4,6 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "./test-scripts/run-ts-mocha"
-sim = 'bash ./stress/run_local_sim.sh'
 
 [programs.localnet]
 clearing_house = "8audUMDxGuB7hjQR3h1Fr4AhYXUd7mtpZH2MS1yaYpmn"
